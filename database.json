@@ -1,0 +1,12 @@
+{
+    "user_101": {
+        "name": "Alex",
+        "gender": "Male",
+        "interests": [
+            "weightlifting",
+            "dark coffee"
+        ],
+        "last_pulse": 50,
+        "last_seen": 1775131361.3361185
+    }
+}
