@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 
 from src.config import AWAY_THRESHOLD_MINUTES, PULSE_DEFAULT
-from src.llm import get_mistria_response
+from src.llm import get_mistria_response, stream_mistria_response
 from src.persistence import load_user_data, save_user_session
 from src.sessions import SESSIONS
 
@@ -63,3 +63,36 @@ def run_chat_turn(
         pulse=session.pulse_engine.score,
         latency_seconds=latency,
     )
+
+
+def stream_chat_turn(user_id: str, message: str, resume_pulse: bool):
+    """Generator that yields (event_type, data) tuples for WebSocket streaming."""
+    user_info = load_user_data(user_id)
+    if not user_info:
+        yield "error", {"detail": f"Unknown user_id: {user_id}"}
+        return
+
+    last_pulse = int(user_info.get("last_pulse", PULSE_DEFAULT))
+    last_seen = float(user_info.get("last_seen", 0))
+    minutes_away = (time.time() - last_seen) / 60 if last_seen > 0 else 0
+
+    if last_seen > 0 and minutes_away > AWAY_THRESHOLD_MINUTES:
+        start_pulse = last_pulse if resume_pulse else PULSE_DEFAULT
+        SESSIONS.reset(user_id, initial_pulse=start_pulse)
+
+    session = SESSIONS.get_or_create(user_id, initial_pulse=last_pulse)
+    current_heat = session.pulse_engine.update(message)
+
+    start_time = time.time()
+    for token in stream_mistria_response(
+        message, current_heat, user_info, session.history,
+    ):
+        yield "token", {"token": token}
+
+    latency = round(time.time() - start_time, 2)
+    save_user_session(user_id, session.pulse_engine.score)
+
+    yield "done", {
+        "pulse": session.pulse_engine.score,
+        "latency_seconds": latency,
+    }
