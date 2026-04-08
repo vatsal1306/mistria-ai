@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
-from src import ROOT_DIR
+from src import ROOT_DIR, envs
 from src.prompts import CHAT_SYSTEM_PROMPT
 
 
@@ -50,8 +50,13 @@ class Chat:
 
 
 @dataclass(frozen=True, slots=True)
+class Auth:
+    min_password_length: int = 6
+
+
+@dataclass(frozen=True, slots=True)
 class Inference:
-    backend: str = "vllm"   # ['mock', 'vllm']
+    backend: str = "mock"  # ['mock', 'vllm']
     model_name: str = "dphn/Dolphin3.0-Llama3.1-8B"
     tokenizer_name: str | None = None
     temperature: float = 0.9
@@ -68,9 +73,15 @@ class Inference:
 
 
 @dataclass(frozen=True, slots=True)
+class Storage:
+    sqlite_path: str = os.path.join(ROOT_DIR, "data", "app.db")
+
+
+@dataclass(frozen=True, slots=True)
 class Secrets:
-    api_key: str = field(default_factory=lambda: os.getenv("MISTRIA_API_KEY", "local-dev").strip() or "local-dev")
-    hf_token: str = field(default_factory=lambda: os.getenv("HF_TOKEN", "").strip())
+    api_key: str = field(default_factory=lambda: (envs.get("MISTRIA_API_KEY", "local-dev")).strip())
+    hf_token: str = field(default_factory=lambda: (envs.get("HF_TOKEN", "")).strip())
+    auth_encryption_key: str = field(default_factory=lambda: (envs.get("MISTRIA_AUTH_ENCRYPTION_KEY", "")).strip())
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,8 +89,10 @@ class Settings:
     root_dir: str = ROOT_DIR
     app: App = field(default_factory=App)
     api: Api = field(default_factory=Api)
+    auth: Auth = field(default_factory=Auth)
     chat: Chat = field(default_factory=Chat)
     inference: Inference = field(default_factory=Inference)
+    storage: Storage = field(default_factory=Storage)
     secrets: Secrets = field(default_factory=Secrets)
 
 
