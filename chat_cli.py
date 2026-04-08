@@ -39,7 +39,7 @@ def _check_health() -> bool:
         req = urllib.request.Request(f"{BASE_URL}/health", method="GET")
         with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-            return data.get("status") == "ok"
+            return data.get("status") in {"ok", "degraded"}
     except (urllib.error.URLError, OSError):
         return False
 
@@ -91,11 +91,11 @@ def main() -> None:
             continue
 
         reply = result.get("reply", "")
-        pulse = result.get("pulse", "?")
+        connection = result.get("connection", "?")
         latency = result.get("latency_seconds", 0)
 
         print(f"\nMistria: {reply}")
-        print(f"\n  [pulse: {pulse}  |  latency: {latency:.1f}s]")
+        print(f"\n  [connection: {connection}%  |  latency: {latency:.1f}s]")
         print("-" * 50)
 
 

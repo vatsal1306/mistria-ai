@@ -6,7 +6,9 @@
             "weightlifting",
             "dark coffee"
         ],
-        "last_pulse": 100,
-        "last_seen": 1775312236.0793843
+        "companion_id": "mistria",
+        "engagement_score": 100,
+        "session_message_count": 12,
+        "last_seen": 1775655076.5393927
     }
 }
