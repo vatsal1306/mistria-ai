@@ -21,7 +21,7 @@ class Api:
     websocket_path: str = "/ws/chat"
     health_path: str = "/health"
     connect_timeout_seconds: float = 10.0
-    read_timeout_seconds: float = 120.0
+    read_timeout_seconds: float = 900.0
     require_api_key: bool = False
     cors_origins: tuple[str, ...] = (
         "http://127.0.0.1:8501",
@@ -51,7 +51,7 @@ class Chat:
 
 @dataclass(frozen=True, slots=True)
 class Inference:
-    backend: str = "mock"
+    backend: str = "vllm"   # ['mock', 'vllm']
     model_name: str = "dphn/Dolphin3.0-Llama3.1-8B"
     tokenizer_name: str | None = None
     temperature: float = 0.9
@@ -62,6 +62,8 @@ class Inference:
     dtype: str = "auto"
     trust_remote_code: bool = False
     enforce_eager: bool = False
+    engine_iteration_timeout_seconds: int = 900
+    startup_heartbeat_interval_seconds: float = 10.0
     mock_response_delay_seconds: float = 0.03
 
 
