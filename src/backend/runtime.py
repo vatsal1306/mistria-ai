@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
 from uuid import uuid4
@@ -22,6 +23,9 @@ class BaseInferenceRuntime(ABC):
         self.inference_config = inference_config
         self.secrets_config = secrets_config
         self._startup_error: str | None = None
+        self._startup_stage = "not_started"
+        self._startup_detail: str | None = None
+        self._startup_started_at: float | None = None
 
     @property
     def backend_name(self) -> str:
@@ -34,6 +38,20 @@ class BaseInferenceRuntime(ABC):
     @property
     def startup_error(self) -> str | None:
         return self._startup_error
+
+    @property
+    def startup_stage(self) -> str:
+        return self._startup_stage
+
+    @property
+    def startup_detail(self) -> str | None:
+        return self._startup_detail
+
+    @property
+    def startup_elapsed_seconds(self) -> float | None:
+        if self._startup_started_at is None:
+            return None
+        return round(time.monotonic() - self._startup_started_at, 1)
 
     @property
     @abstractmethod
@@ -52,6 +70,20 @@ class BaseInferenceRuntime(ABC):
     async def stream_text(self, request: ChatSocketRequest) -> AsyncGenerator[str, None]:
         """Stream response chunks for a request."""
 
+    def _set_startup_stage(self, stage: str, detail: str | None = None) -> None:
+        previous_stage = self._startup_stage
+        if self._startup_started_at is None and stage != "not_started":
+            self._startup_started_at = time.monotonic()
+        self._startup_stage = stage
+        self._startup_detail = detail
+        if stage != previous_stage:
+            logger.info(
+                "Runtime startup stage=%s elapsed=%.1fs detail=%s",
+                stage,
+                self.startup_elapsed_seconds or 0.0,
+                detail or "n/a",
+            )
+
 
 class MockInferenceRuntime(BaseInferenceRuntime):
     """Runnable local backend for UI and transport smoke tests."""
@@ -61,9 +93,11 @@ class MockInferenceRuntime(BaseInferenceRuntime):
         return True
 
     async def startup(self) -> None:
+        self._set_startup_stage("ready", "Mock backend is ready.")
         logger.info("Mock inference runtime initialized")
 
     async def shutdown(self) -> None:
+        self._set_startup_stage("stopped", "Mock backend has been stopped.")
         logger.info("Mock inference runtime stopped")
 
     async def stream_text(self, request: ChatSocketRequest) -> AsyncGenerator[str, None]:
@@ -86,36 +120,60 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
         self._tokenizer = None
         self._sampling_params_cls = None
         self._request_output_kind = None
+        self._startup_monitor_task: asyncio.Task | None = None
 
     @property
     def is_ready(self) -> bool:
         return self._engine is not None and self._tokenizer is not None and self._startup_error is None
 
     async def startup(self) -> None:
+        self._set_startup_stage("initializing", "Preparing embedded vLLM runtime.")
+        self._startup_monitor_task = asyncio.create_task(self._startup_monitor())
+
         if self.secrets_config.hf_token:
             os.environ["HF_TOKEN"] = self.secrets_config.hf_token
+        os.environ["VLLM_ENGINE_ITERATION_TIMEOUT_S"] = str(self.inference_config.engine_iteration_timeout_seconds)
 
         try:
+            self._set_startup_stage("importing_runtime", "Importing transformers and vLLM modules.")
             from transformers import AutoTokenizer
             from vllm import SamplingParams
+            from vllm.engine.async_llm_engine import AsyncLLMEngine
             from vllm.engine.arg_utils import AsyncEngineArgs
+            from vllm.platforms import current_platform
             from vllm.sampling_params import RequestOutputKind
-            from vllm.v1.engine.async_llm import AsyncLLM
-        except ImportError:
+        except Exception as exc:
             self._startup_error = (
-                "vLLM runtime is not installed. Install the optional inference dependency on a supported host."
+                "vLLM runtime import failed. "
+                f"{type(exc).__name__}: {exc}"
             )
+            self._set_startup_stage("failed", self._startup_error)
             logger.exception("vLLM imports failed during startup")
+            await self._stop_startup_monitor()
             return
 
         try:
+            use_v1 = current_platform.device_type != "cpu"
+            os.environ["VLLM_USE_V1"] = "1" if use_v1 else "0"
             tokenizer_name = self.inference_config.tokenizer_name or self.inference_config.model_name
+            self._set_startup_stage(
+                "loading_tokenizer",
+                f"Loading tokenizer for {tokenizer_name}.",
+            )
             self._tokenizer = AutoTokenizer.from_pretrained(
                 tokenizer_name,
                 trust_remote_code=self.inference_config.trust_remote_code,
                 token=self.secrets_config.hf_token or None,
             )
 
+            self._set_startup_stage(
+                "building_engine",
+                f"Building vLLM engine on device={current_platform.device_type} (v1={use_v1}).",
+            )
+            logger.info(
+                "Using vLLM engine iteration timeout=%ss",
+                self.inference_config.engine_iteration_timeout_seconds,
+            )
             engine_args = AsyncEngineArgs(
                 model=self.inference_config.model_name,
                 tokenizer=tokenizer_name,
@@ -125,19 +183,37 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
                 trust_remote_code=self.inference_config.trust_remote_code,
                 enforce_eager=self.inference_config.enforce_eager,
             )
-            self._engine = AsyncLLM.from_engine_args(engine_args)
+            self._set_startup_stage(
+                "loading_model",
+                "Downloading and loading model weights. This can take several minutes on first CPU startup.",
+            )
+            self._engine = AsyncLLMEngine.from_engine_args(engine_args)
             self._sampling_params_cls = SamplingParams
             self._request_output_kind = RequestOutputKind
             self._startup_error = None
-            logger.info("Embedded vLLM runtime initialized for model=%s", self.inference_config.model_name)
+            self._set_startup_stage("ready", "Embedded vLLM runtime is ready.")
+            logger.info(
+                "Embedded vLLM runtime initialized for model=%s device=%s v1=%s",
+                self.inference_config.model_name,
+                current_platform.device_type,
+                use_v1,
+            )
         except Exception as exc:
             self._startup_error = f"{type(exc).__name__}: {exc}"
+            self._set_startup_stage("failed", self._startup_error)
             logger.exception("Embedded vLLM runtime failed to initialize")
+        finally:
+            await self._stop_startup_monitor()
 
     async def shutdown(self) -> None:
+        await self._stop_startup_monitor()
         if self._engine is not None:
-            self._engine.shutdown()
+            if hasattr(self._engine, "shutdown"):
+                self._engine.shutdown()
+            elif hasattr(self._engine, "shutdown_background_loop"):
+                self._engine.shutdown_background_loop()
             self._engine = None
+            self._set_startup_stage("stopped", "Embedded vLLM runtime has been stopped.")
             logger.info("Embedded vLLM runtime stopped")
 
     async def stream_text(self, request: ChatSocketRequest) -> AsyncGenerator[str, None]:
@@ -164,6 +240,12 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
                         yield completion.text
                 if output.finished:
                     break
+        except asyncio.TimeoutError as exc:
+            logger.exception("vLLM generation timed out for request_id=%s", request_id)
+            raise InferenceExecutionError(
+                "Generation exceeded the configured vLLM engine timeout. "
+                "On CPU with this model, increase engine_iteration_timeout_seconds or use a smaller model."
+            ) from exc
         except Exception as exc:
             logger.exception("vLLM generation failed for request_id=%s", request_id)
             raise InferenceExecutionError(f"{type(exc).__name__}: {exc}") from exc
@@ -189,6 +271,30 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
     def _resolve_system_prompt(self, override_prompt: str | None) -> str:
         prompt = override_prompt or self.chat_config.system_prompt
         return f"{prompt}\n\n{self.chat_config.pulse_context}"
+
+    async def _startup_monitor(self) -> None:
+        try:
+            while True:
+                await asyncio.sleep(self.inference_config.startup_heartbeat_interval_seconds)
+                if self.is_ready or self._startup_stage in {"failed", "stopped"}:
+                    return
+                logger.info(
+                    "Runtime startup in progress stage=%s elapsed=%.1fs detail=%s",
+                    self._startup_stage,
+                    self.startup_elapsed_seconds or 0.0,
+                    self._startup_detail or "n/a",
+                )
+        except asyncio.CancelledError:
+            return
+
+    async def _stop_startup_monitor(self) -> None:
+        if self._startup_monitor_task is not None:
+            self._startup_monitor_task.cancel()
+            try:
+                await self._startup_monitor_task
+            except asyncio.CancelledError:
+                pass
+            self._startup_monitor_task = None
 
 
 class InferenceRuntimeFactory:
