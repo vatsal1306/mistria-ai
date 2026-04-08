@@ -162,6 +162,7 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
             )
             self._tokenizer = AutoTokenizer.from_pretrained(
                 tokenizer_name,
+                revision=self.inference_config.tokenizer_revision or self.inference_config.model_revision,
                 trust_remote_code=self.inference_config.trust_remote_code,
                 token=self.secrets_config.hf_token or None,
             )
@@ -176,7 +177,9 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
             )
             engine_args = AsyncEngineArgs(
                 model=self.inference_config.model_name,
+                revision=self.inference_config.model_revision,
                 tokenizer=tokenizer_name,
+                tokenizer_revision=self.inference_config.tokenizer_revision or self.inference_config.model_revision,
                 tensor_parallel_size=self.inference_config.tensor_parallel_size,
                 dtype=self.inference_config.dtype,
                 max_model_len=self.inference_config.max_model_len,
