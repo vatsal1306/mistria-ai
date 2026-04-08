@@ -7,6 +7,9 @@ import streamlit as st
 from src.chat.client import ChatClientError, StreamingChatClient
 from src.config import settings
 
+USER_AVATAR = ":material/person:"
+ASSISTANT_AVATAR = ":material/auto_awesome:"
+
 st.set_page_config(
     page_title=settings.app.title,
     page_icon="💬",
@@ -19,6 +22,31 @@ def _bootstrap_state() -> None:
         st.session_state.messages = []
     if "system_prompt" not in st.session_state:
         st.session_state.system_prompt = settings.chat.system_prompt
+    if "chat_client" not in st.session_state:
+        st.session_state.chat_client = StreamingChatClient(settings.api, settings.chat, settings.secrets)
+    if "connection_error" not in st.session_state:
+        st.session_state.connection_error = None
+
+
+def _get_chat_client() -> StreamingChatClient:
+    return st.session_state.chat_client
+
+
+def _start_chat_session() -> None:
+    client = _get_chat_client()
+    try:
+        client.connect()
+        st.session_state.connection_error = None
+    except ChatClientError as exc:
+        st.session_state.connection_error = str(exc)
+    st.rerun()
+
+
+def _stop_chat_session() -> None:
+    client = _get_chat_client()
+    client.disconnect()
+    st.session_state.connection_error = None
+    st.rerun()
 
 
 def _render_theme() -> None:
@@ -114,12 +142,31 @@ def _render_header() -> None:
 
 def _render_sidebar() -> None:
     with st.sidebar:
+        client = _get_chat_client()
         st.subheader("Session")
         st.write(f"**Model**  `{settings.inference.model_name}`")
         st.write(f"**WebSocket**  `{settings.api.websocket_url}`")
         st.write(f"**Backend**  `{settings.inference.backend}`")
         st.write(f"**Pulse**  `{settings.chat.fixed_pulse_bpm} BPM`")
-        st.caption("The pulse value is appended to every system prompt as a fixed placeholder.")
+        st.write(f"**Socket**  `{'connected' if client.is_connected else 'disconnected'}`")
+        if st.session_state.connection_error:
+            st.error(st.session_state.connection_error)
+        connect_col, disconnect_col = st.columns(2)
+        with connect_col:
+            st.button(
+                "Start chat",
+                use_container_width=True,
+                on_click=_start_chat_session,
+                disabled=client.is_connected,
+            )
+        with disconnect_col:
+            st.button(
+                "Stop chat",
+                use_container_width=True,
+                on_click=_stop_chat_session,
+                disabled=not client.is_connected,
+            )
+        st.caption("Open one websocket session, reuse it across messages, and close it explicitly when done.")
         if st.button("Clear chat", use_container_width=True):
             st.session_state.messages = []
             st.rerun()
@@ -148,18 +195,22 @@ def _render_messages() -> None:
         return
 
     for message in st.session_state.messages:
-        avatar = "A" if message["role"] == "assistant" else "U"
+        avatar = ASSISTANT_AVATAR if message["role"] == "assistant" else USER_AVATAR
         with st.chat_message(message["role"], avatar=avatar):
             st.markdown(message["content"])
 
 
 def _stream_assistant_reply(prompt: str) -> None:
+    client = _get_chat_client()
+    if not client.is_connected:
+        st.session_state.connection_error = "No active websocket session. Click 'Start chat' before sending messages."
+        st.rerun()
+
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user", avatar="U"):
+    with st.chat_message("user", avatar=USER_AVATAR):
         st.markdown(prompt)
 
-    client = StreamingChatClient(settings.api, settings.chat, settings.secrets)
-    with st.chat_message("assistant", avatar="A"):
+    with st.chat_message("assistant", avatar=ASSISTANT_AVATAR):
         try:
             response_text = st.write_stream(
                 client.stream_reply(
@@ -167,7 +218,9 @@ def _stream_assistant_reply(prompt: str) -> None:
                     system_prompt=st.session_state.system_prompt,
                 )
             )
+            st.session_state.connection_error = None
         except ChatClientError as exc:
+            st.session_state.connection_error = str(exc)
             st.error(str(exc))
             return
 
@@ -183,7 +236,10 @@ def main() -> None:
     _render_header()
     _render_messages()
 
-    prompt = st.chat_input(f"Message {settings.chat.companion_name}...")
+    prompt = st.chat_input(
+        f"Message {settings.chat.companion_name}...",
+        disabled=not _get_chat_client().is_connected,
+    )
     if prompt:
         _stream_assistant_reply(prompt)
 
