@@ -74,7 +74,7 @@ class Engagement:
 
 @dataclass(frozen=True, slots=True)
 class Inference:
-    backend: str = "mock"  # ['mock', 'vllm', 'ollama']
+    backend: str = "mock"  # ['mock', 'vllm']
     model_name: str = "dphn/Dolphin3.0-Llama3.1-8B"
     tokenizer_name: str | None = None
     temperature: float = 0.9
@@ -88,9 +88,6 @@ class Inference:
     engine_iteration_timeout_seconds: int = 900
     startup_heartbeat_interval_seconds: float = 10.0
     mock_response_delay_seconds: float = 0.03
-    ollama_host: str = field(
-        default_factory=lambda: envs.get("OLLAMA_HOST", "http://localhost:11434").strip(),
-    )
 
 
 @dataclass(frozen=True, slots=True)

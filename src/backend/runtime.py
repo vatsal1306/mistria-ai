@@ -297,76 +297,6 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
             self._startup_monitor_task = None
 
 
-class OllamaInferenceRuntime(BaseInferenceRuntime):
-    """Ollama-based runtime for local self-hosted inference."""
-
-    def __init__(self, chat_config: Chat, inference_config: Inference, secrets_config: Secrets):
-        super().__init__(chat_config, inference_config, secrets_config)
-        self._client = None
-        self._ready = False
-
-    @property
-    def is_ready(self) -> bool:
-        return self._ready
-
-    async def startup(self) -> None:
-        self._set_startup_stage("initializing", "Connecting to Ollama server.")
-        try:
-            import ollama as _ollama_module
-            self._client = _ollama_module.AsyncClient(host=self.inference_config.ollama_host)
-            self._set_startup_stage("checking_model", f"Verifying model {self.inference_config.model_name}.")
-            models_resp = await self._client.list()
-            available = [m.model.split(":")[0] for m in models_resp.models]
-            target = self.inference_config.model_name.split(":")[0]
-            if target not in available:
-                self._set_startup_stage("pulling_model", f"Pulling {self.inference_config.model_name}.")
-                await self._client.pull(self.inference_config.model_name)
-            self._ready = True
-            self._set_startup_stage("ready", "Ollama runtime is ready.")
-            logger.info(
-                "Ollama runtime initialized for model=%s host=%s",
-                self.inference_config.model_name,
-                self.inference_config.ollama_host,
-            )
-        except Exception as exc:
-            self._startup_error = f"{type(exc).__name__}: {exc}"
-            self._set_startup_stage("failed", self._startup_error)
-            logger.exception("Ollama runtime failed to initialize")
-
-    async def shutdown(self) -> None:
-        self._ready = False
-        self._client = None
-        self._set_startup_stage("stopped", "Ollama runtime has been stopped.")
-        logger.info("Ollama runtime stopped")
-
-    async def stream_text(self, request: ChatSocketRequest) -> AsyncGenerator[str, None]:
-        if not self.is_ready or self._client is None:
-            raise InferenceNotReadyError(self._startup_error or "Ollama runtime is not ready.")
-
-        messages = [
-            {"role": "system", "content": request.system_prompt or self.chat_config.system_prompt},
-            *[m.model_dump() for m in request.messages],
-        ]
-        try:
-            stream = await self._client.chat(
-                model=self.inference_config.model_name,
-                messages=messages,
-                stream=True,
-                options={
-                    "temperature": self.inference_config.temperature,
-                    "top_p": self.inference_config.top_p,
-                    "num_predict": self.inference_config.max_tokens,
-                },
-            )
-            async for chunk in stream:
-                token = chunk.get("message", {}).get("content", "")
-                if token:
-                    yield token
-        except Exception as exc:
-            logger.exception("Ollama generation failed")
-            raise InferenceExecutionError(f"Ollama error: {exc}") from exc
-
-
 class InferenceRuntimeFactory:
     """Construct runtime implementations from static configuration."""
 
@@ -376,6 +306,4 @@ class InferenceRuntimeFactory:
             return MockInferenceRuntime(chat_config, inference_config, secrets_config)
         if inference_config.backend == "vllm":
             return VLLMInferenceRuntime(chat_config, inference_config, secrets_config)
-        if inference_config.backend == "ollama":
-            return OllamaInferenceRuntime(chat_config, inference_config, secrets_config)
         raise ConfigurationError(f"Unsupported inference backend: {inference_config.backend}")
