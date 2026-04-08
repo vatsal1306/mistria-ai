@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
+import socket
 import time
 import urllib.error
 import urllib.request
@@ -46,7 +48,7 @@ def wait_for_http(url: str, timeout_seconds: float) -> None:
                 if response.status == 200:
                     return
                 last_error = RuntimeError(f"Unexpected status code {response.status} for {url}")
-        except urllib.error.URLError as exc:
+        except (urllib.error.URLError, ConnectionResetError, http.client.HTTPException, OSError, socket.timeout) as exc:
             last_error = exc
         time.sleep(2.0)
 
