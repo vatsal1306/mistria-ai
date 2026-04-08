@@ -57,4 +57,7 @@ class HealthResponse(BaseModel):
     model_name: str
     engine_ready: bool
     websocket_path: str
+    startup_stage: str
+    startup_detail: str | None = None
+    startup_elapsed_seconds: float | None = None
     startup_error: str | None = None
