@@ -65,6 +65,9 @@ async def health() -> HealthResponse:
         model_name=runtime.model_name,
         engine_ready=runtime.is_ready,
         websocket_path=settings.api.websocket_path,
+        startup_stage=runtime.startup_stage,
+        startup_detail=runtime.startup_detail,
+        startup_elapsed_seconds=runtime.startup_elapsed_seconds,
         startup_error=runtime.startup_error,
     )
 
@@ -76,9 +79,9 @@ async def chat_socket(websocket: WebSocket) -> None:
 
 if __name__ == "__main__":
     uvicorn.run(
-        app,
+        "main:app",
         host=settings.api.host,
         port=settings.api.port,
-        reload=False,
-        log_level="info",
+        reload=True,
+        # log_level="info",
     )
