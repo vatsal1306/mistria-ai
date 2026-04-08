@@ -74,12 +74,12 @@ class Engagement:
 
 @dataclass(frozen=True, slots=True)
 class Inference:
-    backend: str = "ollama"  # ['mock', 'vllm', 'ollama']
-    model_name: str = "dolphin-llama3"
+    backend: str = "mock"  # ['mock', 'vllm', 'ollama']
+    model_name: str = "dphn/Dolphin3.0-Llama3.1-8B"
     tokenizer_name: str | None = None
-    temperature: float = 0.88
-    top_p: float = 0.9
-    max_tokens: int = 150
+    temperature: float = 0.9
+    top_p: float = 0.95
+    max_tokens: int = 350
     max_model_len: int = 4096
     tensor_parallel_size: int = 1
     dtype: str = "auto"

@@ -66,23 +66,6 @@ class HealthResponse(BaseModel):
     startup_error: str | None = None
 
 
-class ChatRestRequest(BaseModel):
-    """REST API request for a single chat turn."""
-
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-
-    user_id: str = Field(..., min_length=1)
-    message: str = Field(..., min_length=1)
-
-
-class ChatRestResponse(BaseModel):
-    """REST API response for a single chat turn."""
-
-    reply: str
-    connection: int = Field(..., ge=0, le=100)
-    latency_seconds: float = Field(..., ge=0)
-
-
 class ResetRequest(BaseModel):
     """Request to reset a user's session."""
 

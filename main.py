@@ -13,8 +13,6 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from src.backend.exceptions import ConfigurationError
 from src.backend.runtime import InferenceRuntimeFactory
 from src.backend.schemas import (
-    ChatRestRequest,
-    ChatRestResponse,
     EngagementResponse,
     HealthResponse,
     ResetRequest,
@@ -91,21 +89,6 @@ async def health() -> HealthResponse:
         startup_detail=runtime.startup_detail,
         startup_elapsed_seconds=runtime.startup_elapsed_seconds,
         startup_error=runtime.startup_error,
-    )
-
-
-@app.post("/chat", response_model=ChatRestResponse)
-async def chat(body: ChatRestRequest) -> ChatRestResponse:
-    result = await chat_service.run_chat_turn(body.user_id, body.message)
-    if result is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Unknown user_id: {body.user_id}",
-        )
-    return ChatRestResponse(
-        reply=result.reply,
-        connection=result.connection,
-        latency_seconds=result.latency_seconds,
     )
 
 
