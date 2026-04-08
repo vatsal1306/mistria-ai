@@ -28,6 +28,8 @@ class StreamingChatClient:
         self._websocket: Any | None = None
         self._backend_name: str | None = None
         self._model_name: str | None = None
+        self._last_connection: int | None = None
+        self._last_latency: float | None = None
 
     @property
     def is_connected(self) -> bool:
@@ -40,6 +42,14 @@ class StreamingChatClient:
     @property
     def model_name(self) -> str | None:
         return self._model_name
+
+    @property
+    def last_connection(self) -> int | None:
+        return self._last_connection
+
+    @property
+    def last_latency(self) -> float | None:
+        return self._last_latency
 
     def connect(self) -> None:
         if self.is_connected:
@@ -79,16 +89,19 @@ class StreamingChatClient:
         self,
         messages: list[dict[str, str]],
         system_prompt: str | None = None,
+        user_id: str | None = None,
     ) -> Generator[str, None, None]:
         if not self.is_connected:
             raise ChatClientError("No active websocket session. Click 'Start chat' before sending messages.")
 
-        request_payload = {
+        request_payload: dict[str, Any] = {
             "action": "chat",
             "request_id": uuid4().hex,
             "system_prompt": system_prompt or self.chat_config.system_prompt,
             "messages": self._trim_messages(messages),
         }
+        if user_id:
+            request_payload["user_id"] = user_id
 
         try:
             self._websocket.send(json.dumps(request_payload))
@@ -136,6 +149,8 @@ class StreamingChatClient:
                     yield delta
                 continue
             if event_type == "done":
+                self._last_connection = frame.get("connection")
+                self._last_latency = frame.get("latency_seconds")
                 break
             if event_type == "error":
                 raise ChatClientError(frame.get("detail", "Unknown websocket backend error."))

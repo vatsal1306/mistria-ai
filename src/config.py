@@ -17,7 +17,7 @@ class App:
 @dataclass(frozen=True, slots=True)
 class Api:
     host: str = "127.0.0.1"
-    port: int = 8080
+    port: int = 8000
     websocket_path: str = "/ws/chat"
     health_path: str = "/health"
     connect_timeout_seconds: float = 10.0
@@ -26,6 +26,8 @@ class Api:
     cors_origins: tuple[str, ...] = (
         "http://127.0.0.1:8501",
         "http://localhost:8501",
+        "http://127.0.0.1:8000",
+        "http://localhost:8000",
     )
 
     @property
@@ -39,7 +41,8 @@ class Api:
 
 @dataclass(frozen=True, slots=True)
 class Chat:
-    companion_name: str = "Aria"
+    companion_name: str = "Mistria"
+    default_companion_id: str = "mistria"
     fixed_pulse_bpm: int = 82
     history_message_limit: int = 24
     system_prompt: str = CHAT_SYSTEM_PROMPT
@@ -55,13 +58,28 @@ class Auth:
 
 
 @dataclass(frozen=True, slots=True)
+class Engagement:
+    """Engagement scoring aligned with the Escalation & Engagement Spec."""
+
+    max_score: int = 100
+    default_score: int = 0
+    per_message_score: int = 1
+    session_bonus_threshold: int = 5
+    session_bonus_score: int = 2
+    emotional_score: int = 3
+    voice_score: int = 5
+    decay_12h: int = 5
+    decay_24h: int = 15
+
+
+@dataclass(frozen=True, slots=True)
 class Inference:
-    backend: str = "mock"  # ['mock', 'vllm']
-    model_name: str = "dphn/Dolphin3.0-Llama3.1-8B"
+    backend: str = "ollama"  # ['mock', 'vllm', 'ollama']
+    model_name: str = "dolphin-llama3"
     tokenizer_name: str | None = None
-    temperature: float = 0.9
-    top_p: float = 0.95
-    max_tokens: int = 350
+    temperature: float = 0.88
+    top_p: float = 0.9
+    max_tokens: int = 150
     max_model_len: int = 4096
     tensor_parallel_size: int = 1
     dtype: str = "auto"
@@ -70,6 +88,9 @@ class Inference:
     engine_iteration_timeout_seconds: int = 900
     startup_heartbeat_interval_seconds: float = 10.0
     mock_response_delay_seconds: float = 0.03
+    ollama_host: str = field(
+        default_factory=lambda: envs.get("OLLAMA_HOST", "http://localhost:11434").strip(),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +112,7 @@ class Settings:
     api: Api = field(default_factory=Api)
     auth: Auth = field(default_factory=Auth)
     chat: Chat = field(default_factory=Chat)
+    engagement: Engagement = field(default_factory=Engagement)
     inference: Inference = field(default_factory=Inference)
     storage: Storage = field(default_factory=Storage)
     secrets: Secrets = field(default_factory=Secrets)

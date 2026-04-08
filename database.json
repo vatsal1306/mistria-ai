@@ -1,0 +1,14 @@
+{
+    "user_101": {
+        "name": "Alex",
+        "gender": "Male",
+        "interests": [
+            "weightlifting",
+            "dark coffee"
+        ],
+        "companion_id": "mistria",
+        "engagement_score": 0,
+        "session_message_count": 0,
+        "last_seen": 0
+    }
+}

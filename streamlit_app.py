@@ -67,6 +67,7 @@ def _bootstrap_state() -> None:
         "connection_error": None,
         "auth_error": None,
         "welcome_message": None,
+        "connection_pct": 0,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -499,6 +500,19 @@ def _render_sidebar(services: StreamlitServices) -> None:
             _clear_chat_history(services)
 
         st.markdown("---")
+        st.markdown(
+            f"""
+            <div class="sidebar-card">
+                <div class="sidebar-label">Connection</div>
+                <div class="sidebar-title" style="font-size:1.8rem;
+                    background:linear-gradient(135deg,#e879a8,#a855f7);
+                    -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+                    {st.session_state.connection_pct}%
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         st.caption(
             "Private channel open. Stay in the moment, keep the signal live, and pick up exactly where the chemistry left off."
         )
@@ -574,13 +588,24 @@ def _handle_chat_submission(services: StreamlitServices, prompt: str) -> None:
 
     with st.chat_message("assistant", avatar=ASSISTANT_AVATAR):
         try:
+            user_email = st.session_state.current_user.get("email", "") if st.session_state.current_user else ""
             response_text = st.write_stream(
                 client.stream_reply(
                     messages=st.session_state.messages,
                     system_prompt=settings.chat.system_prompt,
+                    user_id=user_email,
                 )
             )
             st.session_state.connection_error = None
+            if client.last_connection is not None:
+                st.session_state.connection_pct = client.last_connection
+            meta_parts = []
+            if client.last_connection is not None:
+                meta_parts.append(f"Connection: {client.last_connection}%")
+            if client.last_latency is not None:
+                meta_parts.append(f"{client.last_latency:.1f}s")
+            if meta_parts:
+                st.caption(" · ".join(meta_parts))
         except ChatClientError as exc:
             st.session_state.connection_error = str(exc)
             st.error(str(exc))

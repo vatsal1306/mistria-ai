@@ -26,6 +26,7 @@ class ChatSocketRequest(BaseModel):
     user_id: str | None = Field(default=None, max_length=128)
     system_prompt: str | None = Field(default=None, max_length=20_000)
     messages: list[ChatMessage] = Field(min_length=1, max_length=200)
+    resume_pulse: bool = True
 
     @model_validator(mode="after")
     def validate_message_sequence(self) -> "ChatSocketRequest":
@@ -46,6 +47,8 @@ class ChatSocketEvent(BaseModel):
     delta: str | None = None
     text: str | None = None
     detail: str | None = None
+    connection: int | None = None
+    latency_seconds: float | None = None
 
 
 class HealthResponse(BaseModel):
@@ -61,3 +64,44 @@ class HealthResponse(BaseModel):
     startup_detail: str | None = None
     startup_elapsed_seconds: float | None = None
     startup_error: str | None = None
+
+
+class ChatRestRequest(BaseModel):
+    """REST API request for a single chat turn."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    user_id: str = Field(..., min_length=1)
+    message: str = Field(..., min_length=1)
+
+
+class ChatRestResponse(BaseModel):
+    """REST API response for a single chat turn."""
+
+    reply: str
+    connection: int = Field(..., ge=0, le=100)
+    latency_seconds: float = Field(..., ge=0)
+
+
+class ResetRequest(BaseModel):
+    """Request to reset a user's session."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    user_id: str = Field(..., min_length=1)
+
+
+class SetEngagementRequest(BaseModel):
+    """Request to manually set a user's engagement score (dev/admin only)."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    user_id: str = Field(..., min_length=1)
+    score: int = Field(..., ge=0, le=100)
+
+
+class EngagementResponse(BaseModel):
+    """Response for engagement/reset operations."""
+
+    connection: int
+    message: str
