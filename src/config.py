@@ -17,7 +17,7 @@ class App:
 @dataclass(frozen=True, slots=True)
 class Api:
     host: str = "127.0.0.1"
-    port: int = 8000
+    port: int = 8080
     websocket_path: str = "/ws/chat"
     health_path: str = "/health"
     connect_timeout_seconds: float = 10.0
@@ -26,8 +26,6 @@ class Api:
     cors_origins: tuple[str, ...] = (
         "http://127.0.0.1:8501",
         "http://localhost:8501",
-        "http://127.0.0.1:8000",
-        "http://localhost:8000",
     )
 
     @property
@@ -55,21 +53,6 @@ class Chat:
 @dataclass(frozen=True, slots=True)
 class Auth:
     min_password_length: int = 6
-
-
-@dataclass(frozen=True, slots=True)
-class Engagement:
-    """Engagement scoring aligned with the Escalation & Engagement Spec."""
-
-    max_score: int = 100
-    default_score: int = 0
-    per_message_score: int = 1
-    session_bonus_threshold: int = 5
-    session_bonus_score: int = 2
-    emotional_score: int = 3
-    voice_score: int = 5
-    decay_12h: int = 5
-    decay_24h: int = 15
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,7 +92,6 @@ class Settings:
     api: Api = field(default_factory=Api)
     auth: Auth = field(default_factory=Auth)
     chat: Chat = field(default_factory=Chat)
-    engagement: Engagement = field(default_factory=Engagement)
     inference: Inference = field(default_factory=Inference)
     storage: Storage = field(default_factory=Storage)
     secrets: Secrets = field(default_factory=Secrets)

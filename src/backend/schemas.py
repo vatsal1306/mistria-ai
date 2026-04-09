@@ -47,7 +47,6 @@ class ChatSocketEvent(BaseModel):
     delta: str | None = None
     text: str | None = None
     detail: str | None = None
-    connection: int | None = None
     latency_seconds: float | None = None
 
 
@@ -66,25 +65,3 @@ class HealthResponse(BaseModel):
     startup_error: str | None = None
 
 
-class ResetRequest(BaseModel):
-    """Request to reset a user's session."""
-
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-
-    user_id: str = Field(..., min_length=1)
-
-
-class SetEngagementRequest(BaseModel):
-    """Request to manually set a user's engagement score (dev/admin only)."""
-
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-
-    user_id: str = Field(..., min_length=1)
-    score: int = Field(..., ge=0, le=100)
-
-
-class EngagementResponse(BaseModel):
-    """Response for engagement/reset operations."""
-
-    connection: int
-    message: str

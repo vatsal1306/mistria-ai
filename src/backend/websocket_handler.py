@@ -63,12 +63,10 @@ class WebSocketChatHandler:
                                                    model_name=self.service.runtime.model_name))
 
             chunks: list[str] = []
-            connection: int | None = None
             latency: float | None = None
 
             async for item in self.service.stream_response(request):
                 if isinstance(item, StreamMetadata):
-                    connection = item.connection
                     latency = item.latency_seconds
                 else:
                     chunks.append(item)
@@ -83,7 +81,6 @@ class WebSocketChatHandler:
                     type="done",
                     request_id=request_id,
                     text="".join(chunks).strip(),
-                    connection=connection,
                     latency_seconds=latency,
                 ),
             )

@@ -28,7 +28,6 @@ class StreamingChatClient:
         self._websocket: Any | None = None
         self._backend_name: str | None = None
         self._model_name: str | None = None
-        self._last_connection: int | None = None
         self._last_latency: float | None = None
 
     @property
@@ -42,10 +41,6 @@ class StreamingChatClient:
     @property
     def model_name(self) -> str | None:
         return self._model_name
-
-    @property
-    def last_connection(self) -> int | None:
-        return self._last_connection
 
     @property
     def last_latency(self) -> float | None:
@@ -149,7 +144,6 @@ class StreamingChatClient:
                     yield delta
                 continue
             if event_type == "done":
-                self._last_connection = frame.get("connection")
                 self._last_latency = frame.get("latency_seconds")
                 break
             if event_type == "error":
