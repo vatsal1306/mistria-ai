@@ -18,14 +18,61 @@ FRONTEND_PORT="${FRONTEND_PORT:-8501}"
 MISTRIA_MODEL_NAME="${MISTRIA_MODEL_NAME:-dphn/Dolphin3.0-Llama3.1-8B}"
 OVERWRITE_ENV="${OVERWRITE_ENV:-0}"
 
+if [[ -t 1 ]]; then
+  COLOR_RED=$'\033[0;31m'
+  COLOR_GREEN=$'\033[0;32m'
+  COLOR_YELLOW=$'\033[0;33m'
+  COLOR_BLUE=$'\033[0;34m'
+  COLOR_BOLD=$'\033[1m'
+  COLOR_RESET=$'\033[0m'
+else
+  COLOR_RED=""
+  COLOR_GREEN=""
+  COLOR_YELLOW=""
+  COLOR_BLUE=""
+  COLOR_BOLD=""
+  COLOR_RESET=""
+fi
+
+CURRENT_STEP="bootstrap"
+
+log_line() {
+  local color="$1"
+  local label="$2"
+  local message="$3"
+  printf '%s[%s]%s %s\n' "$color" "$label" "$COLOR_RESET" "$message"
+}
+
 info() {
-  printf '[runpod-bootstrap] %s\n' "$1"
+  log_line "$COLOR_BLUE" "INFO" "$1"
+}
+
+success() {
+  log_line "$COLOR_GREEN" "OK" "$1"
+}
+
+warn() {
+  log_line "$COLOR_YELLOW" "WARN" "$1"
+}
+
+fail() {
+  log_line "$COLOR_RED" "FAIL" "$1" >&2
+  exit 1
+}
+
+step() {
+  CURRENT_STEP="$1"
+  printf '\n%s==>%s %s%s%s\n' "$COLOR_BOLD" "$COLOR_RESET" "$COLOR_BOLD" "$1" "$COLOR_RESET"
+}
+
+on_error() {
+  local exit_code="$1"
+  fail "Step failed: ${CURRENT_STEP} (exit ${exit_code})"
 }
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
-    printf 'Missing required command: %s\n' "$1" >&2
-    exit 1
+    fail "Missing required command: $1"
   fi
 }
 
@@ -53,8 +100,7 @@ prompt_env() {
   fi
 
   if [[ -z "$current_value" ]]; then
-    printf 'Value required for %s\n' "$var_name" >&2
-    exit 1
+    fail "Value required for ${var_name}"
   fi
 
   export "$var_name=$current_value"
@@ -62,7 +108,7 @@ prompt_env() {
 
 write_env_file() {
   if [[ -f "$ENV_FILE" && "$OVERWRITE_ENV" != "1" ]]; then
-    info "Keeping existing .env at ${ENV_FILE}"
+    warn "Keeping existing .env at ${ENV_FILE}"
     return
   fi
 
@@ -81,7 +127,7 @@ write_env_file() {
     printf 'HF_TOKEN=%s\n' "$HF_TOKEN" >>"$ENV_FILE"
   fi
 
-  info "Wrote ${ENV_FILE}"
+  success "Wrote ${ENV_FILE}"
 }
 
 install_system_packages() {
@@ -92,8 +138,9 @@ install_system_packages() {
     info "Installing byobu, git, curl, and ca-certificates"
     ${prefix}apt-get update
     ${prefix}apt-get install -y byobu git curl ca-certificates
+    success "Installed system packages"
   else
-    info "byobu already installed"
+    success "byobu already installed"
   fi
 }
 
@@ -108,6 +155,7 @@ install_uv() {
   curl -LsSf https://astral.sh/uv/install.sh | sh
   export PATH="${HOME}/.local/bin:${PATH}"
   require_cmd uv
+  success "Installed uv"
 }
 
 sync_repo() {
@@ -118,11 +166,13 @@ sync_repo() {
     git -C "$REPO_DIR" fetch origin
     git -C "$REPO_DIR" checkout "$REPO_BRANCH"
     git -C "$REPO_DIR" pull --ff-only origin "$REPO_BRANCH"
+    success "Repo updated"
     return
   fi
 
   info "Cloning repo into ${REPO_DIR}"
   git clone --branch "$REPO_BRANCH" "$REPO_URL" "$REPO_DIR"
+  success "Repo cloned"
 }
 
 install_dependencies() {
@@ -132,14 +182,26 @@ install_dependencies() {
     export PATH="${HOME}/.local/bin:${PATH}"
     uv sync --frozen --extra inference
   )
+  success "Python dependencies installed"
 }
 
 kill_session_if_exists() {
   local session_name="$1"
   if byobu has-session -t "$session_name" 2>/dev/null; then
-    info "Restarting byobu session ${session_name}"
+    warn "Restarting byobu session ${session_name}"
     byobu kill-session -t "$session_name"
   fi
+}
+
+verify_session() {
+  local session_name="$1"
+  sleep 2
+
+  if ! byobu has-session -t "$session_name" 2>/dev/null; then
+    fail "Byobu session did not stay alive: ${session_name}"
+  fi
+
+  success "Byobu session running: ${session_name}"
 }
 
 start_backend() {
@@ -147,6 +209,7 @@ start_backend() {
   cmd="cd ${REPO_DIR} && export PATH=${HOME}/.local/bin:\$PATH && export HF_HOME=${HF_HOME_DIR} && export PYTHONUNBUFFERED=1 && export MISTRIA_API_HOST=0.0.0.0 && export MISTRIA_API_PORT=${BACKEND_PORT} && export MISTRIA_API_RELOAD=false && export MISTRIA_LOG_DIR=${LOG_DIR} && uv run python main.py"
   kill_session_if_exists "$BACKEND_SESSION"
   byobu new-session -d -s "$BACKEND_SESSION" "bash -lc '$cmd'"
+  verify_session "$BACKEND_SESSION"
 }
 
 start_frontend() {
@@ -154,12 +217,41 @@ start_frontend() {
   cmd="cd ${REPO_DIR} && export PATH=${HOME}/.local/bin:\$PATH && export HF_HOME=${HF_HOME_DIR} && export PYTHONUNBUFFERED=1 && export MISTRIA_API_HOST=127.0.0.1 && export MISTRIA_API_PORT=${BACKEND_PORT} && export MISTRIA_LOG_DIR=${LOG_DIR} && uv run streamlit run streamlit_app.py --server.address=0.0.0.0 --server.port=${FRONTEND_PORT}"
   kill_session_if_exists "$FRONTEND_SESSION"
   byobu new-session -d -s "$FRONTEND_SESSION" "bash -lc '$cmd'"
+  verify_session "$FRONTEND_SESSION"
+}
+
+verify_health() {
+  local health_url="http://127.0.0.1:${BACKEND_PORT}/health"
+  local frontend_url="http://127.0.0.1:${FRONTEND_PORT}/"
+  local tries=30
+
+  info "Waiting for backend health endpoint"
+  for _ in $(seq 1 "$tries"); do
+    if curl -fsS "$health_url" >/dev/null 2>&1; then
+      success "Backend is healthy"
+      break
+    fi
+    sleep 2
+  done
+  if ! curl -fsS "$health_url" >/dev/null 2>&1; then
+    fail "Backend health check failed at ${health_url}"
+  fi
+
+  info "Waiting for Streamlit frontend"
+  for _ in $(seq 1 "$tries"); do
+    if curl -fsS "$frontend_url" >/dev/null 2>&1; then
+      success "Frontend is reachable"
+      return
+    fi
+    sleep 2
+  done
+  fail "Frontend check failed at ${frontend_url}"
 }
 
 print_summary() {
   cat <<EOF
 
-Setup complete.
+${COLOR_GREEN}${COLOR_BOLD}Setup complete.${COLOR_RESET}
 
 Repo: ${REPO_DIR}
 Env: ${ENV_FILE}
@@ -185,16 +277,28 @@ EOF
 }
 
 main() {
+  trap 'on_error $?' ERR
+
+  step "Install system packages"
   install_system_packages
+  step "Install uv"
   install_uv
+  step "Sync repository"
   sync_repo
 
   mkdir -p "$DATA_DIR" "$LOG_DIR" "$HF_HOME_DIR"
+  success "Workspace directories ready"
 
+  step "Write environment file"
   write_env_file
+  step "Install Python dependencies"
   install_dependencies
+  step "Start backend"
   start_backend
+  step "Start frontend"
   start_frontend
+  step "Verify services"
+  verify_health
   print_summary
 }
 
