@@ -105,5 +105,5 @@ GitHub Actions now runs three checks on every push and pull request:
 cd /workspace
 curl -O https://raw.githubusercontent.com/vatsal1306/mistria-ai/main/scripts/runpod_bootstrap.sh
 chmod +x runpod_bootstrap.sh
-./runpod_bootstrap.sh
+bash ./runpod_bootstrap.sh
 ```
