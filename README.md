@@ -98,3 +98,12 @@ GitHub Actions now runs three checks on every push and pull request:
 - `MISTRIA_API_KEY`
 - `MISTRIA_AUTH_ENCRYPTION_KEY`
 - `HF_TOKEN`
+
+## How to use Pod
+
+```shell
+cd /workspace
+curl -O https://raw.githubusercontent.com/vatsal1306/mistria-ai/main/scripts/runpod_bootstrap.sh
+chmod +x runpod_bootstrap.sh
+./runpod_bootstrap.sh
+```
