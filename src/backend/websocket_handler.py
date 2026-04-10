@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from src.Logging import logger
 from src.backend.exceptions import AuthenticationError, ServiceError
 from src.backend.schemas import ChatSocketEvent, ChatSocketRequest
-from src.backend.service import ChatService, StreamMetadata
+from src.backend.service import ChatService
 from src.config import Api, Secrets
 
 
@@ -63,17 +63,13 @@ class WebSocketChatHandler:
                                                    model_name=self.service.runtime.model_name))
 
             chunks: list[str] = []
-            latency: float | None = None
 
-            async for item in self.service.stream_response(request):
-                if isinstance(item, StreamMetadata):
-                    latency = item.latency_seconds
-                else:
-                    chunks.append(item)
-                    await self._send_event(
-                        websocket,
-                        ChatSocketEvent(type="delta", request_id=request_id, delta=item),
-                    )
+            async for token in self.service.stream_response(request):
+                chunks.append(token)
+                await self._send_event(
+                    websocket,
+                    ChatSocketEvent(type="delta", request_id=request_id, delta=token),
+                )
 
             await self._send_event(
                 websocket,
@@ -81,7 +77,6 @@ class WebSocketChatHandler:
                     type="done",
                     request_id=request_id,
                     text="".join(chunks).strip(),
-                    latency_seconds=latency,
                 ),
             )
         except ValidationError as exc:

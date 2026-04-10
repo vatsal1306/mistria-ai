@@ -278,8 +278,6 @@ def _handle_chat_submission(prompt: str) -> None:
                 )
             )
             st.session_state.connection_error = None
-            if client.last_latency is not None:
-                st.caption(f"{client.last_latency:.1f}s")
         except ChatClientError as exc:
             st.session_state.connection_error = str(exc)
             st.error(str(exc))

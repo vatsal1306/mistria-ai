@@ -28,8 +28,6 @@ class StreamingChatClient:
         self._websocket: Any | None = None
         self._backend_name: str | None = None
         self._model_name: str | None = None
-        self._last_latency: float | None = None
-
     @property
     def is_connected(self) -> bool:
         return bool(self._websocket is not None and getattr(self._websocket, "connected", False))
@@ -41,10 +39,6 @@ class StreamingChatClient:
     @property
     def model_name(self) -> str | None:
         return self._model_name
-
-    @property
-    def last_latency(self) -> float | None:
-        return self._last_latency
 
     def connect(self) -> None:
         if self.is_connected:
@@ -144,7 +138,6 @@ class StreamingChatClient:
                     yield delta
                 continue
             if event_type == "done":
-                self._last_latency = frame.get("latency_seconds")
                 break
             if event_type == "error":
                 raise ChatClientError(frame.get("detail", "Unknown websocket backend error."))

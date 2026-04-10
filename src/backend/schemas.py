@@ -47,7 +47,6 @@ class ChatSocketEvent(BaseModel):
     delta: str | None = None
     text: str | None = None
     detail: str | None = None
-    latency_seconds: float | None = None
 
 
 class HealthResponse(BaseModel):

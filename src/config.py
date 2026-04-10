@@ -57,20 +57,12 @@ class Auth:
 
 @dataclass(frozen=True, slots=True)
 class Inference:
-    backend: str = "mock"  # ['mock', 'vllm']
-    model_name: str = "dphn/Dolphin3.0-Llama3.1-8B"
-    tokenizer_name: str | None = None
+    backend: str = "ollama"
+    model_name: str = "dolphin-llama3"
     temperature: float = 0.9
     top_p: float = 0.95
     max_tokens: int = 350
-    max_model_len: int = 4096
-    tensor_parallel_size: int = 1
-    dtype: str = "auto"
-    trust_remote_code: bool = False
-    enforce_eager: bool = False
-    engine_iteration_timeout_seconds: int = 900
     startup_heartbeat_interval_seconds: float = 10.0
-    mock_response_delay_seconds: float = 0.03
 
 
 @dataclass(frozen=True, slots=True)
