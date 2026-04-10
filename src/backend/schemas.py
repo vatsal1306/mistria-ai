@@ -26,6 +26,7 @@ class ChatSocketRequest(BaseModel):
     user_id: str | None = Field(default=None, max_length=128)
     system_prompt: str | None = Field(default=None, max_length=20_000)
     messages: list[ChatMessage] = Field(min_length=1, max_length=200)
+    resume_pulse: bool = True
 
     @model_validator(mode="after")
     def validate_message_sequence(self) -> "ChatSocketRequest":
@@ -61,3 +62,5 @@ class HealthResponse(BaseModel):
     startup_detail: str | None = None
     startup_elapsed_seconds: float | None = None
     startup_error: str | None = None
+
+

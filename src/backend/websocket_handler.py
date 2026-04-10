@@ -63,16 +63,21 @@ class WebSocketChatHandler:
                                                    model_name=self.service.runtime.model_name))
 
             chunks: list[str] = []
-            async for chunk in self.service.stream_response(request):
-                chunks.append(chunk)
+
+            async for token in self.service.stream_response(request):
+                chunks.append(token)
                 await self._send_event(
                     websocket,
-                    ChatSocketEvent(type="delta", request_id=request_id, delta=chunk),
+                    ChatSocketEvent(type="delta", request_id=request_id, delta=token),
                 )
 
             await self._send_event(
                 websocket,
-                ChatSocketEvent(type="done", request_id=request_id, text="".join(chunks).strip()),
+                ChatSocketEvent(
+                    type="done",
+                    request_id=request_id,
+                    text="".join(chunks).strip(),
+                ),
             )
         except ValidationError as exc:
             await self._send_event(

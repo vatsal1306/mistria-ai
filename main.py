@@ -16,6 +16,7 @@ from src.backend.service import ChatService
 from src.backend.websocket_handler import WebSocketChatHandler
 from src.config import settings
 
+
 runtime = InferenceRuntimeFactory.create(settings.chat, settings.inference, settings.secrets)
 chat_service = ChatService(settings.chat, runtime)
 websocket_handler = WebSocketChatHandler(settings.api, settings.secrets, chat_service)
@@ -46,8 +47,8 @@ async def configuration_error_handler(_: object, exc: ConfigurationError) -> JSO
     )
 
 
-@app.get("/", response_model=dict[str, str])
-async def root() -> dict[str, str]:
+@app.get("/info", response_model=dict[str, str])
+async def info() -> dict[str, str]:
     return {
         "app": settings.app.title,
         "backend": runtime.backend_name,
@@ -82,6 +83,7 @@ if __name__ == "__main__":
         "main:app",
         host=settings.api.host,
         port=settings.api.port,
+        reload=True,
         reload=settings.api.reload,
         # log_level="info",
     )

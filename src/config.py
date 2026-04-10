@@ -98,8 +98,8 @@ class Auth:
 
 @dataclass(frozen=True, slots=True)
 class Inference:
-    backend: str = _get_str("MISTRIA_INFERENCE_BACKEND", "mock")  # ['mock', 'vllm']
-    model_name: str = _get_str("MISTRIA_INFERENCE_MODEL_NAME", "dphn/Dolphin3.0-Llama3.1-8B")
+    backend: str = _get_str("MISTRIA_INFERENCE_BACKEND", "mock")  # ['mock', 'vllm', 'ollama']
+    model_name: str = _get_str("MISTRIA_INFERENCE_MODEL_NAME", "dphn/Dolphin3.0-Llama3.1-8B") # ['dolphin-llama3']
     model_revision: str | None = _get_str("MISTRIA_INFERENCE_MODEL_REVISION", "") or None
     tokenizer_name: str | None = _get_str("MISTRIA_INFERENCE_TOKENIZER_NAME", "") or None
     tokenizer_revision: str | None = _get_str("MISTRIA_INFERENCE_TOKENIZER_REVISION", "") or None
