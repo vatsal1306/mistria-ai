@@ -135,9 +135,9 @@ install_system_packages() {
   prefix="$(apt_prefix)"
 
   if ! command -v byobu >/dev/null 2>&1; then
-    info "Installing byobu, git, curl, and ca-certificates"
+    info "Installing byobu, git, curl, nano and ca-certificates"
     ${prefix}apt-get update
-    ${prefix}apt-get install -y byobu git curl ca-certificates
+    ${prefix}apt-get install -y byobu git curl nano ca-certificates
     success "Installed system packages"
   else
     success "byobu already installed"
@@ -154,6 +154,8 @@ install_uv() {
   info "Installing uv"
   curl -LsSf https://astral.sh/uv/install.sh | sh
   export PATH="${HOME}/.local/bin:${PATH}"
+  # Make it permanent for the user
+  echo 'export PATH="${HOME}/.local/bin:${PATH}"' >> "${HOME}/.bashrc"
   require_cmd uv
   success "Installed uv"
 }
@@ -180,6 +182,8 @@ install_dependencies() {
   (
     cd "$REPO_DIR"
     export PATH="${HOME}/.local/bin:${PATH}"
+    # Force copy mode to avoid hardlink issues on RunPod volumes
+    export UV_LINK_MODE=copy
     uv sync --frozen --extra inference
   )
   success "Python dependencies installed"
@@ -214,7 +218,7 @@ start_backend() {
 
 start_frontend() {
   local cmd
-  cmd="cd ${REPO_DIR} && export PATH=${HOME}/.local/bin:\$PATH && export HF_HOME=${HF_HOME_DIR} && export PYTHONUNBUFFERED=1 && export MISTRIA_API_HOST=127.0.0.1 && export MISTRIA_API_PORT=${BACKEND_PORT} && export MISTRIA_LOG_DIR=${LOG_DIR} && uv run streamlit run streamlit_app.py --server.address=0.0.0.0 --server.port=${FRONTEND_PORT}"
+  cmd="cd ${REPO_DIR} && export PATH=${HOME}/.local/bin:\$PATH && export HF_HOME=${HF_HOME_DIR} && export PYTHONUNBUFFERED=1 && export MISTRIA_API_HOST=127.0.0.1 && export MISTRIA_API_PORT=${BACKEND_PORT} && export MISTRIA_LOG_DIR=${LOG_DIR} && uv run streamlit run streamlit_app.py --server.address=0.0.0.0 --server.port=${FRONTEND_PORT} --server.enableCORS=false --server.enableXsrfProtection=false --server.enableWebsocketCompression=false"
   kill_session_if_exists "$FRONTEND_SESSION"
   byobu new-session -d -s "$FRONTEND_SESSION" "bash -lc '$cmd'"
   verify_session "$FRONTEND_SESSION"
