@@ -1,17 +1,19 @@
 # Mistria AI Streaming Chat MVP
 
-This repo now includes:
+This repo currently ships a Python-only AI MVP with:
 
-- `main.py`: a single-file FastAPI backend with websocket streaming chat
-- `streamlit_app.py`: a Streamlit interface that connects to that websocket backend
-- embedded runtime wiring for `mock` and `vllm` inference backends
+- `main.py`: FastAPI websocket backend entrypoint
+- `streamlit_app.py`: Streamlit UI entrypoint
+- `src/backend`: websocket transport and inference runtime orchestration
+- `src/auth`: signup, login, and password encryption
+- `src/storage`: SQLite-backed user, conversation, and message persistence
 
 ## What it does
 
 - Streams assistant responses over a FastAPI websocket endpoint
-- Keeps backend logic inside `main.py` as requested
+- Persists user auth and chat history in SQLite
 - Starts the inference runtime from Python code instead of a separate `vllm serve` process
-- Keeps Streamlit as a simple websocket consumer for the future frontend contract
+- Keeps Streamlit as the user-facing companion UI
 - Centralizes non-secret config in `src/config.py`
 - Centralizes prompts in `src/prompts.py`
 
@@ -24,7 +26,7 @@ Use `dphn/Dolphin3.0-Llama3.1-8B` for the first pass. It is lightweight enough f
 1. Sync dependencies:
 
    ```bash
-   uv sync
+   uv sync --frozen
    ```
 
 2. Adjust non-secret configuration in `src/config.py` and prompts in `src/prompts.py` if needed.
@@ -49,10 +51,38 @@ Use `dphn/Dolphin3.0-Llama3.1-8B` for the first pass. It is lightweight enough f
 - To install the optional vLLM dependency on supported Linux hosts:
 
   ```bash
-  uv sync --extra inference
+  uv sync --frozen --extra inference
   ```
 
 - The current default backend is `mock` so the app remains runnable without GPU inference on this machine.
+
+## Docker Compose
+
+The repo includes a single `docker-compose.yaml` that works for local development and a simple Ubuntu server deployment.
+
+1. Update the secrets in `.env`.
+   If a secret contains `$`, escape it as `$$` so Docker Compose treats it literally.
+
+2. Build and start the stack:
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+3. Access:
+
+   - Streamlit: `http://127.0.0.1:8501`
+   - FastAPI health: `http://127.0.0.1:8080/health`
+
+The stack mounts a named volume for `data/app.db`, so SQLite state survives container restarts. Container logs stay on standard Docker stdout/stderr.
+
+## CI
+
+GitHub Actions now runs three checks on every push and pull request:
+
+- Python compilation and dependency install
+- Security checks with Bandit and `pip-audit`
+- Full Docker Compose smoke test that builds both images, starts both containers, probes the app, and performs a websocket round-trip against the `mock` backend
 
 ## Configuration layout
 
@@ -68,3 +98,12 @@ Use `dphn/Dolphin3.0-Llama3.1-8B` for the first pass. It is lightweight enough f
 - `MISTRIA_API_KEY`
 - `MISTRIA_AUTH_ENCRYPTION_KEY`
 - `HF_TOKEN`
+
+## How to use Pod
+
+```shell
+cd /workspace
+curl -O https://raw.githubusercontent.com/vatsal1306/mistria-ai/main/scripts/bootstrap.sh
+chmod +x bootstrap.sh
+bash ./bootstrap.sh
+```

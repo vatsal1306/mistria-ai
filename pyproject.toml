@@ -15,5 +15,6 @@ dependencies = [
 
 [project.optional-dependencies]
 inference = [
+    "transformers>=4.51.1,<4.53.0",
     "vllm>=0.9.0; sys_platform == 'linux'",
 ]

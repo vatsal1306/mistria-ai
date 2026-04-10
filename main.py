@@ -84,4 +84,6 @@ if __name__ == "__main__":
         host=settings.api.host,
         port=settings.api.port,
         reload=True,
+        reload=settings.api.reload,
+        # log_level="info",
     )

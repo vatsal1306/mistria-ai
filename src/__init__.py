@@ -1,11 +1,19 @@
-""" Initialize environment variables from a .env file located in the root directory. """
+"""Initialize environment variables for the application."""
+
+from __future__ import annotations
+
 import os
 
 from dotenv import dotenv_values
 
 ROOT_DIR = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
 
-dotenv_path = os.path.join(ROOT_DIR, '.env')
+dotenv_path = os.path.join(ROOT_DIR, ".env")
+dotenv_envs = {
+    key: value
+    for key, value in dotenv_values(dotenv_path, verbose=True).items()
+    if value is not None
+}
 
-envs = dotenv_values(dotenv_path, verbose=True)
-# globals().update(_env_vars)
+# Runtime environment variables override values from the optional .env file.
+envs = {**dotenv_envs, **os.environ}
