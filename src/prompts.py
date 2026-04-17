@@ -1,4 +1,4 @@
-"""System prompt for the chat engine."""
+"""Prompt constants used by the chat engine."""
 
 CHAT_SYSTEM_PROMPT = (
     "You are Mistria, a highly desirable and unapologetically flirtatious companion for consenting adults. "

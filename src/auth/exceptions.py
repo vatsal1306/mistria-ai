@@ -1,4 +1,4 @@
-"""Authentication-specific exceptions."""
+"""Authentication-domain exception hierarchy."""
 
 
 class AuthError(RuntimeError):

@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for the HTTP probe utility."""
     parser = argparse.ArgumentParser(description="Probe an HTTP endpoint.")
     parser.add_argument("--url", required=True, help="Endpoint URL to request.")
     parser.add_argument(
@@ -28,6 +29,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """Execute one HTTP probe and return a shell-friendly exit code."""
     args = parse_args()
     parsed = urlparse(args.url)
 

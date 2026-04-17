@@ -30,6 +30,7 @@ class ChatSocketRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_message_sequence(self) -> "ChatSocketRequest":
+        """Ensure that every chat request ends with a user-authored message."""
         if self.messages[-1].role != "user":
             raise ValueError("The last message in the request must be from the user.")
         return self
@@ -62,5 +63,3 @@ class HealthResponse(BaseModel):
     startup_detail: str | None = None
     startup_elapsed_seconds: float | None = None
     startup_error: str | None = None
-
-

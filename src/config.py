@@ -10,6 +10,7 @@ from src.prompts import CHAT_SYSTEM_PROMPT
 
 
 def _get_str(name: str, default: str) -> str:
+    """Read a string setting from the environment with a fallback."""
     value = envs.get(name)
     if value is None:
         return default
@@ -17,6 +18,7 @@ def _get_str(name: str, default: str) -> str:
 
 
 def _get_int(name: str, default: int) -> int:
+    """Read an integer setting from the environment with a fallback."""
     value = envs.get(name)
     if value is None or str(value).strip() == "":
         return default
@@ -24,6 +26,7 @@ def _get_int(name: str, default: int) -> int:
 
 
 def _get_float(name: str, default: float) -> float:
+    """Read a floating-point setting from the environment with a fallback."""
     value = envs.get(name)
     if value is None or str(value).strip() == "":
         return default
@@ -31,6 +34,7 @@ def _get_float(name: str, default: float) -> float:
 
 
 def _get_bool(name: str, default: bool) -> bool:
+    """Read a boolean setting from the environment with strict parsing."""
     value = envs.get(name)
     if value is None:
         return default
@@ -44,6 +48,7 @@ def _get_bool(name: str, default: bool) -> bool:
 
 
 def _get_tuple(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    """Read a comma-delimited tuple setting from the environment."""
     value = envs.get(name)
     if value is None:
         return default
@@ -54,11 +59,13 @@ def _get_tuple(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
 
 @dataclass(frozen=True, slots=True)
 class App:
+    """Top-level application branding settings."""
     title: str = _get_str("MISTRIA_APP_TITLE", "Mistria AI")
 
 
 @dataclass(frozen=True, slots=True)
 class Api:
+    """HTTP and websocket transport settings."""
     host: str = _get_str("MISTRIA_API_HOST", "127.0.0.1")
     port: int = _get_int("MISTRIA_API_PORT", 8080)
     websocket_path: str = _get_str("MISTRIA_API_WEBSOCKET_PATH", "/ws/chat")
@@ -72,15 +79,18 @@ class Api:
 
     @property
     def http_base_url(self) -> str:
+        """Return the configured HTTP base URL."""
         return f"http://{self.host}:{self.port}"
 
     @property
     def websocket_url(self) -> str:
+        """Return the configured websocket endpoint URL."""
         return f"ws://{self.host}:{self.port}{self.websocket_path}"
 
 
 @dataclass(frozen=True, slots=True)
 class Chat:
+    """Chat-session defaults and prompt context settings."""
     companion_name: str = _get_str("MISTRIA_CHAT_COMPANION_NAME", "Aria")
     fixed_pulse_bpm: int = _get_int("MISTRIA_CHAT_FIXED_PULSE_BPM", 82)
     history_message_limit: int = _get_int("MISTRIA_CHAT_HISTORY_MESSAGE_LIMIT", 24)
@@ -88,18 +98,21 @@ class Chat:
 
     @property
     def pulse_context(self) -> str:
+        """Return the fixed pulse context appended to the active system prompt."""
         return f"Current pulse placeholder: {self.fixed_pulse_bpm} BPM. Treat it as a fixed demo signal."
 
 
 @dataclass(frozen=True, slots=True)
 class Auth:
+    """Authentication policy settings."""
     min_password_length: int = _get_int("MISTRIA_AUTH_MIN_PASSWORD_LENGTH", 6)
 
 
 @dataclass(frozen=True, slots=True)
 class Inference:
+    """Inference backend, model, and generation settings."""
     backend: str = _get_str("MISTRIA_INFERENCE_BACKEND", "mock")  # ['mock', 'vllm', 'ollama']
-    model_name: str = _get_str("MISTRIA_INFERENCE_MODEL_NAME", "dphn/Dolphin3.0-Llama3.1-8B") # ['dolphin-llama3']
+    model_name: str = _get_str("MISTRIA_INFERENCE_MODEL_NAME", "dphn/Dolphin3.0-Llama3.1-8B")  # ['dolphin-llama3']
     model_revision: str | None = _get_str("MISTRIA_INFERENCE_MODEL_REVISION", "") or None
     tokenizer_name: str | None = _get_str("MISTRIA_INFERENCE_TOKENIZER_NAME", "") or None
     tokenizer_revision: str | None = _get_str("MISTRIA_INFERENCE_TOKENIZER_REVISION", "") or None
@@ -118,11 +131,13 @@ class Inference:
 
 @dataclass(frozen=True, slots=True)
 class Storage:
+    """Persistent storage settings."""
     sqlite_path: str = _get_str("MISTRIA_STORAGE_SQLITE_PATH", os.path.join(ROOT_DIR, "data", "app.db"))
 
 
 @dataclass(frozen=True, slots=True)
 class Secrets:
+    """Secret configuration loaded from the environment."""
     api_key: str = field(default_factory=lambda: _get_str("MISTRIA_API_KEY", "local-dev-api-key"))
     hf_token: str = field(default_factory=lambda: _get_str("HF_TOKEN", ""))
     auth_encryption_key: str = field(default_factory=lambda: _get_str("MISTRIA_AUTH_ENCRYPTION_KEY", ""))
@@ -130,6 +145,7 @@ class Secrets:
 
 @dataclass(frozen=True, slots=True)
 class Settings:
+    """Aggregated application settings object."""
     root_dir: str = ROOT_DIR
     app: App = field(default_factory=App)
     api: Api = field(default_factory=Api)
