@@ -6,7 +6,6 @@ import json
 from collections.abc import Generator
 from typing import Any
 from urllib.parse import urlencode
-from uuid import uuid4
 
 from websocket import WebSocketException, WebSocketTimeoutException, create_connection
 
@@ -27,7 +26,6 @@ class StreamingChatClient:
         self.secrets_config = secrets_config
         self._websocket: Any | None = None
         self._backend_name: str | None = None
-        self._model_name: str | None = None
 
     @property
     def is_connected(self) -> bool:
@@ -38,11 +36,6 @@ class StreamingChatClient:
     def backend_name(self) -> str | None:
         """Return the backend name announced during websocket setup."""
         return self._backend_name
-
-    @property
-    def model_name(self) -> str | None:
-        """Return the model name announced during websocket setup."""
-        return self._model_name
 
     def connect(self) -> None:
         """Open the websocket session and consume the initial ready event."""
@@ -78,13 +71,12 @@ class StreamingChatClient:
             finally:
                 self._websocket = None
                 self._backend_name = None
-                self._model_name = None
 
     def stream_reply(
             self,
             messages: list[dict[str, str]],
+            user_id: str,
             system_prompt: str | None = None,
-            user_id: str | None = None,
     ) -> Generator[str, None, None]:
         """Send a chat request and yield streamed response chunks."""
         if not self.is_connected:
@@ -92,12 +84,10 @@ class StreamingChatClient:
 
         request_payload: dict[str, Any] = {
             "action": "chat",
-            "request_id": uuid4().hex,
+            "user_id": user_id,
             "system_prompt": system_prompt or self.chat_config.system_prompt,
             "messages": self._trim_messages(messages),
         }
-        if user_id:
-            request_payload["user_id"] = user_id
 
         try:
             self._websocket.send(json.dumps(request_payload))
@@ -131,14 +121,11 @@ class StreamingChatClient:
             raise ChatClientError("The websocket backend did not return a ready event during connection setup.")
 
         self._backend_name = frame.get("backend")
-        self._model_name = frame.get("model_name")
 
     def _consume_stream(self) -> Generator[str, None, None]:
         while True:
             frame = self._receive_frame()
             event_type = frame.get("type")
-            if event_type == "start":
-                continue
             if event_type == "delta":
                 delta = frame.get("delta", "")
                 if delta:
