@@ -6,7 +6,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-
 class ChatMessage(BaseModel):
     """Normalized chat message payload."""
 
@@ -63,3 +62,23 @@ class HealthResponse(BaseModel):
     startup_detail: str | None = None
     startup_elapsed_seconds: float | None = None
     startup_error: str | None = None
+
+
+class UserCreateRequest(BaseModel):
+    """Incoming HTTP payload for creating a new user."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    email: str = Field(min_length=3, max_length=320)
+    name: str = Field(min_length=1, max_length=255)
+
+
+class UserResponse(BaseModel):
+    """Safe user payload returned by HTTP endpoints."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: int
+    email: str
+    name: str
+    created_at: str

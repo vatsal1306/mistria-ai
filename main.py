@@ -7,9 +7,10 @@ from fastapi import FastAPI, Query, WebSocket, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from src.auth.exceptions import UserAlreadyExistsError
 from src.backend.exceptions import ConfigurationError
 from src.backend.runtime import InferenceRuntimeFactory
-from src.backend.schemas import HealthResponse
+from src.backend.schemas import HealthResponse, UserCreateRequest, UserResponse
 from src.backend.service import ChatService
 from src.backend.websocket_handler import WebSocketChatHandler
 from src.companion.exceptions import CompanionNotFoundError
@@ -72,6 +73,15 @@ async def companion_not_found_handler(_: object, exc: CompanionNotFoundError) ->
     )
 
 
+@app.exception_handler(UserAlreadyExistsError)
+async def user_already_exists_handler(_: object, exc: UserAlreadyExistsError) -> JSONResponse:
+    """Translate duplicate-user failures into `409` responses."""
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT,
+        content={"detail": str(exc)},
+    )
+
+
 @app.get("/info", response_model=dict[str, str])
 async def info() -> dict[str, str]:
     """Return a minimal description of the running API surface."""
@@ -97,6 +107,25 @@ async def health() -> HealthResponse:
         startup_detail=runtime.startup_detail,
         startup_elapsed_seconds=runtime.startup_elapsed_seconds,
         startup_error=runtime.startup_error,
+    )
+
+
+@app.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+def create_user(payload: UserCreateRequest) -> UserResponse:
+    """Create a new user row for frontend-managed identities."""
+    if user_repository.find_by_email(payload.email) is not None:
+        raise UserAlreadyExistsError("An account with this email already exists.")
+
+    user = user_repository.create_user(
+        email=payload.email,
+        name=payload.name,
+        encrypted_password="",
+    )
+    return UserResponse(
+        id=user.id,
+        email=user.email,
+        name=user.name,
+        created_at=user.created_at,
     )
 
 
