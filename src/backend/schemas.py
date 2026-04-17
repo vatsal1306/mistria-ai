@@ -78,7 +78,7 @@ class UserResponse(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    id: int
+    user_id: int
     email: str
     name: str
     created_at: str
