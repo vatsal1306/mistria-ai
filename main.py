@@ -119,7 +119,7 @@ def create_user(payload: UserCreateRequest) -> UserResponse:
     user = user_repository.create_user(
         email=payload.email,
         name=payload.name,
-        encrypted_password="",
+        encrypted_password=None,
     )
     return UserResponse(
         user_id=user.id,

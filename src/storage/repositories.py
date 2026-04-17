@@ -31,7 +31,7 @@ class UserRepository(ABC):
         """Look up a user by internal identifier."""
 
     @abstractmethod
-    def create_user(self, email: str, name: str, encrypted_password: str) -> UserRecord:
+    def create_user(self, email: str, name: str, encrypted_password: str | None) -> UserRecord:
         """Create a new user."""
 
 
@@ -74,7 +74,7 @@ class SQLiteUserRepository(UserRepository):
             return None
         return UserRecord(**dict(row))
 
-    def create_user(self, email: str, name: str, encrypted_password: str) -> UserRecord:
+    def create_user(self, email: str, name: str, encrypted_password: str | None) -> UserRecord:
         """Insert a new user row and return the created record."""
         normalized_email = _normalize_email(email)
         with self.database.connection() as connection:

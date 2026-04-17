@@ -11,7 +11,7 @@ class UserRecord:
     id: int
     email: str
     name: str
-    encrypted_password: str
+    encrypted_password: str | None
     created_at: str
 
 

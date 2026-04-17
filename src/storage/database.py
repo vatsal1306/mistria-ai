@@ -42,9 +42,7 @@ class SQLiteDatabase:
                 NOT
                 NULL,
                 encrypted_password
-                TEXT
-                NOT
-                NULL,
+                TEXT,
                 created_at
                 TEXT
                 NOT
@@ -366,6 +364,7 @@ class SQLiteDatabase:
             with self.connection() as connection:
                 for statement in table_statements:
                     connection.execute(statement)
+                self._ensure_users_password_nullable(connection)
                 self._ensure_conversations_ai_companion_column(connection)
                 for statement in index_statements:
                     connection.execute(statement)
@@ -395,6 +394,44 @@ class SQLiteDatabase:
     def _column_exists(connection: sqlite3.Connection, table_name: str, column_name: str) -> bool:
         rows = connection.execute(f"PRAGMA table_info({table_name})").fetchall()
         return any(row["name"] == column_name for row in rows)
+
+    @staticmethod
+    def _column_is_not_null(connection: sqlite3.Connection, table_name: str, column_name: str) -> bool:
+        rows = connection.execute(f"PRAGMA table_info({table_name})").fetchall()
+        for row in rows:
+            if row["name"] == column_name:
+                return bool(row["notnull"])
+        return False
+
+    def _ensure_users_password_nullable(self, connection: sqlite3.Connection) -> None:
+        if not self._column_is_not_null(connection, "users", "encrypted_password"):
+            return
+
+        connection.execute("PRAGMA foreign_keys = OFF")
+        try:
+            connection.execute("ALTER TABLE users RENAME TO users_legacy")
+            connection.execute(
+                """
+                CREATE TABLE users
+                (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                    name TEXT NOT NULL,
+                    encrypted_password TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            connection.execute(
+                """
+                INSERT INTO users (id, email, name, encrypted_password, created_at)
+                SELECT id, email, name, NULLIF(encrypted_password, ''), created_at
+                FROM users_legacy
+                """
+            )
+            connection.execute("DROP TABLE users_legacy")
+        finally:
+            connection.execute("PRAGMA foreign_keys = ON")
 
     def _ensure_conversations_ai_companion_column(self, connection: sqlite3.Connection) -> None:
         if self._column_exists(connection, "conversations", "ai_companion_id"):
