@@ -82,12 +82,11 @@ def run_websocket_round_trip(websocket_url: str) -> None:
         user_message = f"smoke-test-{uuid4().hex[:8]}"
         request_payload = {
             "action": "chat",
-            "request_id": uuid4().hex,
+            "user_id": f"smoke-user-{uuid4().hex[:8]}",
             "messages": [{"role": "user", "content": user_message}],
         }
         connection.send(json.dumps(request_payload))
 
-        seen_start = False
         seen_done = False
         collected_chunks: list[str] = []
 
@@ -95,9 +94,6 @@ def run_websocket_round_trip(websocket_url: str) -> None:
         while time.monotonic() < deadline:
             frame = json.loads(connection.recv())
             frame_type = frame.get("type")
-            if frame_type == "start":
-                seen_start = True
-                continue
             if frame_type == "delta":
                 delta = str(frame.get("delta", ""))
                 if delta:
@@ -105,16 +101,11 @@ def run_websocket_round_trip(websocket_url: str) -> None:
                 continue
             if frame_type == "done":
                 seen_done = True
-                done_text = str(frame.get("text", ""))
-                if not done_text.strip():
-                    raise RuntimeError(f"Received empty done frame: {frame}")
                 break
             if frame_type == "error":
                 raise RuntimeError(f"Backend returned an error frame: {frame}")
             raise RuntimeError(f"Unexpected websocket frame: {frame}")
 
-        if not seen_start:
-            raise RuntimeError("Did not receive websocket start frame.")
         if not seen_done:
             raise RuntimeError("Did not receive websocket done frame.")
         if not "".join(collected_chunks).strip():

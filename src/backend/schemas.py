@@ -12,7 +12,7 @@ class ChatMessage(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     role: Literal["user", "assistant"]
-    content: str = Field(min_length=1, max_length=20_000)
+    content: str = Field(min_length=1)
 
 
 class ChatSocketRequest(BaseModel):
@@ -21,11 +21,9 @@ class ChatSocketRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     action: Literal["chat"] = "chat"
-    request_id: str | None = Field(default=None, max_length=128)
-    user_id: str | None = Field(default=None, max_length=128)
-    system_prompt: str | None = Field(default=None, max_length=20_000)
-    messages: list[ChatMessage] = Field(min_length=1, max_length=200)
-    resume_pulse: bool = True
+    user_id: str = Field(min_length=1, max_length=128)
+    system_prompt: str | None = Field(default=None)
+    messages: list[ChatMessage] = Field(min_length=1)
 
     @model_validator(mode="after")
     def validate_message_sequence(self) -> "ChatSocketRequest":
@@ -40,12 +38,9 @@ class ChatSocketEvent(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    type: Literal["ready", "start", "delta", "done", "error"]
-    request_id: str | None = None
-    backend: str | None = None
-    model_name: str | None = None
+    type: Literal["ready", "delta", "done", "error"]
+    backend: str
     delta: str | None = None
-    text: str | None = None
     detail: str | None = None
 
 
