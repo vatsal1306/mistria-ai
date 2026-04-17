@@ -240,7 +240,7 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
             raise InferenceNotReadyError(self._startup_error or "Inference runtime is not ready.")
 
         prompt = self._build_prompt(request)
-        request_id = request.request_id or uuid4().hex
+        request_id = uuid4().hex
         sampling_params = self._sampling_params_cls(
             max_tokens=self.inference_config.max_tokens,
             temperature=self.inference_config.temperature,
