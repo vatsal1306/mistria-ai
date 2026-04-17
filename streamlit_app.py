@@ -19,6 +19,7 @@ st.set_page_config(
 
 
 def _bootstrap_state() -> None:
+    """Populate Streamlit session state with the defaults required by the chat UI."""
     defaults = {
         "messages": [],
         "chat_client": StreamingChatClient(settings.api, settings.chat, settings.secrets),
@@ -30,6 +31,7 @@ def _bootstrap_state() -> None:
 
 
 def _render_theme() -> None:
+    """Inject the custom CSS theme used by the Streamlit interface."""
     st.markdown(
         """
         <style>
@@ -166,10 +168,12 @@ def _render_theme() -> None:
 
 
 def _get_chat_client() -> StreamingChatClient:
+    """Return the websocket chat client stored in session state."""
     return st.session_state.chat_client
 
 
 def _start_chat_session() -> None:
+    """Open the websocket chat session and refresh the UI state."""
     client = _get_chat_client()
     try:
         client.connect()
@@ -180,18 +184,21 @@ def _start_chat_session() -> None:
 
 
 def _stop_chat_session() -> None:
+    """Close the websocket chat session and refresh the UI state."""
     _get_chat_client().disconnect()
     st.session_state.connection_error = None
     st.rerun()
 
 
 def _clear_chat_history() -> None:
+    """Remove the in-memory chat transcript from the current session."""
     st.session_state.messages = []
     st.session_state.connection_error = None
     st.rerun()
 
 
 def _render_sidebar() -> None:
+    """Render connection controls and status information in the sidebar."""
     client = _get_chat_client()
 
     with st.sidebar:
@@ -221,6 +228,7 @@ def _render_sidebar() -> None:
 
 
 def _render_chat_header() -> None:
+    """Render the hero header above the chat transcript."""
     client = _get_chat_client()
     status_label = "Connected" if client.is_connected else "Disconnected"
 
@@ -242,6 +250,7 @@ def _render_chat_header() -> None:
 
 
 def _render_messages() -> None:
+    """Render either the empty state or the current chat transcript."""
     if not st.session_state.messages:
         st.markdown(
             """
@@ -260,6 +269,7 @@ def _render_messages() -> None:
 
 
 def _handle_chat_submission(prompt: str) -> None:
+    """Submit a user prompt, stream the reply, and persist it in session state."""
     client = _get_chat_client()
     if not client.is_connected:
         st.session_state.connection_error = "No active websocket session. Click 'Start chat' before sending messages."
@@ -289,6 +299,7 @@ def _handle_chat_submission(prompt: str) -> None:
 
 
 def main() -> None:
+    """Render the full Streamlit chat application for the current session."""
     _bootstrap_state()
     _render_theme()
     _render_sidebar()

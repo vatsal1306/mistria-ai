@@ -6,7 +6,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-
 class ChatMessage(BaseModel):
     """Normalized chat message payload."""
 
@@ -30,6 +29,7 @@ class ChatSocketRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_message_sequence(self) -> "ChatSocketRequest":
+        """Ensure that every chat request ends with a user-authored message."""
         if self.messages[-1].role != "user":
             raise ValueError("The last message in the request must be from the user.")
         return self
@@ -64,3 +64,21 @@ class HealthResponse(BaseModel):
     startup_error: str | None = None
 
 
+class UserCreateRequest(BaseModel):
+    """Incoming HTTP payload for creating a new user."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    email: str = Field(min_length=3, max_length=320)
+    name: str = Field(min_length=1, max_length=255)
+
+
+class UserResponse(BaseModel):
+    """Safe user payload returned by HTTP endpoints."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: int
+    email: str
+    name: str
+    created_at: str

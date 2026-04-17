@@ -28,19 +28,24 @@ class StreamingChatClient:
         self._websocket: Any | None = None
         self._backend_name: str | None = None
         self._model_name: str | None = None
+
     @property
     def is_connected(self) -> bool:
+        """Return whether the websocket transport is currently open."""
         return bool(self._websocket is not None and getattr(self._websocket, "connected", False))
 
     @property
     def backend_name(self) -> str | None:
+        """Return the backend name announced during websocket setup."""
         return self._backend_name
 
     @property
     def model_name(self) -> str | None:
+        """Return the model name announced during websocket setup."""
         return self._model_name
 
     def connect(self) -> None:
+        """Open the websocket session and consume the initial ready event."""
         if self.is_connected:
             return
 
@@ -66,6 +71,7 @@ class StreamingChatClient:
             ) from exc
 
     def disconnect(self) -> None:
+        """Close the websocket session and clear cached backend metadata."""
         if self._websocket is not None:
             try:
                 self._websocket.close()
@@ -75,11 +81,12 @@ class StreamingChatClient:
                 self._model_name = None
 
     def stream_reply(
-        self,
-        messages: list[dict[str, str]],
-        system_prompt: str | None = None,
-        user_id: str | None = None,
+            self,
+            messages: list[dict[str, str]],
+            system_prompt: str | None = None,
+            user_id: str | None = None,
     ) -> Generator[str, None, None]:
+        """Send a chat request and yield streamed response chunks."""
         if not self.is_connected:
             raise ChatClientError("No active websocket session. Click 'Start chat' before sending messages.")
 

@@ -6,7 +6,7 @@ REPO_URL="${REPO_URL:-https://github.com/vatsal1306/mistria-ai.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
 REPO_DIR="${REPO_DIR:-${WORKSPACE_DIR}/mistria-ai}"
 ENV_FILE="${ENV_FILE:-${REPO_DIR}/.env}"
-DATA_DIR="${DATA_DIR:-${REPO_DIR}/data}"
+DATA_DIR="${DATA_DIR:-${REPO_DIR}/data/db}"
 LOG_DIR="${LOG_DIR:-${REPO_DIR}/Logs}"
 HF_HOME_DIR="${HF_HOME_DIR:-${WORKSPACE_DIR}/hf-cache}"
 

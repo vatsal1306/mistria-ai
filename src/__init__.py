@@ -1,4 +1,4 @@
-"""Initialize environment variables for the application."""
+"""Load environment configuration shared across the application."""
 
 from __future__ import annotations
 
@@ -17,3 +17,5 @@ dotenv_envs = {
 
 # Runtime environment variables override values from the optional .env file.
 envs = {**dotenv_envs, **os.environ}
+
+__all__ = ["ROOT_DIR", "envs"]

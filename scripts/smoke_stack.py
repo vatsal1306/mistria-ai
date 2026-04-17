@@ -16,6 +16,7 @@ from websocket import create_connection
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for the compose smoke test."""
     parser = argparse.ArgumentParser(description="Smoke test the running stack.")
     parser.add_argument("--frontend-url", required=True, help="Streamlit base URL.")
     parser.add_argument("--backend-health-url", required=True, help="Backend health URL.")
@@ -35,6 +36,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def wait_for_http(url: str, timeout_seconds: float) -> None:
+    """Poll an HTTP endpoint until it returns `200` or times out."""
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"}:
         raise RuntimeError(f"Unsupported readiness probe URL: {url}")
@@ -56,6 +58,7 @@ def wait_for_http(url: str, timeout_seconds: float) -> None:
 
 
 def add_api_key(websocket_url: str, api_key: str) -> str:
+    """Append the API key query parameter when websocket auth is enabled."""
     if not api_key:
         return websocket_url
 
@@ -64,11 +67,13 @@ def add_api_key(websocket_url: str, api_key: str) -> str:
 
 
 def assert_ready_frame(frame: dict[str, object]) -> None:
+    """Validate that the websocket handshake starts with a ready event."""
     if frame.get("type") != "ready":
         raise RuntimeError(f"Expected ready frame, received: {frame}")
 
 
 def run_websocket_round_trip(websocket_url: str) -> None:
+    """Send one chat request over websocket and assert the streamed lifecycle is complete."""
     connection = create_connection(websocket_url, timeout=15.0)
     try:
         ready_frame = json.loads(connection.recv())
@@ -119,6 +124,7 @@ def run_websocket_round_trip(websocket_url: str) -> None:
 
 
 def main() -> int:
+    """Run the full smoke test sequence and return a shell-friendly exit code."""
     args = parse_args()
 
     wait_for_http(args.backend_health_url, args.timeout_seconds)

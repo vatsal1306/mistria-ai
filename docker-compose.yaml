@@ -11,7 +11,7 @@ services:
             MISTRIA_INFERENCE_BACKEND: ${MISTRIA_INFERENCE_BACKEND:-mock}
             MISTRIA_AUTH_ENCRYPTION_KEY: ${MISTRIA_AUTH_ENCRYPTION_KEY:-change-me-before-production}
             MISTRIA_API_KEY: ${MISTRIA_API_KEY:-change-me-before-production}
-            MISTRIA_STORAGE_SQLITE_PATH: /app/data/app.db
+            MISTRIA_STORAGE_SQLITE_PATH: /app/data/db/app.db
         ports:
             - "8080:8080"
         volumes:
@@ -44,7 +44,7 @@ services:
             MISTRIA_INFERENCE_BACKEND: ${MISTRIA_INFERENCE_BACKEND:-mock}
             MISTRIA_AUTH_ENCRYPTION_KEY: ${MISTRIA_AUTH_ENCRYPTION_KEY:-change-me-before-production}
             MISTRIA_API_KEY: ${MISTRIA_API_KEY:-change-me-before-production}
-            MISTRIA_STORAGE_SQLITE_PATH: /app/data/app.db
+            MISTRIA_STORAGE_SQLITE_PATH: /app/data/db/app.db
         ports:
             - "8501:8501"
         volumes:

@@ -23,6 +23,7 @@ class WebSocketChatHandler:
         self.service = service
 
     async def handle(self, websocket: WebSocket) -> None:
+        """Own the full lifecycle of a websocket chat session."""
         await websocket.accept()
 
         try:
