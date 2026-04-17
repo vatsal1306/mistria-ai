@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from uuid import uuid4
+
 import streamlit as st
 
 from src.chat.client import ChatClientError, StreamingChatClient
@@ -23,6 +25,7 @@ def _bootstrap_state() -> None:
     defaults = {
         "messages": [],
         "chat_client": StreamingChatClient(settings.api, settings.chat, settings.secrets),
+        "chat_user_id": uuid4().hex,
         "connection_error": None,
     }
     for key, value in defaults.items():
@@ -284,6 +287,7 @@ def _handle_chat_submission(prompt: str) -> None:
             response_text = st.write_stream(
                 client.stream_reply(
                     messages=st.session_state.messages,
+                    user_id=st.session_state.chat_user_id,
                     system_prompt=settings.chat.system_prompt,
                 )
             )
