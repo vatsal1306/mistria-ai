@@ -132,7 +132,7 @@ class Inference:
 @dataclass(frozen=True, slots=True)
 class Storage:
     """Persistent storage settings."""
-    sqlite_path: str = _get_str("MISTRIA_STORAGE_SQLITE_PATH", os.path.join(ROOT_DIR, "data", "app.db"))
+    sqlite_path: str = _get_str("MISTRIA_STORAGE_SQLITE_PATH", os.path.join(ROOT_DIR, "data", "db", "app.db"))
 
 
 @dataclass(frozen=True, slots=True)
