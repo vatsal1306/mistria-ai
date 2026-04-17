@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from uuid import uuid4
-
 from fastapi import WebSocket, WebSocketDisconnect, status
 from pydantic import ValidationError
 
@@ -29,14 +27,16 @@ class WebSocketChatHandler:
         try:
             self._authorize(websocket)
             await self._send_event(websocket,
-                                   ChatSocketEvent(type="ready", backend=self.service.runtime.backend_name,
-                                                   model_name=self.service.runtime.model_name))
+                                   ChatSocketEvent(type="ready", backend=self.service.runtime.backend_name))
 
             while True:
                 raw_payload = await websocket.receive_text()
                 await self._handle_request_message(websocket, raw_payload)
         except AuthenticationError as exc:
-            await self._send_event(websocket, ChatSocketEvent(type="error", detail=str(exc)))
+            await self._send_event(
+                websocket,
+                ChatSocketEvent(type="error", backend=self.service.runtime.backend_name, detail=str(exc)),
+            )
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         except WebSocketDisconnect:
             logger.info("Websocket client disconnected")
@@ -53,42 +53,34 @@ class WebSocketChatHandler:
             raise AuthenticationError("Missing or invalid websocket API key.")
 
     async def _handle_request_message(self, websocket: WebSocket, raw_payload: str) -> None:
-        request_id = uuid4().hex
         try:
             request = ChatSocketRequest.model_validate_json(raw_payload)
-            request_id = request.request_id or request_id
-            request = request.model_copy(update={"request_id": request_id})
-            await self._send_event(websocket,
-                                   ChatSocketEvent(type="start", request_id=request_id,
-                                                   backend=self.service.runtime.backend_name,
-                                                   model_name=self.service.runtime.model_name))
-
-            chunks: list[str] = []
-
             async for token in self.service.stream_response(request):
-                chunks.append(token)
                 await self._send_event(
                     websocket,
-                    ChatSocketEvent(type="delta", request_id=request_id, delta=token),
+                    ChatSocketEvent(type="delta", backend=self.service.runtime.backend_name, delta=token),
                 )
 
             await self._send_event(
                 websocket,
                 ChatSocketEvent(
                     type="done",
-                    request_id=request_id,
-                    text="".join(chunks).strip(),
+                    backend=self.service.runtime.backend_name,
                 ),
             )
         except ValidationError as exc:
             await self._send_event(
                 websocket,
-                ChatSocketEvent(type="error", request_id=request_id, detail=str(exc.errors(include_url=False))),
+                ChatSocketEvent(
+                    type="error",
+                    backend=self.service.runtime.backend_name,
+                    detail=str(exc.errors(include_url=False)),
+                ),
             )
         except ServiceError as exc:
             await self._send_event(
                 websocket,
-                ChatSocketEvent(type="error", request_id=request_id, detail=str(exc)),
+                ChatSocketEvent(type="error", backend=self.service.runtime.backend_name, detail=str(exc)),
             )
         except Exception as exc:
             logger.exception("Unhandled request failure on websocket")
@@ -96,7 +88,7 @@ class WebSocketChatHandler:
                 websocket,
                 ChatSocketEvent(
                     type="error",
-                    request_id=request_id,
+                    backend=self.service.runtime.backend_name,
                     detail=f"Unhandled server error: {type(exc).__name__}",
                 ),
             )
