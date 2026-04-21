@@ -1,6 +1,6 @@
 # Mistria AI — API Integration Guide
 
-> **Version:** 1.0  
+> **Version:** 2.0  
 > **Last Updated:** 2026-04-22  
 > **Milestone:** M2  
 > **Audience:** Frontend / Web App Engineers
