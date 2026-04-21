@@ -94,28 +94,28 @@ def seed_smoke_user(backend_base_url: str) -> tuple[str, int]:
 
     _post_json(backend_base_url, "/user-companion", {
         "user_mail_id": email,
-        "intent_type": "Emotional Bond",
-        "dominance_mode": "Balanced",
-        "intensity_level": "Moderate",
-        "silence_response": "Reassure Gently",
-        "secret_desire": "Cuddle",
+        "intent_type": "easy",
+        "dominance_mode": "user_leads",
+        "intensity_level": "show_me",
+        "silence_response": "wait",
+        "secret_desire": "running",
     })
 
     ai_companion = _post_json(backend_base_url, "/ai-companion", {
         "user_mail_id": email,
         "title": "CI Bot",
-        "gender": "Non Binary",
-        "style": "Casual",
+        "gender": "Female",
+        "style": "Anime",
         "ethnicity": "East Asian",
-        "eye_color": "Brown",
-        "hair_style": "Short",
-        "hair_color": "Black",
+        "eyeColor": "Brown",
+        "hairStyle": "Short",
+        "hairColor": "Black",
         "personality": "Playful",
-        "voice": "Warm",
-        "connection": "Close Friend",
+        "voice": "Calm",
+        "connection": "New Encounter",
     })
 
-    return email, ai_companion["ai_companion_id"]
+    return email, ai_companion["id"]
 
 
 def run_websocket_round_trip(websocket_url: str, user_email: str, ai_companion_id: int) -> None:
