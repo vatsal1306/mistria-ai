@@ -286,8 +286,9 @@ def _handle_chat_submission(prompt: str) -> None:
         try:
             response_text = st.write_stream(
                 client.stream_reply(
-                    messages=st.session_state.messages,
+                    user_message=prompt,
                     user_id=st.session_state.chat_user_id,
+                    ai_companion_id=st.session_state.get("ai_companion_id", 1),
                     system_prompt=settings.chat.system_prompt,
                 )
             )

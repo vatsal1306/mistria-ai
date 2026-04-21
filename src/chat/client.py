@@ -74,8 +74,9 @@ class StreamingChatClient:
 
     def stream_reply(
             self,
-            messages: list[dict[str, str]],
+            user_message: str,
             user_id: str,
+            ai_companion_id: int,
             system_prompt: str | None = None,
     ) -> Generator[str, None, None]:
         """Send a chat request and yield streamed response chunks."""
@@ -85,8 +86,9 @@ class StreamingChatClient:
         request_payload: dict[str, Any] = {
             "action": "chat",
             "user_id": user_id,
+            "ai_companion_id": ai_companion_id,
             "system_prompt": system_prompt or self.chat_config.system_prompt,
-            "messages": self._trim_messages(messages),
+            "user_message": user_message,
         }
 
         try:
@@ -151,5 +153,4 @@ class StreamingChatClient:
         except json.JSONDecodeError as exc:
             raise ChatClientError("The websocket backend returned malformed JSON.") from exc
 
-    def _trim_messages(self, messages: list[dict[str, str]]) -> list[dict[str, str]]:
-        return messages[-self.chat_config.history_message_limit:]
+
