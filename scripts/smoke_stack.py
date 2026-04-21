@@ -72,18 +72,64 @@ def assert_ready_frame(frame: dict[str, object]) -> None:
         raise RuntimeError(f"Expected ready frame, received: {frame}")
 
 
-def run_websocket_round_trip(websocket_url: str) -> None:
+def _post_json(base_url: str, path: str, payload: dict) -> dict:
+    """Send a POST request with a JSON body and return the parsed response."""
+    url = f"{base_url.rstrip('/')}{path}"
+    data = json.dumps(payload).encode()
+    request = urllib.request.Request(
+        url, data=data, headers={"Content-Type": "application/json"}, method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=10.0) as response:  # nosec B310
+        return json.loads(response.read())
+
+
+def seed_smoke_user(backend_base_url: str) -> tuple[str, int]:
+    """Register a smoke-test user, companion preferences, and AI companion.
+
+    Returns the user email and the created AI companion ID.
+    """
+    email = f"smoke-{uuid4().hex[:8]}@ci.test"
+
+    _post_json(backend_base_url, "/users", {"email": email, "name": "CI Smoke User"})
+
+    _post_json(backend_base_url, "/user-companion", {
+        "user_mail_id": email,
+        "intent_type": "Emotional Bond",
+        "dominance_mode": "Balanced",
+        "intensity_level": "Moderate",
+        "silence_response": "Reassure Gently",
+        "secret_desire": "Cuddle",
+    })
+
+    ai_companion = _post_json(backend_base_url, "/ai-companion", {
+        "user_mail_id": email,
+        "title": "CI Bot",
+        "gender": "Non Binary",
+        "style": "Casual",
+        "ethnicity": "East Asian",
+        "eye_color": "Brown",
+        "hair_style": "Short",
+        "hair_color": "Black",
+        "personality": "Playful",
+        "voice": "Warm",
+        "connection": "Close Friend",
+    })
+
+    return email, ai_companion["ai_companion_id"]
+
+
+def run_websocket_round_trip(websocket_url: str, user_email: str, ai_companion_id: int) -> None:
     """Send one chat request over websocket and assert the streamed lifecycle is complete."""
     connection = create_connection(websocket_url, timeout=15.0)
     try:
         ready_frame = json.loads(connection.recv())
         assert_ready_frame(ready_frame)
 
-        user_message = f"smoke-test-{uuid4().hex[:8]}"
         request_payload = {
             "action": "chat",
-            "user_id": f"smoke-user-{uuid4().hex[:8]}",
-            "messages": [{"role": "user", "content": user_message}],
+            "user_id": user_email,
+            "ai_companion_id": ai_companion_id,
+            "user_message": f"smoke-test-{uuid4().hex[:8]}",
         }
         connection.send(json.dumps(request_payload))
 
@@ -120,9 +166,18 @@ def main() -> int:
 
     wait_for_http(args.backend_health_url, args.timeout_seconds)
     wait_for_http(args.frontend_url, args.timeout_seconds)
-    run_websocket_round_trip(add_api_key(args.websocket_url, args.api_key))
+
+    backend_base_url = args.backend_health_url.rsplit("/health", 1)[0]
+    user_email, ai_companion_id = seed_smoke_user(backend_base_url)
+
+    run_websocket_round_trip(
+        add_api_key(args.websocket_url, args.api_key),
+        user_email,
+        ai_companion_id,
+    )
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
