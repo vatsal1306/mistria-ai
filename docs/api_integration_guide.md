@@ -420,27 +420,22 @@ Send a JSON text frame with the following structure:
 {
   "action": "chat",
   "user_id": "user@example.com",
-  "messages": [
-    {"role": "user", "content": "Hey, how are you?"},
-    {"role": "assistant", "content": "I'm doing great! What's on your mind?"},
-    {"role": "user", "content": "Tell me something interesting."}
-  ]
+  "ai_companion_id": 1,
+  "user_message": "Tell me something interesting."
 }
 ```
 
 | Field | Type | Description | Required |
 |---|---|---|---|
 | `action` | `string` | Always `"chat"` | ✅ |
-| `user_id` | `string` | User identifier (1–128 chars) | ✅ |
+| `user_id` | `string` | User email address registered in the database | ✅ |
+| `ai_companion_id` | `integer` | ID of the destination AI companion persona | ✅ |
 | `system_prompt` | `string \| null` | Override the default system prompt | ❌ |
-| `messages` | `array` | Conversation history (min 1 message) | ✅ |
-| `messages[].role` | `string` | `"user"` or `"assistant"` | ✅ |
-| `messages[].content` | `string` | Message text (min 1 char) | ✅ |
+| `user_message` | `string` | The latest chat input from the user (min 1 char) | ✅ |
 
 **Validation Rules:**
-- `messages` array must have at least 1 message.
-- The **last message** must have `role: "user"` (the model responds to the user's latest input).
-- The server trims conversation history to the last 24 messages before sending to the model.
+- The backend strictly validates identity: the user, user companion preferences, and AI companion must exist in the database and be correctly owned.
+- The server automatically fetches conversation history from the database and trims it to the last 24 messages before sending it to the model.
 - Unknown fields are rejected (`extra: "forbid"`).
 
 ### Response Event Types

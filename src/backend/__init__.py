@@ -8,7 +8,7 @@ from src.backend.exceptions import (
     ServiceError,
 )
 from src.backend.runtime import InferenceRuntimeFactory
-from src.backend.schemas import ChatMessage, ChatSocketEvent, ChatSocketRequest, HealthResponse
+from src.backend.schemas import ChatMessage, ChatSocketEvent, ChatSocketRequest, HealthResponse, InferencePromptRequest
 from src.backend.service import ChatService
 from src.backend.websocket_handler import WebSocketChatHandler
 
@@ -20,6 +20,7 @@ __all__ = [
     "ChatSocketRequest",
     "ConfigurationError",
     "HealthResponse",
+    "InferencePromptRequest",
     "InferenceExecutionError",
     "InferenceNotReadyError",
     "InferenceRuntimeFactory",

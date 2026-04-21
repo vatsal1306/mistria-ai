@@ -13,7 +13,7 @@ import ollama
 
 from src.Logging import logger
 from src.backend.exceptions import ConfigurationError, InferenceExecutionError, InferenceNotReadyError
-from src.backend.schemas import ChatSocketRequest
+from src.backend.schemas import InferencePromptRequest
 from src.config import Chat, Inference, Secrets
 
 
@@ -75,7 +75,7 @@ class BaseInferenceRuntime(ABC):
         """Release inference resources."""
 
     @abstractmethod
-    async def stream_text(self, request: ChatSocketRequest) -> AsyncGenerator[str, None]:
+    async def stream_text(self, request: InferencePromptRequest) -> AsyncGenerator[str, None]:
         """Stream response chunks for a request."""
 
     def _set_startup_stage(self, stage: str, detail: str | None = None) -> None:
@@ -111,7 +111,7 @@ class MockInferenceRuntime(BaseInferenceRuntime):
         self._set_startup_stage("stopped", "Mock backend has been stopped.")
         logger.info("Mock inference runtime stopped")
 
-    async def stream_text(self, request: ChatSocketRequest) -> AsyncGenerator[str, None]:
+    async def stream_text(self, request: InferencePromptRequest) -> AsyncGenerator[str, None]:
         """Yield a deterministic token stream for smoke tests and local UI checks."""
         latest_user_message = request.messages[-1].content
         scripted_reply = (
@@ -234,7 +234,7 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
             self._set_startup_stage("stopped", "Embedded vLLM runtime has been stopped.")
             logger.info("Embedded vLLM runtime stopped")
 
-    async def stream_text(self, request: ChatSocketRequest) -> AsyncGenerator[str, None]:
+    async def stream_text(self, request: InferencePromptRequest) -> AsyncGenerator[str, None]:
         """Generate and stream text deltas from the embedded vLLM engine."""
         if not self.is_ready:
             raise InferenceNotReadyError(self._startup_error or "Inference runtime is not ready.")
@@ -269,7 +269,7 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
             logger.exception("vLLM generation failed for request_id=%s", request_id)
             raise InferenceExecutionError(f"{type(exc).__name__}: {exc}") from exc
 
-    def _build_prompt(self, request: ChatSocketRequest) -> str:
+    def _build_prompt(self, request: InferencePromptRequest) -> str:
         prompt_messages = [
             {
                 "role": "system",
@@ -374,7 +374,7 @@ class OllamaInferenceRuntime(BaseInferenceRuntime):
         self._set_startup_stage("stopped", "Ollama runtime has been stopped.")
         logger.info("Ollama runtime stopped")
 
-    async def stream_text(self, request: ChatSocketRequest) -> AsyncGenerator[str, None]:
+    async def stream_text(self, request: InferencePromptRequest) -> AsyncGenerator[str, None]:
         """Stream text chunks from Ollama's chat endpoint."""
         if not self.is_ready:
             raise InferenceNotReadyError(self._startup_error or "Inference runtime is not ready.")

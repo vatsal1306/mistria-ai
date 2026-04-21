@@ -24,16 +24,31 @@ from src.companion.schemas import (
 from src.companion.service import CompanionService
 from src.config import settings
 from src.storage.database import SQLiteDatabase
-from src.storage.repositories import SQLiteAICompanionRepository, SQLiteUserCompanionRepository, SQLiteUserRepository
+from src.storage.repositories import (
+    SQLiteAICompanionRepository,
+    SQLiteConversationRepository,
+    SQLiteUserCompanionRepository,
+    SQLiteUserRepository,
+)
 
-runtime = InferenceRuntimeFactory.create(settings.chat, settings.inference, settings.secrets)
-chat_service = ChatService(settings.chat, runtime)
-websocket_handler = WebSocketChatHandler(settings.api, settings.secrets, chat_service)
 database = SQLiteDatabase(settings.storage.sqlite_path)
 user_repository = SQLiteUserRepository(database)
 user_companion_repository = SQLiteUserCompanionRepository(database)
 ai_companion_repository = SQLiteAICompanionRepository(database)
+conversation_repository = SQLiteConversationRepository(database)
+
 companion_service = CompanionService(user_repository, user_companion_repository, ai_companion_repository)
+
+runtime = InferenceRuntimeFactory.create(settings.chat, settings.inference, settings.secrets)
+chat_service = ChatService(settings.chat, runtime, conversation_repository)
+websocket_handler = WebSocketChatHandler(
+    settings.api,
+    settings.secrets,
+    chat_service,
+    user_repository,
+    user_companion_repository,
+    ai_companion_repository,
+)
 
 
 @asynccontextmanager

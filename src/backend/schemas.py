@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 class ChatMessage(BaseModel):
     """Normalized chat message payload."""
@@ -22,15 +22,15 @@ class ChatSocketRequest(BaseModel):
 
     action: Literal["chat"] = "chat"
     user_id: str = Field(min_length=1, max_length=128)
+    ai_companion_id: int
     system_prompt: str | None = Field(default=None)
-    messages: list[ChatMessage] = Field(min_length=1)
+    user_message: str = Field(min_length=1)
 
-    @model_validator(mode="after")
-    def validate_message_sequence(self) -> "ChatSocketRequest":
-        """Ensure that every chat request ends with a user-authored message."""
-        if self.messages[-1].role != "user":
-            raise ValueError("The last message in the request must be from the user.")
-        return self
+class InferencePromptRequest(BaseModel):
+    """Internal normalized payload used directly by the inference engines."""
+
+    system_prompt: str | None = None
+    messages: list[ChatMessage] = Field(min_length=1)
 
 
 class ChatSocketEvent(BaseModel):
