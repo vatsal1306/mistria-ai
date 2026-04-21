@@ -9,9 +9,11 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
 from uuid import uuid4
 
+import ollama
+
 from src.Logging import logger
 from src.backend.exceptions import ConfigurationError, InferenceExecutionError, InferenceNotReadyError
-from src.backend.schemas import ChatSocketRequest
+from src.backend.schemas import InferencePromptRequest
 from src.config import Chat, Inference, Secrets
 
 
@@ -29,26 +31,32 @@ class BaseInferenceRuntime(ABC):
 
     @property
     def backend_name(self) -> str:
+        """Return the configured backend identifier."""
         return self.inference_config.backend
 
     @property
     def model_name(self) -> str:
+        """Return the configured model name for the runtime."""
         return self.inference_config.model_name
 
     @property
     def startup_error(self) -> str | None:
+        """Return the last startup failure message, if any."""
         return self._startup_error
 
     @property
     def startup_stage(self) -> str:
+        """Return the current startup lifecycle stage."""
         return self._startup_stage
 
     @property
     def startup_detail(self) -> str | None:
+        """Return human-readable detail for the current startup stage."""
         return self._startup_detail
 
     @property
     def startup_elapsed_seconds(self) -> float | None:
+        """Return elapsed startup time once initialization has begun."""
         if self._startup_started_at is None:
             return None
         return round(time.monotonic() - self._startup_started_at, 1)
@@ -67,7 +75,7 @@ class BaseInferenceRuntime(ABC):
         """Release inference resources."""
 
     @abstractmethod
-    async def stream_text(self, request: ChatSocketRequest) -> AsyncGenerator[str, None]:
+    async def stream_text(self, request: InferencePromptRequest) -> AsyncGenerator[str, None]:
         """Stream response chunks for a request."""
 
     def _set_startup_stage(self, stage: str, detail: str | None = None) -> None:
@@ -90,21 +98,25 @@ class MockInferenceRuntime(BaseInferenceRuntime):
 
     @property
     def is_ready(self) -> bool:
+        """Report that the mock runtime is always ready to serve requests."""
         return True
 
     async def startup(self) -> None:
+        """Mark the mock runtime as started without allocating external resources."""
         self._set_startup_stage("ready", "Mock backend is ready.")
         logger.info("Mock inference runtime initialized")
 
     async def shutdown(self) -> None:
+        """Mark the mock runtime as stopped."""
         self._set_startup_stage("stopped", "Mock backend has been stopped.")
         logger.info("Mock inference runtime stopped")
 
-    async def stream_text(self, request: ChatSocketRequest) -> AsyncGenerator[str, None]:
+    async def stream_text(self, request: InferencePromptRequest) -> AsyncGenerator[str, None]:
+        """Yield a deterministic token stream for smoke tests and local UI checks."""
         latest_user_message = request.messages[-1].content
         scripted_reply = (
             f"Mock backend active. I received: {latest_user_message!r}. "
-            "Switch settings.inference.backend to 'vllm' when the target runtime is installed and available."
+            "Switch settings.inference.backend to 'ollama' when the target runtime is installed and available."
         )
         for token in scripted_reply.split():
             await asyncio.sleep(self.inference_config.mock_response_delay_seconds)
@@ -124,9 +136,11 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
 
     @property
     def is_ready(self) -> bool:
+        """Report whether the vLLM engine and tokenizer are fully initialized."""
         return self._engine is not None and self._tokenizer is not None and self._startup_error is None
 
     async def startup(self) -> None:
+        """Import vLLM, build the engine, and load the configured tokenizer/model."""
         self._set_startup_stage("initializing", "Preparing embedded vLLM runtime.")
         self._startup_monitor_task = asyncio.create_task(self._startup_monitor())
 
@@ -209,6 +223,7 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
             await self._stop_startup_monitor()
 
     async def shutdown(self) -> None:
+        """Stop background tasks and release the embedded vLLM engine."""
         await self._stop_startup_monitor()
         if self._engine is not None:
             if hasattr(self._engine, "shutdown"):
@@ -219,12 +234,13 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
             self._set_startup_stage("stopped", "Embedded vLLM runtime has been stopped.")
             logger.info("Embedded vLLM runtime stopped")
 
-    async def stream_text(self, request: ChatSocketRequest) -> AsyncGenerator[str, None]:
+    async def stream_text(self, request: InferencePromptRequest) -> AsyncGenerator[str, None]:
+        """Generate and stream text deltas from the embedded vLLM engine."""
         if not self.is_ready:
             raise InferenceNotReadyError(self._startup_error or "Inference runtime is not ready.")
 
         prompt = self._build_prompt(request)
-        request_id = request.request_id or uuid4().hex
+        request_id = uuid4().hex
         sampling_params = self._sampling_params_cls(
             max_tokens=self.inference_config.max_tokens,
             temperature=self.inference_config.temperature,
@@ -253,7 +269,7 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
             logger.exception("vLLM generation failed for request_id=%s", request_id)
             raise InferenceExecutionError(f"{type(exc).__name__}: {exc}") from exc
 
-    def _build_prompt(self, request: ChatSocketRequest) -> str:
+    def _build_prompt(self, request: InferencePromptRequest) -> str:
         prompt_messages = [
             {
                 "role": "system",
@@ -300,13 +316,133 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
             self._startup_monitor_task = None
 
 
+class OllamaInferenceRuntime(BaseInferenceRuntime):
+    """Runtime using the native Ollama HTTP client."""
+
+    def __init__(self, chat_config: Chat, inference_config: Inference, secrets_config: Secrets):
+        super().__init__(chat_config, inference_config, secrets_config)
+        self._client = None
+        self._startup_monitor_task: asyncio.Task | None = None
+
+    @property
+    def is_ready(self) -> bool:
+        """Report whether the Ollama client is connected and ready."""
+        return self._client is not None and self._startup_error is None
+
+    async def startup(self) -> None:
+        """Connect to Ollama and ensure the configured model is available locally."""
+        self._set_startup_stage("initializing", "Preparing Ollama runtime.")
+        self._startup_monitor_task = asyncio.create_task(self._startup_monitor())
+
+        try:
+            self._set_startup_stage("connecting_client", "Connecting to local Ollama server.")
+            self._client = ollama.AsyncClient()
+
+            # Verify the server is responding
+            await self._client.list()
+
+            self._set_startup_stage("verifying_model",
+                                    f"Checking if {self.inference_config.model_name} is pulled locally.")
+            models_response = await self._client.list()
+            models = [m.model for m in models_response.models] if hasattr(models_response, "models") else []
+            if not models and isinstance(models_response, dict):
+                models = [m.get("model", "") for m in models_response.get("models", [])]
+
+            if self.inference_config.model_name not in models and f"{self.inference_config.model_name}:latest" not in models:
+                self._set_startup_stage("pulling_model",
+                                        f"Pulling {self.inference_config.model_name} from registry. This may take a minute.")
+                await self._client.pull(self.inference_config.model_name)
+
+            self._startup_error = None
+            self._set_startup_stage("ready", "Ollama runtime is ready.")
+            logger.info("Ollama runtime initialized for model=%s", self.inference_config.model_name)
+        except ollama.ResponseError as exc:
+            self._startup_error = f"Ollama rejected the configuration: {exc}"
+            self._set_startup_stage("failed", self._startup_error)
+            logger.exception("Ollama runtime failed during startup")
+        except Exception as exc:
+            self._startup_error = f"Ollama local connection failed. Is the app running? Error: {exc}"
+            self._set_startup_stage("failed", self._startup_error)
+            logger.exception("Ollama runtime failed during startup")
+        finally:
+            await self._stop_startup_monitor()
+
+    async def shutdown(self) -> None:
+        """Release the Ollama client and stop startup monitoring."""
+        await self._stop_startup_monitor()
+        self._client = None
+        self._set_startup_stage("stopped", "Ollama runtime has been stopped.")
+        logger.info("Ollama runtime stopped")
+
+    async def stream_text(self, request: InferencePromptRequest) -> AsyncGenerator[str, None]:
+        """Stream text chunks from Ollama's chat endpoint."""
+        if not self.is_ready:
+            raise InferenceNotReadyError(self._startup_error or "Inference runtime is not ready.")
+
+        messages = [
+            {"role": "system", "content": self._resolve_system_prompt(request.system_prompt)},
+            *[{"role": m.role, "content": m.content} for m in request.messages],
+        ]
+
+        try:
+            async for chunk in await self._client.chat(
+                    model=self.inference_config.model_name,
+                    messages=messages,
+                    stream=True,
+                    options={
+                        "temperature": self.inference_config.temperature,
+                        "top_p": self.inference_config.top_p,
+                        "num_predict": self.inference_config.max_tokens,
+                    }
+            ):
+                if chunk and "message" in chunk and "content" in chunk["message"]:
+                    content = chunk["message"]["content"]
+                    if content:
+                        yield content
+
+        except Exception as exc:
+            logger.exception("Ollama generation failed")
+            raise InferenceExecutionError(f"{type(exc).__name__}: {exc}") from exc
+
+    def _resolve_system_prompt(self, override_prompt: str | None) -> str:
+        prompt = override_prompt or self.chat_config.system_prompt
+        return f"{prompt}\n\n{self.chat_config.pulse_context}"
+
+    async def _startup_monitor(self) -> None:
+        try:
+            while True:
+                await asyncio.sleep(self.inference_config.startup_heartbeat_interval_seconds)
+                if self.is_ready or self._startup_stage in {"failed", "stopped"}:
+                    return
+                logger.info(
+                    "Runtime startup in progress stage=%s elapsed=%.1fs detail=%s",
+                    self._startup_stage,
+                    self.startup_elapsed_seconds or 0.0,
+                    self._startup_detail or "n/a",
+                )
+        except asyncio.CancelledError:
+            return
+
+    async def _stop_startup_monitor(self) -> None:
+        if self._startup_monitor_task is not None:
+            self._startup_monitor_task.cancel()
+            try:
+                await self._startup_monitor_task
+            except asyncio.CancelledError:
+                pass
+            self._startup_monitor_task = None
+
+
 class InferenceRuntimeFactory:
     """Construct runtime implementations from static configuration."""
 
     @staticmethod
     def create(chat_config: Chat, inference_config: Inference, secrets_config: Secrets) -> BaseInferenceRuntime:
+        """Instantiate the runtime implementation selected by configuration."""
         if inference_config.backend == "mock":
             return MockInferenceRuntime(chat_config, inference_config, secrets_config)
         if inference_config.backend == "vllm":
             return VLLMInferenceRuntime(chat_config, inference_config, secrets_config)
+        if inference_config.backend == "ollama":
+            return OllamaInferenceRuntime(chat_config, inference_config, secrets_config)
         raise ConfigurationError(f"Unsupported inference backend: {inference_config.backend}")

@@ -1,4 +1,4 @@
-"""Application-specific backend exceptions."""
+"""Backend service exception hierarchy."""
 
 
 class ServiceError(RuntimeError):

@@ -2,20 +2,28 @@
 
 This repo currently ships a Python-only AI MVP with:
 
-- `main.py`: FastAPI websocket backend entrypoint
+- `main.py`: FastAPI backend entrypoint (HTTP + WebSocket)
 - `streamlit_app.py`: Streamlit UI entrypoint
 - `src/backend`: websocket transport and inference runtime orchestration
+- `src/companion`: companion persona creation and user preference management
 - `src/auth`: signup, login, and password encryption
 - `src/storage`: SQLite-backed user, conversation, and message persistence
 
 ## What it does
 
 - Streams assistant responses over a FastAPI websocket endpoint
+- Exposes REST endpoints for user registration, companion preferences, and AI persona management
 - Persists user auth and chat history in SQLite
 - Starts the inference runtime from Python code instead of a separate `vllm serve` process
 - Keeps Streamlit as the user-facing companion UI
 - Centralizes non-secret config in `src/config.py`
 - Centralizes prompts in `src/prompts.py`
+
+## API Documentation
+
+Full API integration guide for frontend engineers:
+
+📄 **[API Integration Guide](docs/api_integration_guide.md)** — covers all HTTP endpoints, WebSocket chat flow, request/response schemas, allowed values, and frontend integration notes.
 
 ## Recommended model
 
@@ -98,3 +106,12 @@ GitHub Actions now runs three checks on every push and pull request:
 - `MISTRIA_API_KEY`
 - `MISTRIA_AUTH_ENCRYPTION_KEY`
 - `HF_TOKEN`
+
+## How to use Pod
+
+```shell
+cd /workspace
+curl -O https://raw.githubusercontent.com/vatsal1306/mistria-ai/main/scripts/bootstrap.sh
+chmod +x bootstrap.sh
+bash ./bootstrap.sh
+```

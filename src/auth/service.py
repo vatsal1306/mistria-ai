@@ -16,9 +16,11 @@ class AuthService:
         self.password_cipher = password_cipher
 
     def find_user_by_email(self, email: str) -> UserRecord | None:
+        """Return the user record for the given email, if it exists."""
         return self.user_repository.find_by_email(email)
 
     def register_user(self, email: str, name: str, password: str) -> UserRecord:
+        """Create a new user account after enforcing email uniqueness."""
         if self.user_repository.find_by_email(email) is not None:
             raise UserAlreadyExistsError("An account with this email already exists.")
 
@@ -26,6 +28,7 @@ class AuthService:
         return self.user_repository.create_user(email=email, name=name, encrypted_password=encrypted_password)
 
     def authenticate(self, email: str, password: str) -> UserRecord:
+        """Validate credentials and return the matching user record."""
         user = self.user_repository.find_by_email(email)
         if user is None:
             raise InvalidCredentialsError("Invalid email or password.")

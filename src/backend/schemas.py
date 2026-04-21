@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
-
+from pydantic import BaseModel, ConfigDict, Field
 
 class ChatMessage(BaseModel):
     """Normalized chat message payload."""
@@ -13,7 +12,7 @@ class ChatMessage(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     role: Literal["user", "assistant"]
-    content: str = Field(min_length=1, max_length=20_000)
+    content: str = Field(min_length=1)
 
 
 class ChatSocketRequest(BaseModel):
@@ -22,16 +21,16 @@ class ChatSocketRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     action: Literal["chat"] = "chat"
-    request_id: str | None = Field(default=None, max_length=128)
-    user_id: str | None = Field(default=None, max_length=128)
-    system_prompt: str | None = Field(default=None, max_length=20_000)
-    messages: list[ChatMessage] = Field(min_length=1, max_length=200)
+    user_id: str = Field(min_length=1, max_length=128)
+    ai_companion_id: int
+    system_prompt: str | None = Field(default=None)
+    user_message: str = Field(min_length=1)
 
-    @model_validator(mode="after")
-    def validate_message_sequence(self) -> "ChatSocketRequest":
-        if self.messages[-1].role != "user":
-            raise ValueError("The last message in the request must be from the user.")
-        return self
+class InferencePromptRequest(BaseModel):
+    """Internal normalized payload used directly by the inference engines."""
+
+    system_prompt: str | None = None
+    messages: list[ChatMessage] = Field(min_length=1)
 
 
 class ChatSocketEvent(BaseModel):
@@ -39,12 +38,9 @@ class ChatSocketEvent(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    type: Literal["ready", "start", "delta", "done", "error"]
-    request_id: str | None = None
-    backend: str | None = None
-    model_name: str | None = None
+    type: Literal["ready", "delta", "done", "error"]
+    backend: str
     delta: str | None = None
-    text: str | None = None
     detail: str | None = None
 
 
@@ -61,3 +57,23 @@ class HealthResponse(BaseModel):
     startup_detail: str | None = None
     startup_elapsed_seconds: float | None = None
     startup_error: str | None = None
+
+
+class UserCreateRequest(BaseModel):
+    """Incoming HTTP payload for creating a new user."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    email: str = Field(min_length=3, max_length=320)
+    name: str = Field(min_length=1, max_length=255)
+
+
+class UserResponse(BaseModel):
+    """Safe user payload returned by HTTP endpoints."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    user_id: int
+    email: str
+    name: str
+    created_at: str

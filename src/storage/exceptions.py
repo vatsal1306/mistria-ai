@@ -1,4 +1,4 @@
-"""Storage-related exceptions."""
+"""Storage-domain exception hierarchy."""
 
 
 class StorageError(RuntimeError):

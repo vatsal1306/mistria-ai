@@ -27,9 +27,13 @@ class PasswordCipher:
             ) from exc
 
     def encrypt(self, password: str) -> str:
+        """Encrypt a plaintext password for storage."""
         return self._cipher.encrypt(password.encode("utf-8")).decode("utf-8")
 
-    def verify(self, password: str, encrypted_password: str) -> bool:
+    def verify(self, password: str, encrypted_password: str | None) -> bool:
+        """Check whether a plaintext password matches an encrypted value."""
+        if not encrypted_password:
+            return False
         try:
             decrypted = self._cipher.decrypt(encrypted_password.encode("utf-8")).decode("utf-8")
         except InvalidToken:
