@@ -98,7 +98,7 @@ def seed_smoke_user(backend_base_url: str) -> tuple[str, int]:
         "dominance_mode": "user_leads",
         "intensity_level": "show_me",
         "silence_response": "wait",
-        "secret_desire": "running",
+        "secret_desire": "running",  # nosec B105
     })
 
     ai_companion = _post_json(backend_base_url, "/ai-companion", {
