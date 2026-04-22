@@ -11,10 +11,12 @@ from uuid import uuid4
 
 import ollama
 
-from src.Logging import logger
+from src.Logging import get_logger
 from src.backend.exceptions import ConfigurationError, InferenceExecutionError, InferenceNotReadyError
 from src.backend.schemas import InferencePromptRequest
 from src.config import Chat, Inference, Secrets
+
+logger = get_logger(__name__)
 
 
 class BaseInferenceRuntime(ABC):
@@ -114,6 +116,11 @@ class MockInferenceRuntime(BaseInferenceRuntime):
     async def stream_text(self, request: InferencePromptRequest) -> AsyncGenerator[str, None]:
         """Yield a deterministic token stream for smoke tests and local UI checks."""
         latest_user_message = request.messages[-1].content
+        logger.debug(
+            "Starting mock generation model=%s message_count=%s",
+            self.inference_config.model_name,
+            len(request.messages),
+        )
         scripted_reply = (
             f"Mock backend active. I received: {latest_user_message!r}. "
             "Switch settings.inference.backend to 'ollama' when the target runtime is installed and available."
@@ -121,6 +128,7 @@ class MockInferenceRuntime(BaseInferenceRuntime):
         for token in scripted_reply.split():
             await asyncio.sleep(self.inference_config.mock_response_delay_seconds)
             yield f"{token} "
+        logger.debug("Completed mock generation model=%s", self.inference_config.model_name)
 
 
 class VLLMInferenceRuntime(BaseInferenceRuntime):
@@ -241,6 +249,12 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
 
         prompt = self._build_prompt(request)
         request_id = uuid4().hex
+        logger.debug(
+            "Starting vLLM generation request_id=%s model=%s message_count=%s",
+            request_id,
+            self.inference_config.model_name,
+            len(request.messages),
+        )
         sampling_params = self._sampling_params_cls(
             max_tokens=self.inference_config.max_tokens,
             temperature=self.inference_config.temperature,
@@ -258,6 +272,7 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
                     if completion.text:
                         yield completion.text
                 if output.finished:
+                    logger.debug("Completed vLLM generation request_id=%s", request_id)
                     break
         except asyncio.TimeoutError as exc:
             logger.exception("vLLM generation timed out for request_id=%s", request_id)
@@ -270,6 +285,12 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
             raise InferenceExecutionError(f"{type(exc).__name__}: {exc}") from exc
 
     def _build_prompt(self, request: InferencePromptRequest) -> str:
+        logger.debug(
+            "Building vLLM prompt model=%s message_count=%s override_system_prompt=%s",
+            self.inference_config.model_name,
+            len(request.messages),
+            bool(request.system_prompt),
+        )
         prompt_messages = [
             {
                 "role": "system",
@@ -379,6 +400,11 @@ class OllamaInferenceRuntime(BaseInferenceRuntime):
         if not self.is_ready:
             raise InferenceNotReadyError(self._startup_error or "Inference runtime is not ready.")
 
+        logger.debug(
+            "Starting Ollama generation model=%s message_count=%s",
+            self.inference_config.model_name,
+            len(request.messages),
+        )
         messages = [
             {"role": "system", "content": self._resolve_system_prompt(request.system_prompt)},
             *[{"role": m.role, "content": m.content} for m in request.messages],
@@ -399,6 +425,7 @@ class OllamaInferenceRuntime(BaseInferenceRuntime):
                     content = chunk["message"]["content"]
                     if content:
                         yield content
+            logger.debug("Completed Ollama generation model=%s", self.inference_config.model_name)
 
         except Exception as exc:
             logger.exception("Ollama generation failed")
@@ -439,6 +466,11 @@ class InferenceRuntimeFactory:
     @staticmethod
     def create(chat_config: Chat, inference_config: Inference, secrets_config: Secrets) -> BaseInferenceRuntime:
         """Instantiate the runtime implementation selected by configuration."""
+        logger.info(
+            "Creating inference runtime backend=%s model=%s",
+            inference_config.backend,
+            inference_config.model_name,
+        )
         if inference_config.backend == "mock":
             return MockInferenceRuntime(chat_config, inference_config, secrets_config)
         if inference_config.backend == "vllm":

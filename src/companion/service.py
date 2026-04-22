@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from src.Logging import get_logger
 from src.companion.contracts import UserCompanionLabelCatalog
 from src.companion.exceptions import AICompanionNotFoundError, UserCompanionNotFoundError, UserNotRegisteredError
 from src.companion.schemas import (
@@ -19,6 +20,8 @@ from src.storage.repositories import (
     SQLiteUserRepository,
 )
 
+logger = get_logger(__name__)
+
 
 class CompanionService:
     """Coordinate request validation, user lookup, and persistence."""
@@ -35,6 +38,7 @@ class CompanionService:
 
     def upsert_user_companion(self, payload: UserCompanionUpsertRequest) -> UserCompanionResponse:
         """Create or replace the saved user-companion preferences for one user."""
+        logger.info("Upserting user companion preferences email=%s", payload.user_mail_id)
         user = self._get_user_by_email(payload.user_mail_id)
         self.user_companion_repository.upsert(
             user_id=user.id,
@@ -44,18 +48,22 @@ class CompanionService:
             silence_response=payload.silence_response,
             secret_desire=payload.secret_desire,
         )
+        logger.info("Upserted user companion preferences user_id=%s email=%s", user.id, user.email)
         return self.get_user_companion(user.email)
 
     def get_user_companion(self, user_mail_id: str) -> UserCompanionResponse:
         """Load the stored user-companion preferences for the given email address."""
+        logger.debug("Fetching user companion preferences email=%s", user_mail_id)
         user = self._get_user_by_email(user_mail_id)
         record = self.user_companion_repository.find_by_user_id(user.id)
         if record is None:
+            logger.warning("User companion preferences not found user_id=%s email=%s", user.id, user.email)
             raise UserCompanionNotFoundError("User companion preferences not found.")
         return self._build_user_companion_response(user.email, record)
 
     def create_ai_companion(self, payload: AICompanionCreateRequest) -> AICompanionIdentifierResponse:
         """Persist a new AI companion persona and return only its identifier."""
+        logger.info("Creating AI companion email=%s title=%s", payload.user_mail_id, payload.title or "auto")
         user = self._get_user_by_email(payload.user_mail_id)
         title = payload.title or self._generate_ai_companion_title(payload)
         record = self.ai_companion_repository.create(
@@ -71,39 +79,49 @@ class CompanionService:
             voice=payload.voice,
             connection_value=payload.connection,
         )
+        logger.info("Created AI companion user_id=%s email=%s ai_companion_id=%s", user.id, user.email, record.id)
         return AICompanionIdentifierResponse(id=record.id)
 
     def list_ai_companions(self, user_mail_id: str) -> list[AICompanionResponse]:
         """Return every AI companion persona owned by the given user."""
+        logger.debug("Listing AI companions email=%s", user_mail_id)
         user = self._get_user_by_email(user_mail_id)
         records = self.ai_companion_repository.list_by_user_id(user.id)
+        logger.debug("Listed AI companions user_id=%s email=%s count=%s", user.id, user.email, len(records))
         return [self._build_ai_companion_response(user.email, record) for record in records]
 
     def get_ai_companion(self, ai_companion_id: int) -> AICompanionResponse:
         """Load one AI companion persona by id."""
+        logger.debug("Fetching AI companion ai_companion_id=%s", ai_companion_id)
         record = self.ai_companion_repository.find_by_id(ai_companion_id)
         if record is None:
+            logger.warning("AI companion not found ai_companion_id=%s", ai_companion_id)
             raise AICompanionNotFoundError("AI companion not found.")
 
         user = self.user_repository.find_by_id(record.user_id)
         if user is None:
+            logger.error("AI companion owner missing ai_companion_id=%s owner_user_id=%s", record.id, record.user_id)
             raise AICompanionNotFoundError("AI companion not found.")
 
         return self._build_ai_companion_response(user.email, record)
 
     def get_latest_ai_companion(self, user_mail_id: str) -> AICompanionResponse:
         """Return the most recently created AI companion persona for a user."""
+        logger.debug("Fetching latest AI companion email=%s", user_mail_id)
         user = self._get_user_by_email(user_mail_id)
         record = self.ai_companion_repository.find_latest_by_user_id(user.id)
         if record is None:
+            logger.warning("Latest AI companion not found user_id=%s email=%s", user.id, user.email)
             raise AICompanionNotFoundError("AI companion not found.")
         return self._build_ai_companion_response(user.email, record)
 
     def get_user_companion_labels(self, user_mail_id: str) -> dict[str, str]:
         """Resolve label metadata for the stored user-companion selections."""
+        logger.debug("Resolving user companion labels email=%s", user_mail_id)
         user = self._get_user_by_email(user_mail_id)
         record = self.user_companion_repository.find_by_user_id(user.id)
         if record is None:
+            logger.warning("Cannot resolve companion labels without preferences user_id=%s email=%s", user.id, user.email)
             raise UserCompanionNotFoundError("User companion preferences not found.")
         return UserCompanionLabelCatalog.resolve_payload_labels(
             {
@@ -116,9 +134,12 @@ class CompanionService:
         )
 
     def _get_user_by_email(self, user_mail_id: str) -> UserRecord:
-        user = self.user_repository.find_by_email(normalize_user_mail_id(user_mail_id))
+        normalized_email = normalize_user_mail_id(user_mail_id)
+        user = self.user_repository.find_by_email(normalized_email)
         if user is None:
+            logger.warning("User lookup failed email=%s", normalized_email)
             raise UserNotRegisteredError("User not registered.")
+        logger.debug("Resolved user email=%s user_id=%s", user.email, user.id)
         return user
 
     @staticmethod

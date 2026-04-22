@@ -57,6 +57,15 @@ def _get_tuple(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     return parsed or default
 
 
+def _get_log_level(name: str, default: str) -> str:
+    """Read and validate a standard Python logging level name."""
+    value = _get_str(name, default).upper()
+    valid_levels = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
+    if value not in valid_levels:
+        raise ValueError(f"Invalid log level for {name}: {value!r}. Expected one of {sorted(valid_levels)}.")
+    return value
+
+
 @dataclass(frozen=True, slots=True)
 class App:
     """Top-level application branding settings."""
@@ -136,6 +145,21 @@ class Storage:
 
 
 @dataclass(frozen=True, slots=True)
+class AppLogging:
+    """Application logging settings."""
+    level: str = _get_log_level("MISTRIA_LOG_LEVEL", "INFO")
+    directory: str = os.path.join(ROOT_DIR, "Logs")
+    filename: str = "app.log"
+    max_bytes: int = 10 * 1024 * 1024
+    backup_count: int = 5
+
+    @property
+    def file_path(self) -> str:
+        """Return the absolute path to the rotating application log file."""
+        return os.path.join(self.directory, self.filename)
+
+
+@dataclass(frozen=True, slots=True)
 class Secrets:
     """Secret configuration loaded from the environment."""
     api_key: str = field(default_factory=lambda: _get_str("MISTRIA_API_KEY", "local-dev-api-key"))
@@ -152,6 +176,7 @@ class Settings:
     auth: Auth = field(default_factory=Auth)
     chat: Chat = field(default_factory=Chat)
     inference: Inference = field(default_factory=Inference)
+    logging: AppLogging = field(default_factory=AppLogging)
     storage: Storage = field(default_factory=Storage)
     secrets: Secrets = field(default_factory=Secrets)
 
