@@ -6,12 +6,15 @@ from src.companion.contracts import UserCompanionLabelCatalog
 from src.companion.exceptions import AICompanionNotFoundError, UserCompanionNotFoundError, UserNotRegisteredError
 from src.companion.schemas import (
     AICompanionCreateRequest,
-    AICompanionIdentifierResponse,
+    AICompanionCreateResponse,
     AICompanionResponse,
     UserCompanionResponse,
     UserCompanionUpsertRequest,
+    UserCompanionUpsertResponse,
     normalize_user_mail_id,
 )
+from src.backend.runtime import BaseInferenceRuntime
+from src.backend.schemas import ChatMessage, InferencePromptRequest
 from src.storage.models import AICompanionRecord, UserCompanionRecord, UserRecord
 from src.storage.repositories import (
     SQLiteAICompanionRepository,
@@ -28,14 +31,40 @@ class CompanionService:
             user_repository: SQLiteUserRepository,
             user_companion_repository: SQLiteUserCompanionRepository,
             ai_companion_repository: SQLiteAICompanionRepository,
+            runtime: BaseInferenceRuntime,
     ):
         self.user_repository = user_repository
         self.user_companion_repository = user_companion_repository
         self.ai_companion_repository = ai_companion_repository
+        self.runtime = runtime
 
-    def upsert_user_companion(self, payload: UserCompanionUpsertRequest) -> UserCompanionResponse:
+    async def upsert_user_companion(self, payload: UserCompanionUpsertRequest) -> UserCompanionUpsertResponse:
         """Create or replace the saved user-companion preferences for one user."""
         user = self._get_user_by_email(payload.user_mail_id)
+        
+        prompt = f"""Generate a catchy title (max 5 words) and a brief 1-sentence description for a companion based on these traits:
+Intent: {payload.intent_type}
+Dominance: {payload.dominance_mode}
+Intensity: {payload.intensity_level}
+Silence: {payload.silence_response}
+Secret Desire: {payload.secret_desire}
+Format your response EXACTLY like this:
+Title: [Generated Title]
+Description: [Generated Description]"""
+
+        req = InferencePromptRequest(
+            system_prompt="You are a metadata generator.",
+            messages=[ChatMessage(role="user", content=prompt)]
+        )
+        metadata_text = await self.runtime.generate_text(req)
+        
+        title, description = None, None
+        for line in metadata_text.split('\n'):
+            if line.startswith('Title:'):
+                title = line.replace('Title:', '').strip()
+            elif line.startswith('Description:'):
+                description = line.replace('Description:', '').strip()
+
         self.user_companion_repository.upsert(
             user_id=user.id,
             intent_type=payload.intent_type,
@@ -43,8 +72,10 @@ class CompanionService:
             intensity_level=payload.intensity_level,
             silence_response=payload.silence_response,
             secret_desire=payload.secret_desire,
+            title=title,
+            description=description,
         )
-        return self.get_user_companion(user.email)
+        return UserCompanionUpsertResponse(user_mail_id=user.email, title=title, description=description)
 
     def get_user_companion(self, user_mail_id: str) -> UserCompanionResponse:
         """Load the stored user-companion preferences for the given email address."""
@@ -54,13 +85,44 @@ class CompanionService:
             raise UserCompanionNotFoundError("User companion preferences not found.")
         return self._build_user_companion_response(user.email, record)
 
-    def create_ai_companion(self, payload: AICompanionCreateRequest) -> AICompanionIdentifierResponse:
-        """Persist a new AI companion persona and return only its identifier."""
+    async def create_ai_companion(self, payload: AICompanionCreateRequest) -> AICompanionCreateResponse:
+        """Persist a new AI companion persona and return its identifier and metadata."""
         user = self._get_user_by_email(payload.user_mail_id)
-        title = payload.title or self._generate_ai_companion_title(payload)
+        
+        prompt = f"""Generate a brief 1-sentence description for an AI companion with these traits:
+Gender: {payload.gender}
+Style: {payload.style}
+Personality: {payload.personality}
+Voice: {payload.voice}
+Format your response EXACTLY like this:
+Description: [Generated Description]"""
+
+        title_instruction = ""
+        if not payload.title:
+            prompt += "\nAlso generate a catchy name/title (max 3 words):\nTitle: [Generated Title]"
+            title_instruction = " and a name"
+
+        req = InferencePromptRequest(
+            system_prompt=f"You are a metadata generator. Generate a description{title_instruction}.",
+            messages=[ChatMessage(role="user", content=prompt)]
+        )
+        metadata_text = await self.runtime.generate_text(req)
+        
+        title = payload.title
+        description = None
+        for line in metadata_text.split('\n'):
+            if line.startswith('Title:') and not payload.title:
+                title = line.replace('Title:', '').strip()
+            elif line.startswith('Description:'):
+                description = line.replace('Description:', '').strip()
+                
+        if not title:
+            title = self._generate_ai_companion_title(payload)
+
         record = self.ai_companion_repository.create(
             user_id=user.id,
             title=title,
+            description=description,
             gender=payload.gender,
             style=payload.style,
             ethnicity=payload.ethnicity,
@@ -71,7 +133,7 @@ class CompanionService:
             voice=payload.voice,
             connection_value=payload.connection,
         )
-        return AICompanionIdentifierResponse(id=record.id)
+        return AICompanionCreateResponse(ai_companion_id=record.id, title=title, description=description)
 
     def list_ai_companions(self, user_mail_id: str) -> list[AICompanionResponse]:
         """Return every AI companion persona owned by the given user."""
@@ -130,6 +192,8 @@ class CompanionService:
             intensity_level=record.intensity_level,
             silence_response=record.silence_response,
             secret_desire=record.secret_desire,
+            title=record.title,
+            description=record.description,
         )
 
     @staticmethod
@@ -138,6 +202,7 @@ class CompanionService:
             id=record.id,
             user_mail_id=user_mail_id,
             title=record.title,
+            description=record.description,
             gender=record.gender,
             style=record.style,
             ethnicity=record.ethnicity,

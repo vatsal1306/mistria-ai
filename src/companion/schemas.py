@@ -49,6 +49,16 @@ class UserCompanionUpsertRequest(BaseModel):
         return normalize_user_mail_id(value)
 
 
+class UserCompanionUpsertResponse(BaseModel):
+    """Response returned when user-level companion preferences are saved."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    user_mail_id: str
+    title: str | None
+    description: str | None
+
+
 class UserCompanionResponse(BaseModel):
     """Saved user-level companion preferences."""
 
@@ -60,6 +70,8 @@ class UserCompanionResponse(BaseModel):
     intensity_level: IntensityLevel
     silence_response: SilenceResponse
     secret_desire: SecretDesire
+    title: str | None
+    description: str | None
 
 
 class AICompanionCreateRequest(BaseModel):
@@ -95,12 +107,14 @@ class AICompanionCreateRequest(BaseModel):
         return normalized or None
 
 
-class AICompanionIdentifierResponse(BaseModel):
-    """Identifier returned when a companion is created."""
+class AICompanionCreateResponse(BaseModel):
+    """Identifier and metadata returned when a companion is created."""
 
     model_config = ConfigDict(extra="forbid")
 
-    id: int
+    ai_companion_id: int
+    title: str
+    description: str | None
 
 
 class AICompanionResponse(BaseModel):
@@ -111,6 +125,7 @@ class AICompanionResponse(BaseModel):
     id: int
     user_mail_id: str
     title: str
+    description: str | None
     gender: AIGender
     style: AIStyle
     ethnicity: AIEthnicity

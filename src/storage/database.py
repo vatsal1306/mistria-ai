@@ -84,6 +84,10 @@ class SQLiteDatabase:
                 TEXT
                 NOT
                 NULL,
+                title
+                TEXT,
+                description
+                TEXT,
                 created_at
                 TEXT
                 NOT
@@ -122,6 +126,8 @@ class SQLiteDatabase:
                 TEXT
                 NOT
                 NULL,
+                description
+                TEXT,
                 gender
                 TEXT
                 NOT
@@ -366,6 +372,8 @@ class SQLiteDatabase:
                     connection.execute(statement)
                 self._ensure_users_password_nullable(connection)
                 self._ensure_conversations_ai_companion_column(connection)
+                self._ensure_user_companion_metadata_columns(connection)
+                self._ensure_ai_companion_metadata_columns(connection)
                 for statement in index_statements:
                     connection.execute(statement)
                 for statement in trigger_statements:
@@ -443,3 +451,13 @@ class SQLiteDatabase:
                 ADD COLUMN ai_companion_id INTEGER REFERENCES ai_companion (id) ON DELETE CASCADE
             """
         )
+
+    def _ensure_user_companion_metadata_columns(self, connection: sqlite3.Connection) -> None:
+        if not self._column_exists(connection, "user_companion", "title"):
+            connection.execute("ALTER TABLE user_companion ADD COLUMN title TEXT")
+        if not self._column_exists(connection, "user_companion", "description"):
+            connection.execute("ALTER TABLE user_companion ADD COLUMN description TEXT")
+
+    def _ensure_ai_companion_metadata_columns(self, connection: sqlite3.Connection) -> None:
+        if not self._column_exists(connection, "ai_companion", "description"):
+            connection.execute("ALTER TABLE ai_companion ADD COLUMN description TEXT")

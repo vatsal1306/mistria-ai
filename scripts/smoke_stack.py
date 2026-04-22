@@ -115,7 +115,7 @@ def seed_smoke_user(backend_base_url: str) -> tuple[str, int]:
         "connection": "New Encounter",
     })
 
-    return email, ai_companion["id"]
+    return email, ai_companion["ai_companion_id"]
 
 
 def run_websocket_round_trip(websocket_url: str, user_email: str, ai_companion_id: int) -> None:

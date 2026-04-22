@@ -16,10 +16,11 @@ from src.backend.websocket_handler import WebSocketChatHandler
 from src.companion.exceptions import CompanionNotFoundError
 from src.companion.schemas import (
     AICompanionCreateRequest,
-    AICompanionIdentifierResponse,
+    AICompanionCreateResponse,
     AICompanionResponse,
     UserCompanionResponse,
     UserCompanionUpsertRequest,
+    UserCompanionUpsertResponse,
 )
 from src.companion.service import CompanionService
 from src.config import settings
@@ -37,9 +38,8 @@ user_companion_repository = SQLiteUserCompanionRepository(database)
 ai_companion_repository = SQLiteAICompanionRepository(database)
 conversation_repository = SQLiteConversationRepository(database)
 
-companion_service = CompanionService(user_repository, user_companion_repository, ai_companion_repository)
-
 runtime = InferenceRuntimeFactory.create(settings.chat, settings.inference, settings.secrets)
+companion_service = CompanionService(user_repository, user_companion_repository, ai_companion_repository, runtime)
 chat_service = ChatService(settings.chat, runtime, conversation_repository)
 websocket_handler = WebSocketChatHandler(
     settings.api,
@@ -150,10 +150,10 @@ async def chat_socket(websocket: WebSocket) -> None:
     await websocket_handler.handle(websocket)
 
 
-@app.post("/user-companion", response_model=UserCompanionResponse)
-def upsert_user_companion(payload: UserCompanionUpsertRequest) -> UserCompanionResponse:
+@app.post("/user-companion", response_model=UserCompanionUpsertResponse)
+async def upsert_user_companion(payload: UserCompanionUpsertRequest) -> UserCompanionUpsertResponse:
     """Create or replace the saved user-companion preferences for a registered user."""
-    return companion_service.upsert_user_companion(payload)
+    return await companion_service.upsert_user_companion(payload)
 
 
 @app.get("/user-companion/{user_mail_id}", response_model=UserCompanionResponse)
@@ -162,10 +162,10 @@ def get_user_companion(user_mail_id: str) -> UserCompanionResponse:
     return companion_service.get_user_companion(user_mail_id)
 
 
-@app.post("/ai-companion", response_model=AICompanionIdentifierResponse, status_code=status.HTTP_201_CREATED)
-def create_ai_companion(payload: AICompanionCreateRequest) -> AICompanionIdentifierResponse:
-    """Create a new AI companion persona for the given registered user."""
-    return companion_service.create_ai_companion(payload)
+@app.post("/ai-companion", response_model=AICompanionCreateResponse)
+async def create_ai_companion(payload: AICompanionCreateRequest) -> AICompanionCreateResponse:
+    """Persist a new AI companion persona."""
+    return await companion_service.create_ai_companion(payload)
 
 
 @app.get("/ai-companion", response_model=list[AICompanionResponse])

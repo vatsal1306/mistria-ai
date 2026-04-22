@@ -78,6 +78,13 @@ class BaseInferenceRuntime(ABC):
     async def stream_text(self, request: InferencePromptRequest) -> AsyncGenerator[str, None]:
         """Stream response chunks for a request."""
 
+    async def generate_text(self, request: InferencePromptRequest) -> str:
+        """Generate a complete text response by accumulating stream chunks."""
+        chunks = []
+        async for chunk in self.stream_text(request):
+            chunks.append(chunk)
+        return "".join(chunks)
+
     def _set_startup_stage(self, stage: str, detail: str | None = None) -> None:
         previous_stage = self._startup_stage
         if self._startup_started_at is None and stage != "not_started":

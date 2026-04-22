@@ -223,11 +223,8 @@ Content-Type: application/json
 ```json
 {
   "user_mail_id": "user@example.com",
-  "intent_type": "alive",
-  "dominance_mode": "ai_leads",
-  "intensity_level": "break_glass",
-  "silence_response": "come_looking",
-  "secret_desire": "both"
+  "title": "Chased and Unapologetic",
+  "description": "A high-intensity personality that wants pursuit, danger, and emotional surrender."
 }
 ```
 
@@ -257,7 +254,9 @@ GET /user-companion/user@example.com
   "dominance_mode": "ai_leads",
   "intensity_level": "break_glass",
   "silence_response": "come_looking",
-  "secret_desire": "both"
+  "secret_desire": "both",
+  "title": "Chased and Unapologetic",
+  "description": "A high-intensity personality that wants pursuit, danger, and emotional surrender."
 }
 ```
 
@@ -310,7 +309,9 @@ Content-Type: application/json
 **Response:** `201 Created`
 ```json
 {
-  "id": 1
+  "ai_companion_id": 1,
+  "title": "Luna",
+  "description": "A playful, passionate anime companion with a flirtatious voice and intense romantic energy."
 }
 ```
 
@@ -343,6 +344,7 @@ GET /ai-companion?user_mail_id=user@example.com
     "id": 1,
     "user_mail_id": "user@example.com",
     "title": "Luna",
+    "description": "A playful, passionate anime companion with a flirtatious voice and intense romantic energy.",
     "gender": "Female",
     "style": "Anime",
     "ethnicity": "East Asian",
@@ -377,6 +379,7 @@ GET /ai-companion/1
   "id": 1,
   "user_mail_id": "user@example.com",
   "title": "Luna",
+  "description": "A playful, passionate anime companion with a flirtatious voice and intense romantic energy.",
   "gender": "Female",
   "style": "Anime",
   "ethnicity": "East Asian",
