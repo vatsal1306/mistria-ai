@@ -9,6 +9,7 @@ services:
             MISTRIA_API_PORT: 8080
             MISTRIA_API_RELOAD: "false"
             MISTRIA_INFERENCE_BACKEND: ${MISTRIA_INFERENCE_BACKEND:-mock}
+            MISTRIA_LOG_LEVEL: ${MISTRIA_LOG_LEVEL:-INFO}
             MISTRIA_AUTH_ENCRYPTION_KEY: ${MISTRIA_AUTH_ENCRYPTION_KEY:-change-me-before-production}
             MISTRIA_API_KEY: ${MISTRIA_API_KEY:-change-me-before-production}
             MISTRIA_STORAGE_SQLITE_PATH: /app/data/db/app.db
@@ -42,6 +43,7 @@ services:
             MISTRIA_API_HOST: backend
             MISTRIA_API_PORT: 8080
             MISTRIA_INFERENCE_BACKEND: ${MISTRIA_INFERENCE_BACKEND:-mock}
+            MISTRIA_LOG_LEVEL: ${MISTRIA_LOG_LEVEL:-INFO}
             MISTRIA_AUTH_ENCRYPTION_KEY: ${MISTRIA_AUTH_ENCRYPTION_KEY:-change-me-before-production}
             MISTRIA_API_KEY: ${MISTRIA_API_KEY:-change-me-before-production}
             MISTRIA_STORAGE_SQLITE_PATH: /app/data/db/app.db

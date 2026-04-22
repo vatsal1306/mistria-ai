@@ -1,32 +1,69 @@
-"""
-Logging configuration for the application.
-Creates a Logs directory if it doesn't exist and sets up a rotating file handler and a stream handler.
-"""
+"""Centralized application logging configuration."""
+
+from __future__ import annotations
+
 import logging
 import os
 from logging.handlers import RotatingFileHandler
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+from src.config import settings
 
-log_dirname = "Logs"
-log_filename = "app.log"
-log_filepath = os.path.join(os.getcwd(), log_dirname, log_filename)
+APP_LOGGER_NAME = "mistria"
+LOG_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(lineno)s | %(message)s"
 
-os.makedirs(log_dirname, exist_ok=True)
+_base_logger = logging.getLogger(APP_LOGGER_NAME)
 
-if not os.path.exists(log_filepath):
-    open(log_filepath, "w").close()
 
-formatter = logging.Formatter('%(asctime)s | %(filename)s | %(lineno)s | %(levelname)s | %(message)s')
+def _configure_logging() -> logging.Logger:
+    if getattr(_base_logger, "_mistria_configured", False):
+        return _base_logger
 
-file_handler = RotatingFileHandler(log_filepath)
-file_handler.setFormatter(formatter)
-file_handler.setLevel(logging.INFO)
+    os.makedirs(settings.logging.directory, exist_ok=True)
 
-stream_handler = logging.StreamHandler()
-stream_handler.setFormatter(formatter)
-stream_handler.setLevel(logging.INFO)
+    formatter = logging.Formatter(LOG_FORMAT)
+    log_level = getattr(logging, settings.logging.level, logging.INFO)
 
-logger.addHandler(file_handler)
-logger.addHandler(stream_handler)
+    file_handler = RotatingFileHandler(
+        settings.logging.file_path,
+        maxBytes=settings.logging.max_bytes,
+        backupCount=settings.logging.backup_count,
+        encoding="utf-8",
+    )
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(log_level)
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    stream_handler.setLevel(log_level)
+
+    _base_logger.handlers.clear()
+    _base_logger.setLevel(log_level)
+    _base_logger.propagate = False
+    _base_logger.addHandler(file_handler)
+    _base_logger.addHandler(stream_handler)
+    _base_logger._mistria_configured = True  # type: ignore[attr-defined]
+    _base_logger.debug(
+        "Configured application logging level=%s file=%s max_bytes=%s backup_count=%s",
+        settings.logging.level,
+        settings.logging.file_path,
+        settings.logging.max_bytes,
+        settings.logging.backup_count,
+    )
+    return _base_logger
+
+
+def get_logger(name: str | None = None) -> logging.Logger:
+    """Return the configured app logger or a child logger for the given module."""
+    base_logger = _configure_logging()
+    if not name:
+        return base_logger
+
+    normalized_name = name.removeprefix("src.")
+    if normalized_name == APP_LOGGER_NAME or normalized_name.startswith(f"{APP_LOGGER_NAME}."):
+        return logging.getLogger(normalized_name)
+    return base_logger.getChild(normalized_name)
+
+
+logger = get_logger()
+
+__all__ = ["get_logger", "logger"]

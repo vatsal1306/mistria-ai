@@ -126,3 +126,45 @@ jobs:
             -   name: Stop compose stack
                 if: always()
                 run: docker compose --env-file .env.example down -v --remove-orphans
+
+    sync-wiki:
+        name: Sync API doc to Wiki
+        runs-on: ubuntu-latest
+        # ONLY run this when pushing to main, preventing PRs from overwriting the wiki
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        env:
+            WIKI_SOURCE_FILE: docs/API Documentation.md
+            WIKI_TARGET_FILE: API Documentation.md
+
+        steps:
+            -   name: Checkout Main Repo
+                uses: actions/checkout@v6.0.2
+                with:
+                    path: main-repo
+
+            -   name: Checkout Wiki Repo
+                uses: actions/checkout@v6.0.2
+                with:
+                    repository: ${{ github.repository }}.wiki
+                    path: wiki-repo
+                    token: ${{ secrets.WIKI_SYNC_PAT }}
+
+            -   name: Validate source doc exists
+                run: test -f "main-repo/${WIKI_SOURCE_FILE}"
+
+            -   name: Copy and Push to Wiki
+                run: |
+                    cp "main-repo/${WIKI_SOURCE_FILE}" "wiki-repo/${WIKI_TARGET_FILE}"
+
+                    cd wiki-repo
+                    git config user.name "github-actions[bot]"
+                    git config user.email "github-actions[bot]@users.noreply.github.com"
+                    git add "${WIKI_TARGET_FILE}"
+
+                    if git diff --cached --quiet; then
+                        echo "No wiki changes to commit."
+                        exit 0
+                    fi
+
+                    git commit -m "Auto-sync from main repo CI"
+                    git push

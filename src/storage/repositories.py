@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+from src.Logging import get_logger
 from src.storage.database import SQLiteDatabase
 from src.storage.models import (
     AICompanionRecord,
@@ -12,6 +13,8 @@ from src.storage.models import (
     UserCompanionRecord,
     UserRecord,
 )
+
+logger = get_logger(__name__)
 
 
 def _normalize_email(email: str) -> str:
@@ -55,8 +58,11 @@ class SQLiteUserRepository(UserRepository):
             ).fetchone()
 
         if row is None:
+            logger.debug("User lookup by email missed email=%s", normalized_email)
             return None
-        return UserRecord(**dict(row))
+        user = UserRecord(**dict(row))
+        logger.debug("User lookup by email hit user_id=%s email=%s", user.id, user.email)
+        return user
 
     def find_by_id(self, user_id: int) -> UserRecord | None:
         """Fetch a user by its internal primary key."""
@@ -71,8 +77,11 @@ class SQLiteUserRepository(UserRepository):
             ).fetchone()
 
         if row is None:
+            logger.debug("User lookup by id missed user_id=%s", user_id)
             return None
-        return UserRecord(**dict(row))
+        user = UserRecord(**dict(row))
+        logger.debug("User lookup by id hit user_id=%s email=%s", user.id, user.email)
+        return user
 
     def create_user(self, email: str, name: str, encrypted_password: str | None) -> UserRecord:
         """Insert a new user row and return the created record."""
@@ -95,7 +104,9 @@ class SQLiteUserRepository(UserRepository):
             ).fetchone()
             connection.commit()
 
-        return UserRecord(**dict(row))
+        user = UserRecord(**dict(row))
+        logger.debug("Created user record user_id=%s email=%s", user.id, user.email)
+        return user
 
 
 class SQLiteUserCompanionRepository:
@@ -128,8 +139,11 @@ class SQLiteUserCompanionRepository:
             ).fetchone()
 
         if row is None:
+            logger.debug("User companion lookup missed user_id=%s", user_id)
             return None
-        return UserCompanionRecord(**dict(row))
+        record = UserCompanionRecord(**dict(row))
+        logger.debug("User companion lookup hit record_id=%s user_id=%s", record.id, record.user_id)
+        return record
 
     def upsert(
         self,
@@ -201,7 +215,9 @@ class SQLiteUserCompanionRepository:
             ).fetchone()
             connection.commit()
 
-        return UserCompanionRecord(**dict(row))
+        record = UserCompanionRecord(**dict(row))
+        logger.debug("Upserted user companion record record_id=%s user_id=%s", record.id, record.user_id)
+        return record
 
 
 class SQLiteAICompanionRepository:
@@ -286,7 +302,14 @@ class SQLiteAICompanionRepository:
             ).fetchone()
             db_connection.commit()
 
-        return AICompanionRecord(**dict(row))
+        record = AICompanionRecord(**dict(row))
+        logger.debug(
+            "Created AI companion record ai_companion_id=%s user_id=%s title=%s",
+            record.id,
+            record.user_id,
+            record.title,
+        )
+        return record
 
     def find_by_id(self, ai_companion_id: int) -> AICompanionRecord | None:
         """Fetch one AI companion persona by primary key."""
@@ -316,8 +339,11 @@ class SQLiteAICompanionRepository:
             ).fetchone()
 
         if row is None:
+            logger.debug("AI companion lookup missed ai_companion_id=%s", ai_companion_id)
             return None
-        return AICompanionRecord(**dict(row))
+        record = AICompanionRecord(**dict(row))
+        logger.debug("AI companion lookup hit ai_companion_id=%s user_id=%s", record.id, record.user_id)
+        return record
 
     def list_by_user_id(self, user_id: int) -> list[AICompanionRecord]:
         """List all AI companion personas owned by a user, newest first."""
@@ -347,7 +373,9 @@ class SQLiteAICompanionRepository:
                 (user_id,),
             ).fetchall()
 
-        return [AICompanionRecord(**dict(row)) for row in rows]
+        records = [AICompanionRecord(**dict(row)) for row in rows]
+        logger.debug("Listed AI companion records user_id=%s count=%s", user_id, len(records))
+        return records
 
     def find_latest_by_user_id(self, user_id: int) -> AICompanionRecord | None:
         """Fetch the most recently created AI companion persona for a user."""
@@ -379,8 +407,11 @@ class SQLiteAICompanionRepository:
             ).fetchone()
 
         if row is None:
+            logger.debug("Latest AI companion lookup missed user_id=%s", user_id)
             return None
-        return AICompanionRecord(**dict(row))
+        record = AICompanionRecord(**dict(row))
+        logger.debug("Latest AI companion lookup hit user_id=%s ai_companion_id=%s", user_id, record.id)
+        return record
 
 
 class SQLiteConversationRepository:
@@ -403,8 +434,16 @@ class SQLiteConversationRepository:
             ).fetchone()
 
         if row is None:
+            logger.debug("Conversation lookup missed user_id=%s ai_companion_id=%s", user_id, ai_companion_id)
             return None
-        return ConversationRecord(**dict(row))
+        record = ConversationRecord(**dict(row))
+        logger.debug(
+            "Conversation lookup hit conversation_id=%s user_id=%s ai_companion_id=%s",
+            record.id,
+            record.user_id,
+            record.ai_companion_id,
+        )
+        return record
 
     def create_conversation(self, user_id: int, ai_companion_id: int) -> ConversationRecord:
         """Insert a new conversation scoped to a user/persona pair."""
@@ -426,7 +465,14 @@ class SQLiteConversationRepository:
             ).fetchone()
             connection.commit()
 
-        return ConversationRecord(**dict(row))
+        record = ConversationRecord(**dict(row))
+        logger.debug(
+            "Created conversation record conversation_id=%s user_id=%s ai_companion_id=%s",
+            record.id,
+            record.user_id,
+            record.ai_companion_id,
+        )
+        return record
 
     def list_messages(self, conversation_id: int) -> list[MessageRecord]:
         """List all messages in one conversation in creation order."""
@@ -441,7 +487,9 @@ class SQLiteConversationRepository:
                 (conversation_id,),
             ).fetchall()
 
-        return [MessageRecord(**dict(row)) for row in rows]
+        records = [MessageRecord(**dict(row)) for row in rows]
+        logger.debug("Listed conversation messages conversation_id=%s count=%s", conversation_id, len(records))
+        return records
 
     def create_message(self, conversation_id: int, role: str, content: str) -> MessageRecord:
         """Insert one chat message and return the saved row."""
@@ -463,4 +511,12 @@ class SQLiteConversationRepository:
             ).fetchone()
             connection.commit()
 
-        return MessageRecord(**dict(row))
+        record = MessageRecord(**dict(row))
+        logger.debug(
+            "Created message record message_id=%s conversation_id=%s role=%s content_length=%s",
+            record.id,
+            record.conversation_id,
+            record.role,
+            len(record.content),
+        )
+        return record

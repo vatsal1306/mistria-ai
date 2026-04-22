@@ -7,8 +7,10 @@ import sqlite3
 from contextlib import contextmanager
 from typing import Iterator
 
-from src.Logging import logger
+from src.Logging import get_logger
 from src.storage.exceptions import DatabaseInitializationError, RepositoryError
+
+logger = get_logger(__name__)
 
 
 class SQLiteDatabase:
@@ -20,6 +22,7 @@ class SQLiteDatabase:
     def initialize(self) -> None:
         """Create or migrate the SQLite schema required by the application."""
         os.makedirs(os.path.dirname(self.database_path), exist_ok=True)
+        logger.info("Initializing SQLite database path=%s", self.database_path)
 
         table_statements = (
             """
@@ -381,6 +384,7 @@ class SQLiteDatabase:
                 connection.commit()
             logger.info("SQLite database initialized at %s", self.database_path)
         except sqlite3.Error as exc:
+            logger.exception("SQLite database initialization failed path=%s", self.database_path)
             raise DatabaseInitializationError(f"Could not initialize SQLite database: {exc}") from exc
 
     @contextmanager
@@ -393,6 +397,7 @@ class SQLiteDatabase:
         try:
             yield connection
         except sqlite3.Error as exc:
+            logger.exception("SQLite operation failed path=%s", self.database_path)
             connection.rollback()
             raise RepositoryError(f"SQLite operation failed: {exc}") from exc
         finally:
@@ -415,6 +420,7 @@ class SQLiteDatabase:
         if not self._column_is_not_null(connection, "users", "encrypted_password"):
             return
 
+        logger.info("Migrating users.encrypted_password to nullable column")
         connection.execute("PRAGMA foreign_keys = OFF")
         try:
             connection.execute("ALTER TABLE users RENAME TO users_legacy")
@@ -445,6 +451,7 @@ class SQLiteDatabase:
         if self._column_exists(connection, "conversations", "ai_companion_id"):
             return
 
+        logger.info("Adding conversations.ai_companion_id column via migration")
         connection.execute(
             """
             ALTER TABLE conversations
