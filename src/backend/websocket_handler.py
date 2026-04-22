@@ -15,6 +15,9 @@ from src.storage.repositories import (
     SQLiteUserCompanionRepository,
     UserRepository,
 )
+import asyncio
+from src.storage.service import ChatHistoryService
+from src.storage.conversation_store import ConversationSnapshot
 
 logger = get_logger(__name__)
 
@@ -23,14 +26,17 @@ class WebSocketChatHandler:
     """One handler instance shared across websocket connections."""
 
     def __init__(self, api_config: Api, secrets_config: Secrets, service: ChatService,
+                 history_service: ChatHistoryService,
                  user_repo: UserRepository, user_companion_repo: SQLiteUserCompanionRepository,
                  ai_companion_repo: SQLiteAICompanionRepository):
         self.api_config = api_config
         self.secrets_config = secrets_config
         self.service = service
+        self.history_service = history_service
         self.user_repo = user_repo
         self.user_companion_repo = user_companion_repo
         self.ai_companion_repo = ai_companion_repo
+        self._history_tasks: dict[str, asyncio.Task[ConversationSnapshot]] = {}
 
     async def handle(self, websocket: WebSocket) -> None:
         """Own the full lifecycle of a websocket chat session."""
@@ -40,6 +46,25 @@ class WebSocketChatHandler:
 
         try:
             self._authorize(websocket)
+            
+            # Extract User and Companion IDs from query parameters for pre-fetching
+            user_id = websocket.query_params.get("user_id")
+            ai_companion_id_str = websocket.query_params.get("ai_companion_id")
+            
+            history_task = None
+            if user_id and ai_companion_id_str:
+                try:
+                    ai_companion_id = int(ai_companion_id_str)
+                    # Pre-validate user/companion existence before starting pre-fetch
+                    user = self.user_repo.find_by_email(user_id)
+                    if user:
+                        logger.info("Initiating history pre-fetch for client=%s user_id=%s", client_label, user_id)
+                        history_task = asyncio.create_task(
+                            asyncio.to_thread(self.history_service.load_latest, user.id, ai_companion_id)
+                        )
+                except (ValueError, TypeError):
+                    logger.warning("Invalid IDs in query parameters for client=%s", client_label)
+
             await self._send_event(
                 websocket,
                 ChatSocketEvent(type="ready", backend=self.service.runtime.backend_name),
@@ -53,7 +78,9 @@ class WebSocketChatHandler:
             while True:
                 raw_payload = await websocket.receive_text()
                 logger.debug("Received websocket request payload client=%s payload_bytes=%s", client_label, len(raw_payload))
-                await self._handle_request_message(websocket, raw_payload)
+                await self._handle_request_message(websocket, raw_payload, history_task)
+                # After the first message, we don't need the pre-fetch task anymore
+                history_task = None 
         except AuthenticationError as exc:
             logger.warning("Rejected websocket connection client=%s reason=%s", client_label, exc)
             await self._send_event(
@@ -66,6 +93,9 @@ class WebSocketChatHandler:
         except Exception:
             logger.exception("Unhandled websocket session failure client=%s", client_label)
             await self._safe_close(websocket)
+        finally:
+            if history_task and not history_task.done():
+                history_task.cancel()
 
     def _authorize(self, websocket: WebSocket) -> None:
         if not self.api_config.require_api_key:
@@ -77,7 +107,12 @@ class WebSocketChatHandler:
             raise AuthenticationError("Missing or invalid websocket API key.")
         logger.debug("Websocket API key authentication succeeded client=%s", self._client_label(websocket))
 
-    async def _handle_request_message(self, websocket: WebSocket, raw_payload: str) -> None:
+    async def _handle_request_message(
+        self, 
+        websocket: WebSocket, 
+        raw_payload: str, 
+        history_task: asyncio.Task[ConversationSnapshot] | None = None
+    ) -> None:
         client_label = self._client_label(websocket)
         try:
             request = ChatSocketRequest.model_validate_json(raw_payload)
@@ -113,7 +148,16 @@ class WebSocketChatHandler:
                 )
                 raise ServiceError("AI companion is missing, invalid, or not owned by the user.")
 
-            async for token in self.service.stream_response(request, user.id):
+            # Resolve pre-fetched history if available
+            snapshot = None
+            if history_task:
+                try:
+                    snapshot = await history_task
+                    logger.debug("Resolved pre-fetched history snapshot for client=%s", client_label)
+                except Exception:
+                    logger.exception("Pre-fetch history task failed for client=%s", client_label)
+
+            async for token in self.service.stream_response(request, user.id, snapshot):
                 await self._send_event(
                     websocket,
                     ChatSocketEvent(type="delta", backend=self.service.runtime.backend_name, delta=token),

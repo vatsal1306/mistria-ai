@@ -37,12 +37,12 @@ class StreamingChatClient:
         """Return the backend name announced during websocket setup."""
         return self._backend_name
 
-    def connect(self) -> None:
+    def connect(self, user_id: str, ai_companion_id: int) -> None:
         """Open the websocket session and consume the initial ready event."""
         if self.is_connected:
             return
 
-        websocket_url = self._build_websocket_url()
+        websocket_url = self._build_websocket_url(user_id, ai_companion_id)
         timeout = self.api_config.read_timeout_seconds
         logger.info("Opening websocket chat stream to %s", websocket_url)
 
@@ -108,11 +108,12 @@ class StreamingChatClient:
                 "The websocket chat backend became unreachable. Reconnect after the backend is available."
             ) from exc
 
-    def _build_websocket_url(self) -> str:
-        if not self.api_config.require_api_key:
-            return self.api_config.websocket_url
+    def _build_websocket_url(self, user_id: str, ai_companion_id: int) -> str:
+        params = {"user_id": user_id, "ai_companion_id": ai_companion_id}
+        if self.api_config.require_api_key:
+            params["api_key"] = self.secrets_config.api_key
 
-        query_string = urlencode({"api_key": self.secrets_config.api_key})
+        query_string = urlencode(params)
         return f"{self.api_config.websocket_url}?{query_string}"
 
     def _consume_ready_event(self) -> None:

@@ -32,6 +32,8 @@ from src.storage.repositories import (
     SQLiteUserCompanionRepository,
     SQLiteUserRepository,
 )
+from src.storage.conversation_store import SQLiteConversationStore
+from src.storage.service import ChatHistoryService
 
 logger = get_logger(__name__)
 
@@ -40,14 +42,17 @@ user_repository = SQLiteUserRepository(database)
 user_companion_repository = SQLiteUserCompanionRepository(database)
 ai_companion_repository = SQLiteAICompanionRepository(database)
 conversation_repository = SQLiteConversationRepository(database)
+conversation_store = SQLiteConversationStore(conversation_repository)
+chat_history_service = ChatHistoryService(conversation_store)
 
 runtime = InferenceRuntimeFactory.create(settings.chat, settings.inference, settings.secrets)
 companion_service = CompanionService(user_repository, user_companion_repository, ai_companion_repository, runtime)
-chat_service = ChatService(settings.chat, runtime, conversation_repository)
+chat_service = ChatService(settings.chat, runtime, chat_history_service)
 websocket_handler = WebSocketChatHandler(
     settings.api,
     settings.secrets,
     chat_service,
+    chat_history_service,
     user_repository,
     user_companion_repository,
     ai_companion_repository,
