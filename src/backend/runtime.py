@@ -122,16 +122,23 @@ class MockInferenceRuntime(BaseInferenceRuntime):
 
     async def stream_text(self, request: InferencePromptRequest) -> AsyncGenerator[str, None]:
         """Yield a deterministic token stream for smoke tests and local UI checks."""
-        latest_user_message = request.messages[-1].content
         logger.debug(
-            "Starting mock generation model=%s message_count=%s",
+            "Starting mock generation model=%s message_count=%s structured=%s",
             self.inference_config.model_name,
             len(request.messages),
+            bool(request.json_schema),
         )
-        scripted_reply = (
-            f"Mock backend active. I received: {latest_user_message!r}. "
-            "Switch settings.inference.backend to 'ollama' when the target runtime is installed and available."
-        )
+
+        if request.json_schema:
+            # Return a valid JSON string that matches the CompanionMetadata schema
+            scripted_reply = '{"title": "Mock Companion", "description": "A wonderful mock companion for testing purposes."}'
+        else:
+            latest_user_message = request.messages[-1].content
+            scripted_reply = (
+                f"Mock backend active. I received: {latest_user_message!r}. "
+                "Switch settings.inference.backend to 'ollama' when the target runtime is installed and available."
+            )
+
         for token in scripted_reply.split():
             await asyncio.sleep(self.inference_config.mock_response_delay_seconds)
             yield f"{token} "

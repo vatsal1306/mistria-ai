@@ -104,6 +104,9 @@ class CompanionService:
         prompt = AI_COMPANION_METADATA_PROMPT.format(
             gender=payload.gender,
             style=payload.style,
+            ethnicity=payload.ethnicity,
+            eye_color=payload.eyeColor,
+            hair_style=payload.hairStyle,
             personality=payload.personality,
             voice=payload.voice
         )

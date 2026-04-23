@@ -20,6 +20,9 @@ Secret Desire: {secret_desire}"""
 AI_COMPANION_METADATA_PROMPT = """Generate a brief 1-sentence description for an AI companion with these traits:
 Gender: {gender}
 Style: {style}
+Ethnicity: {ethnicity}
+Eye Color: {eye_color}
+Hair Style: {hair_style}
 Personality: {personality}
 Voice: {voice}"""
 

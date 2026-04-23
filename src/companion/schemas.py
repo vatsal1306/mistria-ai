@@ -55,8 +55,8 @@ class UserCompanionUpsertResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     user_mail_id: str
-    title: str | None
-    description: str | None
+    title: str
+    description: str
 
 
 class UserCompanionResponse(BaseModel):

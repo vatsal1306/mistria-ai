@@ -37,6 +37,23 @@ class ChatService:
         )
         
         # Load snapshot if not provided (fallback)
+        # Issue A: Ensure pre-fetched snapshot identity matches the actual request
+        if snapshot:
+            is_match = (
+                snapshot.conversation.user_id == internal_user_id and
+                snapshot.conversation.ai_companion_id == request.ai_companion_id
+            )
+            if not is_match:
+                logger.warning(
+                    "Snapshot identity mismatch. Discarding pre-fetch. "
+                    "snapshot_user=%s req_user=%s snapshot_companion=%s req_companion=%s",
+                    snapshot.conversation.user_id,
+                    internal_user_id,
+                    snapshot.conversation.ai_companion_id,
+                    request.ai_companion_id
+                )
+                snapshot = None
+
         if snapshot is None:
             snapshot = await asyncio.to_thread(
                 self.history_service.load_latest, 
@@ -44,6 +61,15 @@ class ChatService:
                 request.ai_companion_id
             )
             
+        # Issue C: If no history exists, start a fresh conversation lazily
+        if snapshot is None:
+            logger.info("No existing conversation found. Starting fresh lazily.")
+            snapshot = await asyncio.to_thread(
+                self.history_service.start_fresh,
+                internal_user_id,
+                request.ai_companion_id
+            )
+
         conversation = snapshot.conversation
         
         # 1. Save the incoming user message asynchronously
