@@ -153,8 +153,8 @@ class SQLiteUserCompanionRepository:
         intensity_level: str,
         silence_response: str,
         secret_desire: str,
-        title: str | None,
-        description: str | None,
+        title: str,
+        description: str,
     ) -> UserCompanionRecord:
         """Insert or replace the user-companion preferences for one user."""
         with self.database.connection() as connection:
@@ -230,7 +230,7 @@ class SQLiteAICompanionRepository:
         self,
         user_id: int,
         title: str,
-        description: str | None,
+        description: str,
         gender: str,
         style: str,
         ethnicity: str,

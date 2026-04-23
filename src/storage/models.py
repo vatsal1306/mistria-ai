@@ -25,8 +25,8 @@ class UserCompanionRecord:
     intensity_level: str
     silence_response: str
     secret_desire: str
-    title: str | None
-    description: str | None
+    title: str
+    description: str
     created_at: str
     updated_at: str
 
@@ -37,7 +37,7 @@ class AICompanionRecord:
     id: int
     user_id: int
     title: str
-    description: str | None
+    description: str
     gender: str
     style: str
     ethnicity: str
