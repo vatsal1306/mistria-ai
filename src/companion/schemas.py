@@ -70,8 +70,8 @@ class UserCompanionResponse(BaseModel):
     intensity_level: IntensityLevel
     silence_response: SilenceResponse
     secret_desire: SecretDesire
-    title: str | None
-    description: str | None
+    title: str
+    description: str
 
 
 class AICompanionCreateRequest(BaseModel):
@@ -114,7 +114,7 @@ class AICompanionCreateResponse(BaseModel):
 
     ai_companion_id: int
     title: str
-    description: str | None
+    description: str 
 
 
 class AICompanionResponse(BaseModel):
@@ -125,7 +125,7 @@ class AICompanionResponse(BaseModel):
     id: int
     user_mail_id: str
     title: str
-    description: str | None
+    description: str
     gender: AIGender
     style: AIStyle
     ethnicity: AIEthnicity

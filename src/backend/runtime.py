@@ -267,6 +267,7 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
             temperature=self.inference_config.temperature,
             top_p=self.inference_config.top_p,
             output_kind=self._request_output_kind.DELTA,
+            guided_json=request.json_schema,
         )
 
         try:
@@ -422,6 +423,7 @@ class OllamaInferenceRuntime(BaseInferenceRuntime):
                     model=self.inference_config.model_name,
                     messages=messages,
                     stream=True,
+                    format="json" if request.json_schema else None,
                     options={
                         "temperature": self.inference_config.temperature,
                         "top_p": self.inference_config.top_p,

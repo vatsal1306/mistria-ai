@@ -9,6 +9,7 @@ from src.companion.schemas import (
     AICompanionCreateRequest,
     AICompanionCreateResponse,
     AICompanionResponse,
+    CompanionMetadata,
     UserCompanionResponse,
     UserCompanionUpsertRequest,
     UserCompanionUpsertResponse,
@@ -21,6 +22,12 @@ from src.storage.repositories import (
     SQLiteAICompanionRepository,
     SQLiteUserCompanionRepository,
     SQLiteUserRepository,
+)
+from src.prompts import (
+    AI_COMPANION_METADATA_PROMPT,
+    AI_COMPANION_TITLE_INSTRUCTION,
+    METADATA_SYSTEM_PROMPT,
+    USER_COMPANION_METADATA_PROMPT,
 )
 
 logger = get_logger(__name__)
@@ -46,29 +53,22 @@ class CompanionService:
         logger.info("Upserting user companion preferences email=%s", payload.user_mail_id)
         user = self._get_user_by_email(payload.user_mail_id)
         
-        prompt = f"""Generate a catchy title (max 5 words) and a brief 1-sentence description for a companion based on these traits:
-Intent: {payload.intent_type}
-Dominance: {payload.dominance_mode}
-Intensity: {payload.intensity_level}
-Silence: {payload.silence_response}
-Secret Desire: {payload.secret_desire}
-Format your response EXACTLY like this:
-Title: [Generated Title]
-Description: [Generated Description]"""
+        prompt = USER_COMPANION_METADATA_PROMPT.format(
+            intent=payload.intent_type,
+            dominance=payload.dominance_mode,
+            intensity=payload.intensity_level,
+            silence=payload.silence_response,
+            secret_desire=payload.secret_desire
+        )
 
         req = InferencePromptRequest(
-            system_prompt="You are a metadata generator.",
-            messages=[ChatMessage(role="user", content=prompt)]
+            system_prompt=METADATA_SYSTEM_PROMPT,
+            messages=[ChatMessage(role="user", content=prompt)],
+            json_schema=CompanionMetadata.model_json_schema()
         )
         metadata_text = await self.runtime.generate_text(req)
+        metadata = CompanionMetadata.model_validate_json(metadata_text)
         
-        title, description = None, None
-        for line in metadata_text.split('\n'):
-            if line.startswith('Title:'):
-                title = line.replace('Title:', '').strip()
-            elif line.startswith('Description:'):
-                description = line.replace('Description:', '').strip()
-
         self.user_companion_repository.upsert(
             user_id=user.id,
             intent_type=payload.intent_type,
@@ -76,11 +76,15 @@ Description: [Generated Description]"""
             intensity_level=payload.intensity_level,
             silence_response=payload.silence_response,
             secret_desire=payload.secret_desire,
-            title=title,
-            description=description,
+            title=metadata.title,
+            description=metadata.description,
         )
         logger.info("Upserted user companion preferences user_id=%s email=%s", user.id, user.email)
-        return UserCompanionUpsertResponse(user_mail_id=user.email, title=title, description=description)
+        return UserCompanionUpsertResponse(
+            user_mail_id=payload.user_mail_id,
+            title=metadata.title,
+            description=metadata.description,
+        )
 
     def get_user_companion(self, user_mail_id: str) -> UserCompanionResponse:
         """Load the stored user-companion preferences for the given email address."""
@@ -97,35 +101,28 @@ Description: [Generated Description]"""
         logger.info("Creating AI companion email=%s title=%s", payload.user_mail_id, payload.title or "auto")
         user = self._get_user_by_email(payload.user_mail_id)
         
-        prompt = f"""Generate a brief 1-sentence description for an AI companion with these traits:
-Gender: {payload.gender}
-Style: {payload.style}
-Personality: {payload.personality}
-Voice: {payload.voice}
-Format your response EXACTLY like this:
-Description: [Generated Description]"""
+        prompt = AI_COMPANION_METADATA_PROMPT.format(
+            gender=payload.gender,
+            style=payload.style,
+            personality=payload.personality,
+            voice=payload.voice
+        )
 
         title_instruction = ""
         if not payload.title:
-            prompt += "\nAlso generate a catchy name/title (max 3 words):\nTitle: [Generated Title]"
+            prompt += AI_COMPANION_TITLE_INSTRUCTION
             title_instruction = " and a name"
 
         req = InferencePromptRequest(
-            system_prompt=f"You are a metadata generator. Generate a description{title_instruction}.",
-            messages=[ChatMessage(role="user", content=prompt)]
+            system_prompt=f"{METADATA_SYSTEM_PROMPT} Generate a description{title_instruction}.",
+            messages=[ChatMessage(role="user", content=prompt)],
+            json_schema=CompanionMetadata.model_json_schema()
         )
         metadata_text = await self.runtime.generate_text(req)
+        metadata = CompanionMetadata.model_validate_json(metadata_text)
         
-        title = payload.title
-        description = None
-        for line in metadata_text.split('\n'):
-            if line.startswith('Title:') and not payload.title:
-                title = line.replace('Title:', '').strip()
-            elif line.startswith('Description:'):
-                description = line.replace('Description:', '').strip()
-                
-        if not title:
-            title = self._generate_ai_companion_title(payload)
+        title = payload.title or metadata.title
+        description = metadata.description
 
         record = self.ai_companion_repository.create(
             user_id=user.id,
