@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import os
 import time
 from abc import ABC, abstractmethod
@@ -155,6 +156,9 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
         self._engine = None
         self._tokenizer = None
         self._sampling_params_cls = None
+        self._sampling_param_names: set[str] = set()
+        self._structured_output_param_name: str | None = None
+        self._structured_output_params_cls = None
         self._request_output_kind = None
         self._startup_monitor_task: asyncio.Task | None = None
 
@@ -180,6 +184,14 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
             from vllm.engine.arg_utils import AsyncEngineArgs
             from vllm.platforms import current_platform
             from vllm.sampling_params import RequestOutputKind
+            try:
+                from vllm.sampling_params import GuidedDecodingParams
+            except ImportError:
+                GuidedDecodingParams = None
+            try:
+                from vllm.sampling_params import StructuredOutputsParams
+            except ImportError:
+                StructuredOutputsParams = None
         except Exception as exc:
             self._startup_error = (
                 "vLLM runtime import failed. "
@@ -230,6 +242,11 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
             )
             self._engine = AsyncLLMEngine.from_engine_args(engine_args)
             self._sampling_params_cls = SamplingParams
+            self._configure_structured_output_support(
+                sampling_params_cls=SamplingParams,
+                guided_decoding_params_cls=GuidedDecodingParams,
+                structured_outputs_params_cls=StructuredOutputsParams,
+            )
             self._request_output_kind = RequestOutputKind
             self._startup_error = None
             self._set_startup_stage("ready", "Embedded vLLM runtime is ready.")
@@ -278,8 +295,8 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
             "output_kind": self._request_output_kind.DELTA,
         }
         if request.json_schema:
-            params["guided_json"] = request.json_schema
-            
+            params.update(self._build_structured_output_kwargs(request.json_schema))
+
         sampling_params = self._sampling_params_cls(**params)
 
         try:
@@ -331,6 +348,64 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
     def _resolve_system_prompt(self, override_prompt: str | None) -> str:
         prompt = override_prompt or self.chat_config.system_prompt
         return f"{prompt}\n\n{self.chat_config.pulse_context}"
+
+    @staticmethod
+    def _get_param_names(callable_obj: object) -> set[str]:
+        try:
+            return set(inspect.signature(callable_obj).parameters)
+        except (TypeError, ValueError):
+            init = getattr(callable_obj, "__init__", None)
+            if init is None:
+                return set()
+            try:
+                return set(inspect.signature(init).parameters) - {"self"}
+            except (TypeError, ValueError):
+                return set()
+
+    def _configure_structured_output_support(
+            self,
+            sampling_params_cls: type,
+            guided_decoding_params_cls: type | None,
+            structured_outputs_params_cls: type | None,
+    ) -> None:
+        self._sampling_param_names = self._get_param_names(sampling_params_cls)
+        self._structured_output_param_name = None
+        self._structured_output_params_cls = None
+
+        if "structured_outputs" in self._sampling_param_names and structured_outputs_params_cls is not None:
+            self._structured_output_param_name = "structured_outputs"
+            self._structured_output_params_cls = structured_outputs_params_cls
+        elif "guided_decoding" in self._sampling_param_names and guided_decoding_params_cls is not None:
+            self._structured_output_param_name = "guided_decoding"
+            self._structured_output_params_cls = guided_decoding_params_cls
+        elif "guided_json" in self._sampling_param_names:
+            self._structured_output_param_name = "guided_json"
+
+        if self._structured_output_param_name is None:
+            logger.warning(
+                "vLLM SamplingParams does not expose a supported structured-output API. "
+                "JSON-schema requests will fall back to prompt-only generation."
+            )
+            return
+
+        logger.info(
+            "Detected vLLM structured-output mode=%s",
+            self._structured_output_param_name,
+        )
+
+    def _build_structured_output_kwargs(self, json_schema: dict) -> dict[str, object]:
+        if self._structured_output_param_name == "structured_outputs" and self._structured_output_params_cls is not None:
+            return {"structured_outputs": self._structured_output_params_cls(json=json_schema)}
+        if self._structured_output_param_name == "guided_decoding" and self._structured_output_params_cls is not None:
+            return {"guided_decoding": self._structured_output_params_cls(json=json_schema)}
+        if self._structured_output_param_name == "guided_json":
+            return {"guided_json": json_schema}
+
+        logger.warning(
+            "Structured output requested but unsupported by the installed vLLM build. "
+            "Proceeding without schema enforcement."
+        )
+        return {}
 
     async def _startup_monitor(self) -> None:
         try:
