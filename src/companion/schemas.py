@@ -49,6 +49,12 @@ class UserCompanionUpsertRequest(BaseModel):
         return normalize_user_mail_id(value)
 
 
+class CompanionMetadata(BaseModel):
+    """Enforced structured output for companion metadata generation."""
+    title: str = Field(description="A catchy name or title (max 5 words)")
+    description: str = Field(description="A brief 1-sentence description")
+
+
 class UserCompanionUpsertResponse(BaseModel):
     """Response returned when user-level companion preferences are saved."""
 
