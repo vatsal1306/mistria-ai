@@ -67,7 +67,7 @@ class CompanionService:
             json_schema=CompanionMetadata.model_json_schema()
         )
         metadata_text = await self.runtime.generate_text(req)
-        metadata = CompanionMetadata.model_validate_json(metadata_text)
+        metadata = CompanionMetadata.model_validate_json(metadata_text.strip())
         
         self.user_companion_repository.upsert(
             user_id=user.id,
@@ -122,7 +122,7 @@ class CompanionService:
             json_schema=CompanionMetadata.model_json_schema()
         )
         metadata_text = await self.runtime.generate_text(req)
-        metadata = CompanionMetadata.model_validate_json(metadata_text)
+        metadata = CompanionMetadata.model_validate_json(metadata_text.strip())
         
         title = payload.title or metadata.title
         description = metadata.description

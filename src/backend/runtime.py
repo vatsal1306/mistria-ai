@@ -141,7 +141,9 @@ class MockInferenceRuntime(BaseInferenceRuntime):
 
         for token in scripted_reply.split():
             await asyncio.sleep(self.inference_config.mock_response_delay_seconds)
-            yield f"{token} "
+            yield token
+            # Yield space separately to avoid mangling tokens
+            yield " "
         logger.debug("Completed mock generation model=%s", self.inference_config.model_name)
 
 
@@ -269,13 +271,16 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
             self.inference_config.model_name,
             len(request.messages),
         )
-        sampling_params = self._sampling_params_cls(
-            max_tokens=self.inference_config.max_tokens,
-            temperature=self.inference_config.temperature,
-            top_p=self.inference_config.top_p,
-            output_kind=self._request_output_kind.DELTA,
-            guided_json=request.json_schema,
-        )
+        params = {
+            "max_tokens": self.inference_config.max_tokens,
+            "temperature": self.inference_config.temperature,
+            "top_p": self.inference_config.top_p,
+            "output_kind": self._request_output_kind.DELTA,
+        }
+        if request.json_schema:
+            params["guided_json"] = request.json_schema
+            
+        sampling_params = self._sampling_params_cls(**params)
 
         try:
             async for output in self._engine.generate(
