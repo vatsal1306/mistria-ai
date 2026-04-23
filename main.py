@@ -17,10 +17,11 @@ from src.backend.websocket_handler import WebSocketChatHandler
 from src.companion.exceptions import CompanionNotFoundError
 from src.companion.schemas import (
     AICompanionCreateRequest,
-    AICompanionIdentifierResponse,
+    AICompanionCreateResponse,
     AICompanionResponse,
     UserCompanionResponse,
     UserCompanionUpsertRequest,
+    UserCompanionUpsertResponse,
 )
 from src.companion.service import CompanionService
 from src.config import settings
@@ -31,6 +32,8 @@ from src.storage.repositories import (
     SQLiteUserCompanionRepository,
     SQLiteUserRepository,
 )
+from src.storage.conversation_store import SQLiteConversationStore
+from src.storage.service import ChatHistoryService
 
 logger = get_logger(__name__)
 
@@ -39,15 +42,17 @@ user_repository = SQLiteUserRepository(database)
 user_companion_repository = SQLiteUserCompanionRepository(database)
 ai_companion_repository = SQLiteAICompanionRepository(database)
 conversation_repository = SQLiteConversationRepository(database)
-
-companion_service = CompanionService(user_repository, user_companion_repository, ai_companion_repository)
+conversation_store = SQLiteConversationStore(conversation_repository)
+chat_history_service = ChatHistoryService(conversation_store)
 
 runtime = InferenceRuntimeFactory.create(settings.chat, settings.inference, settings.secrets)
-chat_service = ChatService(settings.chat, runtime, conversation_repository)
+companion_service = CompanionService(user_repository, user_companion_repository, ai_companion_repository, runtime)
+chat_service = ChatService(settings.chat, runtime, chat_history_service)
 websocket_handler = WebSocketChatHandler(
     settings.api,
     settings.secrets,
     chat_service,
+    chat_history_service,
     user_repository,
     user_companion_repository,
     ai_companion_repository,
@@ -184,11 +189,11 @@ async def chat_socket(websocket: WebSocket) -> None:
     await websocket_handler.handle(websocket)
 
 
-@app.post("/user-companion", response_model=UserCompanionResponse)
-def upsert_user_companion(payload: UserCompanionUpsertRequest) -> UserCompanionResponse:
+@app.post("/user-companion", response_model=UserCompanionUpsertResponse)
+async def upsert_user_companion(payload: UserCompanionUpsertRequest) -> UserCompanionUpsertResponse:
     """Create or replace the saved user-companion preferences for a registered user."""
     logger.info("Upserting user companion preferences via API email=%s", payload.user_mail_id)
-    response = companion_service.upsert_user_companion(payload)
+    response = await companion_service.upsert_user_companion(payload)
     logger.info("Upserted user companion preferences via API email=%s", response.user_mail_id)
     return response
 
@@ -200,12 +205,12 @@ def get_user_companion(user_mail_id: str) -> UserCompanionResponse:
     return companion_service.get_user_companion(user_mail_id)
 
 
-@app.post("/ai-companion", response_model=AICompanionIdentifierResponse, status_code=status.HTTP_201_CREATED)
-def create_ai_companion(payload: AICompanionCreateRequest) -> AICompanionIdentifierResponse:
-    """Create a new AI companion persona for the given registered user."""
+@app.post("/ai-companion", response_model=AICompanionCreateResponse)
+async def create_ai_companion(payload: AICompanionCreateRequest) -> AICompanionCreateResponse:
+    """Persist a new AI companion persona."""
     logger.info("Creating AI companion via API email=%s title=%s", payload.user_mail_id, payload.title or "auto")
-    response = companion_service.create_ai_companion(payload)
-    logger.info("Created AI companion via API email=%s ai_companion_id=%s", payload.user_mail_id, response.id)
+    response = await companion_service.create_ai_companion(payload)
+    logger.info("Created AI companion via API email=%s ai_companion_id=%s", payload.user_mail_id, response.ai_companion_id)
     return response
 
 

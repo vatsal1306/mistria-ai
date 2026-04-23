@@ -128,6 +128,8 @@ class SQLiteUserCompanionRepository:
                     intensity_level,
                     silence_response,
                     secret_desire,
+                    title,
+                    description,
                     created_at,
                     updated_at
                 FROM user_companion
@@ -151,6 +153,8 @@ class SQLiteUserCompanionRepository:
         intensity_level: str,
         silence_response: str,
         secret_desire: str,
+        title: str,
+        description: str,
     ) -> UserCompanionRecord:
         """Insert or replace the user-companion preferences for one user."""
         with self.database.connection() as connection:
@@ -163,9 +167,11 @@ class SQLiteUserCompanionRepository:
                     dominance_mode,
                     intensity_level,
                     silence_response,
-                    secret_desire
+                    secret_desire,
+                    title,
+                    description
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(user_id)
                 DO UPDATE SET
                     intent_type = excluded.intent_type,
@@ -173,6 +179,8 @@ class SQLiteUserCompanionRepository:
                     intensity_level = excluded.intensity_level,
                     silence_response = excluded.silence_response,
                     secret_desire = excluded.secret_desire,
+                    title = excluded.title,
+                    description = excluded.description,
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 (
@@ -182,6 +190,8 @@ class SQLiteUserCompanionRepository:
                     intensity_level,
                     silence_response,
                     secret_desire,
+                    title,
+                    description,
                 ),
             )
             row = connection.execute(
@@ -194,6 +204,8 @@ class SQLiteUserCompanionRepository:
                     intensity_level,
                     silence_response,
                     secret_desire,
+                    title,
+                    description,
                     created_at,
                     updated_at
                 FROM user_companion
@@ -218,6 +230,7 @@ class SQLiteAICompanionRepository:
         self,
         user_id: int,
         title: str,
+        description: str,
         gender: str,
         style: str,
         ethnicity: str,
@@ -236,6 +249,7 @@ class SQLiteAICompanionRepository:
                 (
                     user_id,
                     title,
+                    description,
                     gender,
                     style,
                     ethnicity,
@@ -246,11 +260,12 @@ class SQLiteAICompanionRepository:
                     voice,
                     connection
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     user_id,
                     title,
+                    description,
                     gender,
                     style,
                     ethnicity,
@@ -268,6 +283,7 @@ class SQLiteAICompanionRepository:
                     id,
                     user_id,
                     title,
+                    description,
                     gender,
                     style,
                     ethnicity,
@@ -304,6 +320,7 @@ class SQLiteAICompanionRepository:
                     id,
                     user_id,
                     title,
+                    description,
                     gender,
                     style,
                     ethnicity,
@@ -337,6 +354,7 @@ class SQLiteAICompanionRepository:
                     id,
                     user_id,
                     title,
+                    description,
                     gender,
                     style,
                     ethnicity,
@@ -368,6 +386,7 @@ class SQLiteAICompanionRepository:
                     id,
                     user_id,
                     title,
+                    description,
                     gender,
                     style,
                     ethnicity,

@@ -57,13 +57,14 @@ def wait_for_http(url: str, timeout_seconds: float) -> None:
     raise RuntimeError(f"Timed out waiting for {url}: {last_error}")
 
 
-def add_api_key(websocket_url: str, api_key: str) -> str:
-    """Append the API key query parameter when websocket auth is enabled."""
-    if not api_key:
-        return websocket_url
+def build_ws_url(websocket_url: str, user_id: str, ai_companion_id: int, api_key: str) -> str:
+    """Append the User ID, Companion ID, and API key query parameters."""
+    params = {"user_id": user_id, "ai_companion_id": ai_companion_id}
+    if api_key:
+        params["api_key"] = api_key
 
     separator = "&" if "?" in websocket_url else "?"
-    return f"{websocket_url}{separator}{urlencode({'api_key': api_key})}"
+    return f"{websocket_url}{separator}{urlencode(params)}"
 
 
 def assert_ready_frame(frame: dict[str, object]) -> None:
@@ -115,7 +116,7 @@ def seed_smoke_user(backend_base_url: str) -> tuple[str, int]:
         "connection": "New Encounter",
     })
 
-    return email, ai_companion["id"]
+    return email, ai_companion["ai_companion_id"]
 
 
 def run_websocket_round_trip(websocket_url: str, user_email: str, ai_companion_id: int) -> None:
@@ -171,7 +172,7 @@ def main() -> int:
     user_email, ai_companion_id = seed_smoke_user(backend_base_url)
 
     run_websocket_round_trip(
-        add_api_key(args.websocket_url, args.api_key),
+        build_ws_url(args.websocket_url, user_email, ai_companion_id, args.api_key),
         user_email,
         ai_companion_id,
     )

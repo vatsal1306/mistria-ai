@@ -12,9 +12,9 @@ class ChatHistoryService:
     def __init__(self, conversation_store: ConversationStore):
         self.conversation_store = conversation_store
 
-    def load_latest(self, user_id: int, ai_companion_id: int) -> ConversationSnapshot:
-        """Load the latest conversation for a user/persona pair."""
-        return self.conversation_store.get_or_create_latest_conversation(user_id, ai_companion_id)
+    def load_latest(self, user_id: int, ai_companion_id: int) -> ConversationSnapshot | None:
+        """Load the latest conversation for a user/persona pair, without creating it."""
+        return self.conversation_store.get_latest_snapshot(user_id, ai_companion_id)
 
     def start_fresh(self, user_id: int, ai_companion_id: int) -> ConversationSnapshot:
         """Start a fresh conversation for a user/persona pair."""

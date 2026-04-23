@@ -87,6 +87,14 @@ class SQLiteDatabase:
                 TEXT
                 NOT
                 NULL,
+                title
+                TEXT
+                NOT
+                NULL,
+                description
+                TEXT
+                NOT
+                NULL,
                 created_at
                 TEXT
                 NOT
@@ -122,6 +130,10 @@ class SQLiteDatabase:
                 NOT
                 NULL,
                 title
+                TEXT
+                NOT
+                NULL,
+                description
                 TEXT
                 NOT
                 NULL,
@@ -450,3 +462,5 @@ class SQLiteDatabase:
                 ADD COLUMN ai_companion_id INTEGER REFERENCES ai_companion (id) ON DELETE CASCADE
             """
         )
+
+

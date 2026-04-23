@@ -179,7 +179,11 @@ def _start_chat_session() -> None:
     """Open the websocket chat session and refresh the UI state."""
     client = _get_chat_client()
     try:
-        client.connect()
+        # Pass the current user ID and a default companion ID (1) during connection
+        client.connect(
+            user_id=st.session_state.chat_user_id,
+            ai_companion_id=1
+        )
         st.session_state.connection_error = None
     except ChatClientError as exc:
         st.session_state.connection_error = str(exc)

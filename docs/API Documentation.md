@@ -3,7 +3,8 @@
 > **Version:** 2.0  
 > **Last Updated:** 2026-04-22  
 > **Milestone:** M2  
-> **Audience:** Frontend / Web App Engineers
+> **Audience:** Frontend / Web App Engineers  
+> **ServerLink:** http://45.248.33.161:8080/docs
 
 ---
 
@@ -222,11 +223,8 @@ Content-Type: application/json
 ```json
 {
   "user_mail_id": "user@example.com",
-  "intent_type": "alive",
-  "dominance_mode": "ai_leads",
-  "intensity_level": "break_glass",
-  "silence_response": "come_looking",
-  "secret_desire": "both"
+  "title": "Chased and Unapologetic",
+  "description": "A high-intensity personality that wants pursuit, danger, and emotional surrender."
 }
 ```
 
@@ -256,7 +254,9 @@ GET /user-companion/user@example.com
   "dominance_mode": "ai_leads",
   "intensity_level": "break_glass",
   "silence_response": "come_looking",
-  "secret_desire": "both"
+  "secret_desire": "both",
+  "title": "Chased and Unapologetic",
+  "description": "A high-intensity personality that wants pursuit, danger, and emotional surrender."
 }
 ```
 
@@ -309,7 +309,9 @@ Content-Type: application/json
 **Response:** `201 Created`
 ```json
 {
-  "id": 1
+  "ai_companion_id": 1,
+  "title": "Luna",
+  "description": "A playful, passionate anime companion with a flirtatious voice and intense romantic energy."
 }
 ```
 
@@ -342,6 +344,7 @@ GET /ai-companion?user_mail_id=user@example.com
     "id": 1,
     "user_mail_id": "user@example.com",
     "title": "Luna",
+    "description": "A playful, passionate anime companion with a flirtatious voice and intense romantic energy.",
     "gender": "Female",
     "style": "Anime",
     "ethnicity": "East Asian",
@@ -376,6 +379,7 @@ GET /ai-companion/1
   "id": 1,
   "user_mail_id": "user@example.com",
   "title": "Luna",
+  "description": "A playful, passionate anime companion with a flirtatious voice and intense romantic energy.",
   "gender": "Female",
   "style": "Anime",
   "ethnicity": "East Asian",
@@ -528,9 +532,8 @@ Here is a complete example of a successful WebSocket chat session:
 3. Client sends:        {
                            "action": "chat",
                            "user_id": "user@example.com",
-                           "messages": [
-                             {"role": "user", "content": "Hey, what's your name?"}
-                           ]
+                           "ai_companion_id": 1,
+                           "user_message": "Hey, what's your name?"
                          }
 
 4. Server sends:        {"type":"delta","backend":"mock","delta":"Hey","detail":null}
@@ -549,7 +552,7 @@ Here is a complete example of a successful WebSocket chat session:
 
 **Scenario 1: Invalid payload (validation error)**
 ```
-Client sends:           {"action": "chat", "user_id": "", "messages": []}
+Client sends:           {"action": "chat", "user_id": "", "ai_companion_id": 1, "user_message": ""}
 
 Server responds:        {
                           "type": "error",
@@ -577,7 +580,7 @@ Connection:             Closed by server with code 1008.
 
 **Scenario 3: Engine not ready**
 ```
-Client sends:           {"action":"chat","user_id":"u1","messages":[{"role":"user","content":"hi"}]}
+Client sends:           {"action":"chat","user_id":"u1","ai_companion_id":1,"user_message":"hi"}
 
 Server responds:        {
                           "type": "error",
@@ -668,7 +671,7 @@ For `422` validation errors, FastAPI returns:
    - Wait for `done` before sending the next user message.
    - On `error`, display the `detail` to the user and allow retry.
 
-4. **Conversation History:** The client is responsible for maintaining the full conversation history. Send the entire message array (user + assistant turns) with each request. The server trims to the last 24 messages automatically.
+4. **Conversation History:** The backend automatically manages and stores the conversation history in the database. The client only needs to send the latest `user_message`. The server retrieves the history, trims it to the last 24 messages, and appends the new message before processing.
 
 5. **camelCase Fields:** AI companion fields `eyeColor`, `hairStyle`, and `hairColor` use camelCase in the API. All other fields use snake_case.
 

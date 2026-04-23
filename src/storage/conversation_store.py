@@ -24,6 +24,10 @@ class ConversationStore(ABC):
         """Return the latest conversation for a user/persona pair, creating one if none exists."""
 
     @abstractmethod
+    def get_latest_snapshot(self, user_id: int, ai_companion_id: int) -> ConversationSnapshot | None:
+        """Return the latest conversation snapshot, or None if no conversation exists yet."""
+
+    @abstractmethod
     def create_fresh_conversation(self, user_id: int, ai_companion_id: int) -> ConversationSnapshot:
         """Create a new empty conversation for the given user/persona pair."""
 
@@ -40,9 +44,17 @@ class SQLiteConversationStore(ConversationStore):
 
     def get_or_create_latest_conversation(self, user_id: int, ai_companion_id: int) -> ConversationSnapshot:
         """Return the latest conversation for a user/persona pair, creating it if needed."""
+        snapshot = self.get_latest_snapshot(user_id, ai_companion_id)
+        if snapshot is not None:
+            return snapshot
+            
+        return self.create_fresh_conversation(user_id, ai_companion_id)
+
+    def get_latest_snapshot(self, user_id: int, ai_companion_id: int) -> ConversationSnapshot | None:
+        """Return the latest conversation for a user/persona pair, without creating it."""
         conversation = self.repository.get_latest_conversation(user_id, ai_companion_id)
         if conversation is None:
-            conversation = self.repository.create_conversation(user_id, ai_companion_id)
+            return None
 
         return ConversationSnapshot(
             conversation=conversation,

@@ -31,6 +31,7 @@ class InferencePromptRequest(BaseModel):
 
     system_prompt: str | None = None
     messages: list[ChatMessage] = Field(min_length=1)
+    json_schema: dict | None = None
 
 
 class ChatSocketEvent(BaseModel):

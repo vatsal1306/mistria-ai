@@ -7,17 +7,27 @@ from src.companion.contracts import UserCompanionLabelCatalog
 from src.companion.exceptions import AICompanionNotFoundError, UserCompanionNotFoundError, UserNotRegisteredError
 from src.companion.schemas import (
     AICompanionCreateRequest,
-    AICompanionIdentifierResponse,
+    AICompanionCreateResponse,
     AICompanionResponse,
+    CompanionMetadata,
     UserCompanionResponse,
     UserCompanionUpsertRequest,
+    UserCompanionUpsertResponse,
     normalize_user_mail_id,
 )
+from src.backend.runtime import BaseInferenceRuntime
+from src.backend.schemas import ChatMessage, InferencePromptRequest
 from src.storage.models import AICompanionRecord, UserCompanionRecord, UserRecord
 from src.storage.repositories import (
     SQLiteAICompanionRepository,
     SQLiteUserCompanionRepository,
     SQLiteUserRepository,
+)
+from src.prompts import (
+    AI_COMPANION_METADATA_PROMPT,
+    AI_COMPANION_TITLE_INSTRUCTION,
+    METADATA_SYSTEM_PROMPT,
+    USER_COMPANION_METADATA_PROMPT,
 )
 
 logger = get_logger(__name__)
@@ -31,15 +41,34 @@ class CompanionService:
             user_repository: SQLiteUserRepository,
             user_companion_repository: SQLiteUserCompanionRepository,
             ai_companion_repository: SQLiteAICompanionRepository,
+            runtime: BaseInferenceRuntime,
     ):
         self.user_repository = user_repository
         self.user_companion_repository = user_companion_repository
         self.ai_companion_repository = ai_companion_repository
+        self.runtime = runtime
 
-    def upsert_user_companion(self, payload: UserCompanionUpsertRequest) -> UserCompanionResponse:
+    async def upsert_user_companion(self, payload: UserCompanionUpsertRequest) -> UserCompanionUpsertResponse:
         """Create or replace the saved user-companion preferences for one user."""
         logger.info("Upserting user companion preferences email=%s", payload.user_mail_id)
         user = self._get_user_by_email(payload.user_mail_id)
+        
+        prompt = USER_COMPANION_METADATA_PROMPT.format(
+            intent=payload.intent_type,
+            dominance=payload.dominance_mode,
+            intensity=payload.intensity_level,
+            silence=payload.silence_response,
+            secret_desire=payload.secret_desire
+        )
+
+        req = InferencePromptRequest(
+            system_prompt=METADATA_SYSTEM_PROMPT,
+            messages=[ChatMessage(role="user", content=prompt)],
+            json_schema=CompanionMetadata.model_json_schema()
+        )
+        metadata_text = await self.runtime.generate_text(req)
+        metadata = CompanionMetadata.model_validate_json(metadata_text.strip())
+        
         self.user_companion_repository.upsert(
             user_id=user.id,
             intent_type=payload.intent_type,
@@ -47,9 +76,15 @@ class CompanionService:
             intensity_level=payload.intensity_level,
             silence_response=payload.silence_response,
             secret_desire=payload.secret_desire,
+            title=metadata.title,
+            description=metadata.description,
         )
         logger.info("Upserted user companion preferences user_id=%s email=%s", user.id, user.email)
-        return self.get_user_companion(user.email)
+        return UserCompanionUpsertResponse(
+            user_mail_id=payload.user_mail_id,
+            title=metadata.title,
+            description=metadata.description,
+        )
 
     def get_user_companion(self, user_mail_id: str) -> UserCompanionResponse:
         """Load the stored user-companion preferences for the given email address."""
@@ -61,14 +96,41 @@ class CompanionService:
             raise UserCompanionNotFoundError("User companion preferences not found.")
         return self._build_user_companion_response(user.email, record)
 
-    def create_ai_companion(self, payload: AICompanionCreateRequest) -> AICompanionIdentifierResponse:
-        """Persist a new AI companion persona and return only its identifier."""
+    async def create_ai_companion(self, payload: AICompanionCreateRequest) -> AICompanionCreateResponse:
+        """Persist a new AI companion persona and return its identifier and metadata."""
         logger.info("Creating AI companion email=%s title=%s", payload.user_mail_id, payload.title or "auto")
         user = self._get_user_by_email(payload.user_mail_id)
-        title = payload.title or self._generate_ai_companion_title(payload)
+        
+        prompt = AI_COMPANION_METADATA_PROMPT.format(
+            gender=payload.gender,
+            style=payload.style,
+            ethnicity=payload.ethnicity,
+            eye_color=payload.eyeColor,
+            hair_style=payload.hairStyle,
+            personality=payload.personality,
+            voice=payload.voice
+        )
+
+        title_instruction = ""
+        if not payload.title:
+            prompt += AI_COMPANION_TITLE_INSTRUCTION
+            title_instruction = " and a name"
+
+        req = InferencePromptRequest(
+            system_prompt=f"{METADATA_SYSTEM_PROMPT} Generate a description{title_instruction}.",
+            messages=[ChatMessage(role="user", content=prompt)],
+            json_schema=CompanionMetadata.model_json_schema()
+        )
+        metadata_text = await self.runtime.generate_text(req)
+        metadata = CompanionMetadata.model_validate_json(metadata_text.strip())
+        
+        title = payload.title or metadata.title
+        description = metadata.description
+
         record = self.ai_companion_repository.create(
             user_id=user.id,
             title=title,
+            description=description,
             gender=payload.gender,
             style=payload.style,
             ethnicity=payload.ethnicity,
@@ -80,7 +142,7 @@ class CompanionService:
             connection_value=payload.connection,
         )
         logger.info("Created AI companion user_id=%s email=%s ai_companion_id=%s", user.id, user.email, record.id)
-        return AICompanionIdentifierResponse(id=record.id)
+        return AICompanionCreateResponse(ai_companion_id=record.id, title=title, description=description)
 
     def list_ai_companions(self, user_mail_id: str) -> list[AICompanionResponse]:
         """Return every AI companion persona owned by the given user."""
@@ -151,6 +213,8 @@ class CompanionService:
             intensity_level=record.intensity_level,
             silence_response=record.silence_response,
             secret_desire=record.secret_desire,
+            title=record.title,
+            description=record.description,
         )
 
     @staticmethod
@@ -159,6 +223,7 @@ class CompanionService:
             id=record.id,
             user_mail_id=user_mail_id,
             title=record.title,
+            description=record.description,
             gender=record.gender,
             style=record.style,
             ethnicity=record.ethnicity,

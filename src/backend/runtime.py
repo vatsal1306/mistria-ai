@@ -80,6 +80,13 @@ class BaseInferenceRuntime(ABC):
     async def stream_text(self, request: InferencePromptRequest) -> AsyncGenerator[str, None]:
         """Stream response chunks for a request."""
 
+    async def generate_text(self, request: InferencePromptRequest) -> str:
+        """Generate a complete text response by accumulating stream chunks."""
+        chunks = []
+        async for chunk in self.stream_text(request):
+            chunks.append(chunk)
+        return "".join(chunks)
+
     def _set_startup_stage(self, stage: str, detail: str | None = None) -> None:
         previous_stage = self._startup_stage
         if self._startup_started_at is None and stage != "not_started":
@@ -115,19 +122,28 @@ class MockInferenceRuntime(BaseInferenceRuntime):
 
     async def stream_text(self, request: InferencePromptRequest) -> AsyncGenerator[str, None]:
         """Yield a deterministic token stream for smoke tests and local UI checks."""
-        latest_user_message = request.messages[-1].content
         logger.debug(
-            "Starting mock generation model=%s message_count=%s",
+            "Starting mock generation model=%s message_count=%s structured=%s",
             self.inference_config.model_name,
             len(request.messages),
+            bool(request.json_schema),
         )
-        scripted_reply = (
-            f"Mock backend active. I received: {latest_user_message!r}. "
-            "Switch settings.inference.backend to 'ollama' when the target runtime is installed and available."
-        )
+
+        if request.json_schema:
+            # Return a valid JSON string that matches the CompanionMetadata schema
+            scripted_reply = '{"title": "Mock Companion", "description": "A wonderful mock companion for testing purposes."}'
+        else:
+            latest_user_message = request.messages[-1].content
+            scripted_reply = (
+                f"Mock backend active. I received: {latest_user_message!r}. "
+                "Switch settings.inference.backend to 'ollama' when the target runtime is installed and available."
+            )
+
         for token in scripted_reply.split():
             await asyncio.sleep(self.inference_config.mock_response_delay_seconds)
-            yield f"{token} "
+            yield token
+            # Yield space separately to avoid mangling tokens
+            yield " "
         logger.debug("Completed mock generation model=%s", self.inference_config.model_name)
 
 
@@ -255,12 +271,16 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
             self.inference_config.model_name,
             len(request.messages),
         )
-        sampling_params = self._sampling_params_cls(
-            max_tokens=self.inference_config.max_tokens,
-            temperature=self.inference_config.temperature,
-            top_p=self.inference_config.top_p,
-            output_kind=self._request_output_kind.DELTA,
-        )
+        params = {
+            "max_tokens": self.inference_config.max_tokens,
+            "temperature": self.inference_config.temperature,
+            "top_p": self.inference_config.top_p,
+            "output_kind": self._request_output_kind.DELTA,
+        }
+        if request.json_schema:
+            params["guided_json"] = request.json_schema
+            
+        sampling_params = self._sampling_params_cls(**params)
 
         try:
             async for output in self._engine.generate(
@@ -415,6 +435,7 @@ class OllamaInferenceRuntime(BaseInferenceRuntime):
                     model=self.inference_config.model_name,
                     messages=messages,
                     stream=True,
+                    format="json" if request.json_schema else None,
                     options={
                         "temperature": self.inference_config.temperature,
                         "top_p": self.inference_config.top_p,
