@@ -113,6 +113,31 @@ class AICompanionCreateRequest(BaseModel):
         return normalized or None
 
 
+class AICompanionGenerateRequest(BaseModel):
+    """Request payload for generating companion metadata without persistence."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    gender: AIGender
+    style: AIStyle
+    ethnicity: AIEthnicity
+    eyeColor: AIEyeColor
+    hairStyle: AIHairStyle
+    hairColor: AIHairColor
+    personality: AIPersonality
+    voice: AIVoice
+    connection: AIConnection
+
+
+class AICompanionGenerateResponse(BaseModel):
+    """Generated companion metadata returned without storing a companion."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str
+    description: str
+
+
 class AICompanionCreateResponse(BaseModel):
     """Identifier and metadata returned when a companion is created."""
 

@@ -11,6 +11,8 @@ from src.companion.exceptions import (
 from src.companion.schemas import (
     AICompanionCreateRequest,
     AICompanionCreateResponse,
+    AICompanionGenerateRequest,
+    AICompanionGenerateResponse,
     AICompanionResponse,
     CompanionMetadata,
     UserCompanionResponse,
@@ -22,6 +24,8 @@ from src.companion.service import CompanionService
 __all__ = [
     "AICompanionCreateRequest",
     "AICompanionCreateResponse",
+    "AICompanionGenerateRequest",
+    "AICompanionGenerateResponse",
     "AICompanionNotFoundError",
     "AICompanionResponse",
     "CompanionError",

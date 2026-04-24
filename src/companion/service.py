@@ -8,6 +8,8 @@ from src.companion.exceptions import AICompanionNotFoundError, UserCompanionNotF
 from src.companion.schemas import (
     AICompanionCreateRequest,
     AICompanionCreateResponse,
+    AICompanionGenerateRequest,
+    AICompanionGenerateResponse,
     AICompanionResponse,
     CompanionMetadata,
     UserCompanionResponse,
@@ -100,30 +102,19 @@ class CompanionService:
         """Persist a new AI companion persona and return its identifier and metadata."""
         logger.info("Creating AI companion email=%s title=%s", payload.user_mail_id, payload.title or "auto")
         user = self._get_user_by_email(payload.user_mail_id)
-        
-        prompt = AI_COMPANION_METADATA_PROMPT.format(
+        metadata = await self._generate_ai_companion_metadata(
             gender=payload.gender,
             style=payload.style,
             ethnicity=payload.ethnicity,
             eye_color=payload.eyeColor,
             hair_style=payload.hairStyle,
+            hair_color=payload.hairColor,
             personality=payload.personality,
-            voice=payload.voice
+            voice=payload.voice,
+            connection=payload.connection,
+            generate_title=not payload.title,
         )
 
-        title_instruction = ""
-        if not payload.title:
-            prompt += AI_COMPANION_TITLE_INSTRUCTION
-            title_instruction = " and a name"
-
-        req = InferencePromptRequest(
-            system_prompt=f"{METADATA_SYSTEM_PROMPT} Generate a description{title_instruction}.",
-            messages=[ChatMessage(role="user", content=prompt)],
-            json_schema=CompanionMetadata.model_json_schema()
-        )
-        metadata_text = await self.runtime.generate_text(req)
-        metadata = CompanionMetadata.model_validate_json(metadata_text.strip())
-        
         title = payload.title or metadata.title
         description = metadata.description
 
@@ -143,6 +134,28 @@ class CompanionService:
         )
         logger.info("Created AI companion user_id=%s email=%s ai_companion_id=%s", user.id, user.email, record.id)
         return AICompanionCreateResponse(ai_companion_id=record.id, title=title, description=description)
+
+    async def generate_ai_companion(self, payload: AICompanionGenerateRequest) -> AICompanionGenerateResponse:
+        """Generate AI companion metadata directly from the LLM without persistence."""
+        logger.info(
+            "Generating AI companion metadata directly style=%s personality=%s voice=%s",
+            payload.style,
+            payload.personality,
+            payload.voice,
+        )
+        metadata = await self._generate_ai_companion_metadata(
+            gender=payload.gender,
+            style=payload.style,
+            ethnicity=payload.ethnicity,
+            eye_color=payload.eyeColor,
+            hair_style=payload.hairStyle,
+            hair_color=payload.hairColor,
+            personality=payload.personality,
+            voice=payload.voice,
+            connection=payload.connection,
+            generate_title=True,
+        )
+        return AICompanionGenerateResponse(title=metadata.title, description=metadata.description)
 
     def list_ai_companions(self, user_mail_id: str) -> list[AICompanionResponse]:
         """Return every AI companion persona owned by the given user."""
@@ -238,3 +251,42 @@ class CompanionService:
     @staticmethod
     def _generate_ai_companion_title(payload: AICompanionCreateRequest) -> str:
         return f"{payload.style} {payload.personality} Companion"
+
+    async def _generate_ai_companion_metadata(
+            self,
+            *,
+            gender: str,
+            style: str,
+            ethnicity: str,
+            eye_color: str,
+            hair_style: str,
+            hair_color: str,
+            personality: str,
+            voice: str,
+            connection: str,
+            generate_title: bool,
+    ) -> CompanionMetadata:
+        prompt = AI_COMPANION_METADATA_PROMPT.format(
+            gender=gender,
+            style=style,
+            ethnicity=ethnicity,
+            eye_color=eye_color,
+            hair_style=hair_style,
+            hair_color=hair_color,
+            personality=personality,
+            voice=voice,
+            connection=connection,
+        )
+
+        title_instruction = ""
+        if generate_title:
+            prompt += AI_COMPANION_TITLE_INSTRUCTION
+            title_instruction = " and a name"
+
+        req = InferencePromptRequest(
+            system_prompt=f"{METADATA_SYSTEM_PROMPT} Generate a description{title_instruction}.",
+            messages=[ChatMessage(role="user", content=prompt)],
+            json_schema=CompanionMetadata.model_json_schema(),
+        )
+        metadata_text = await self.runtime.generate_text(req)
+        return CompanionMetadata.model_validate_json(metadata_text.strip())

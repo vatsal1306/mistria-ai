@@ -18,6 +18,8 @@ from src.companion.exceptions import CompanionNotFoundError
 from src.companion.schemas import (
     AICompanionCreateRequest,
     AICompanionCreateResponse,
+    AICompanionGenerateRequest,
+    AICompanionGenerateResponse,
     AICompanionResponse,
     UserCompanionResponse,
     UserCompanionUpsertRequest,
@@ -212,6 +214,18 @@ async def create_ai_companion(payload: AICompanionCreateRequest) -> AICompanionC
     response = await companion_service.create_ai_companion(payload)
     logger.info("Created AI companion via API email=%s ai_companion_id=%s", payload.user_mail_id, response.ai_companion_id)
     return response
+
+
+@app.post("/ai-companion/generate", response_model=AICompanionGenerateResponse)
+async def generate_ai_companion(payload: AICompanionGenerateRequest) -> AICompanionGenerateResponse:
+    """Generate AI companion metadata directly from the LLM without saving it."""
+    logger.info(
+        "Generating AI companion via API style=%s personality=%s voice=%s",
+        payload.style,
+        payload.personality,
+        payload.voice,
+    )
+    return await companion_service.generate_ai_companion(payload)
 
 
 @app.get("/ai-companion", response_model=list[AICompanionResponse])

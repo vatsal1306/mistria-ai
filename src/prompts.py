@@ -23,7 +23,9 @@ Style: {style}
 Ethnicity: {ethnicity}
 Eye Color: {eye_color}
 Hair Style: {hair_style}
+Hair Color: {hair_color}
 Personality: {personality}
-Voice: {voice}"""
+Voice: {voice}
+Connection: {connection}"""
 
 AI_COMPANION_TITLE_INSTRUCTION = "\nAlso generate a catchy name/title (max 3 words)."
