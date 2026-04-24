@@ -40,9 +40,20 @@ Hair Style: {hair_style}
 Hair Color: {hair_color}
 Personality: {personality}
 Voice: {voice}
-Connection: {connection}"""
+Connection: {connection}
 
-AI_COMPANION_TITLE_INSTRUCTION = "\nAlso generate a catchy name/title (max 3 words)."
+The description should feel grounded, human, and coherent with the full profile. Capture the likely tone, chemistry, social vibe, and presence implied by the traits instead of listing attributes mechanically."""
+
+AI_COMPANION_TITLE_INSTRUCTION = """
+
+Also generate the `title` field using these rules:
+- It must be exactly one word.
+- It must be a realistic human first name, not a phrase, codename, archetype, role, or fantasy label.
+- Use the profile to pick a name that feels believable for the companion's gender, ethnicity, style, personality, voice, and connection dynamic.
+- The name should imply the right cultural texture, tone, and dominance/energy of the persona without sounding exaggerated.
+- Do not use spaces, hyphens, titles, honorifics, surnames, numbers, or punctuation.
+- Output only the single first name in the `title` field.
+"""
 
 
 def build_chat_system_prompt(

@@ -55,6 +55,22 @@ class CompanionMetadata(BaseModel):
     description: str = Field(description="A brief 1-sentence description")
 
 
+class AICompanionMetadata(BaseModel):
+    """Structured output for AI companion metadata generation."""
+
+    title: str = Field(
+        description=(
+            "Exactly one realistic human first name. One word only. "
+            "No spaces, punctuation, surnames, titles, roles, or fantasy labels."
+        )
+    )
+    description: str = Field(
+        description=(
+            "A brief single-sentence persona description grounded in the supplied traits."
+        )
+    )
+
+
 class UserCompanionUpsertResponse(BaseModel):
     """Response returned when user-level companion preferences are saved."""
 

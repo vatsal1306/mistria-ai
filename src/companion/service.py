@@ -10,6 +10,7 @@ from src.companion.schemas import (
     AICompanionCreateResponse,
     AICompanionGenerateRequest,
     AICompanionGenerateResponse,
+    AICompanionMetadata,
     AICompanionResponse,
     CompanionMetadata,
     UserCompanionResponse,
@@ -265,7 +266,7 @@ class CompanionService:
             voice: str,
             connection: str,
             generate_title: bool,
-    ) -> CompanionMetadata:
+    ) -> AICompanionMetadata:
         prompt = AI_COMPANION_METADATA_PROMPT.format(
             gender=gender,
             style=style,
@@ -286,7 +287,7 @@ class CompanionService:
         req = InferencePromptRequest(
             system_prompt=f"{METADATA_SYSTEM_PROMPT} Generate a description{title_instruction}.",
             messages=[ChatMessage(role="user", content=prompt)],
-            json_schema=CompanionMetadata.model_json_schema(),
+            json_schema=AICompanionMetadata.model_json_schema(),
         )
         metadata_text = await self.runtime.generate_text(req)
-        return CompanionMetadata.model_validate_json(metadata_text.strip())
+        return AICompanionMetadata.model_validate_json(metadata_text.strip())
