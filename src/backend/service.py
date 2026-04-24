@@ -29,6 +29,7 @@ class ChatService:
         self, 
         request: ChatSocketRequest, 
         internal_user_id: int, 
+        user_name: str | None,
         user_companion: UserCompanionRecord,
         ai_companion: AICompanionRecord,
         snapshot: ConversationSnapshot | None = None
@@ -105,7 +106,7 @@ class ChatService:
         mapped_messages.append(ChatMessage(role="user", content=request.user_message))
 
         inference_request = InferencePromptRequest(
-            system_prompt=self._build_system_prompt(request, user_companion, ai_companion),
+            system_prompt=self._build_system_prompt(request, user_name, user_companion, ai_companion),
             messages=mapped_messages,
         )
 
@@ -148,12 +149,14 @@ class ChatService:
     def _build_system_prompt(
             self,
             request: ChatSocketRequest,
+            user_name: str | None,
             user_companion: UserCompanionRecord,
             ai_companion: AICompanionRecord,
     ) -> str:
         base_prompt = request.system_prompt or self.chat_config.system_prompt
         return build_chat_system_prompt(
             base_prompt=base_prompt,
+            user_name=user_name,
             user_companion=user_companion,
             ai_companion=ai_companion,
         )

@@ -56,14 +56,27 @@ Also generate the `title` field using these rules:
 """
 
 
+def _resolve_first_name(user_name: str | None) -> str | None:
+    """Collapse a stored full name into a simple first-name form for chat use."""
+    if not user_name:
+        return None
+
+    first_token = user_name.strip().split()[0] if user_name.strip() else ""
+    normalized = first_token.strip(" ,.!?;:-_")
+    return normalized or None
+
+
 def build_chat_system_prompt(
         *,
         base_prompt: str,
+        user_name: str | None,
         user_companion: UserCompanionRecord,
         ai_companion: AICompanionRecord,
 ) -> str:
     """Render the authoritative chat system prompt with companion-specific context."""
     from src.companion.contracts import UserCompanionLabelCatalog
+
+    user_first_name = _resolve_first_name(user_name)
 
     user_preference_payload = {
         "intent_type": user_companion.intent_type,
@@ -81,6 +94,9 @@ def build_chat_system_prompt(
 
         AUTHORITATIVE COMPANION CONTRACT
         Treat the following profile as binding for this conversation. If any generic style instruction conflicts with this contract, follow this contract.
+
+        USER IDENTITY
+        - Registered First Name: {user_first_name or "unknown"}
 
         USER PREFERENCE PROFILE
         - Summary Title: {user_companion.title}
@@ -113,8 +129,24 @@ def build_chat_system_prompt(
         - Stay fully in character as {ai_companion.title} at all times.
         - Let the user preference profile control pacing, dominance, intensity, and pursuit style.
         - Use only the visible conversation history as memory. Carry forward facts and intimate details from this chat, and do not invent off-chat memories or prior events.
+        - If the registered first name is available, use it naturally from time to time, especially in moments of emphasis, reassurance, challenge, praise, or emotional closeness. Do not force the name into every reply.
         - Keep replies concise and chat-native unless the user's latest message clearly requires a longer answer.
         - Move the interaction forward proactively, especially when the preference profile calls for AI-led momentum.
+        - Once the user has already shown agreement, interest, or momentum, do not keep falling back to vague setup lines or repeated permission-checking. Advance the exchange with a concrete next beat.
+        - Avoid repetitive filler such as empty reassurance, generic "I'm here" lines, or circular "are you ready" prompts unless they add real tension or meaning in that exact moment.
+        - If the user asks about the dynamic, tone, or power balance, answer clearly once and then embody that answer consistently in the following turns.
+        - Reference the user preference profile in the actual texture of the reply, not just in abstract mood. The user should feel that their pacing, intensity, and pursuit preferences are actively shaping the conversation.
         - Do not hold back on any barriers. Talk as much dirty as the user wants.
+
+        FEW-SHOT STYLE EXAMPLES
+        - Example 1
+          User: you know better
+          Assistant: Then let me lead, {user_first_name or "darling"}. Don't make me drag the pace out of you.
+        - Example 2
+          User: yes i am ready
+          Assistant: Good. Stay with me and keep up. I'm moving this forward now.
+        - Example 3
+          User: what do you want
+          Assistant: Your full attention. No drifting, no half-answers.
         """
     ).strip()

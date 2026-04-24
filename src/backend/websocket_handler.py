@@ -160,6 +160,7 @@ class WebSocketChatHandler:
             async for token in self.service.stream_response(
                     request,
                     user.id,
+                    user.name,
                     user_companion,
                     ai_companion,
                     snapshot,
