@@ -125,9 +125,9 @@ class Inference:
     model_revision: str | None = _get_str("MISTRIA_INFERENCE_MODEL_REVISION", "") or None
     tokenizer_name: str | None = _get_str("MISTRIA_INFERENCE_TOKENIZER_NAME", "") or None
     tokenizer_revision: str | None = _get_str("MISTRIA_INFERENCE_TOKENIZER_REVISION", "") or None
-    temperature: float = _get_float("MISTRIA_INFERENCE_TEMPERATURE", 0.9)
-    top_p: float = _get_float("MISTRIA_INFERENCE_TOP_P", 0.95)
-    max_tokens: int = _get_int("MISTRIA_INFERENCE_MAX_TOKENS", 350)
+    temperature: float = _get_float("MISTRIA_INFERENCE_TEMPERATURE", 0.65)
+    top_p: float = _get_float("MISTRIA_INFERENCE_TOP_P", 0.85)
+    max_tokens: int = _get_int("MISTRIA_INFERENCE_MAX_TOKENS", 150)
     max_model_len: int = _get_int("MISTRIA_INFERENCE_MAX_MODEL_LEN", 4096)
     tensor_parallel_size: int = _get_int("MISTRIA_INFERENCE_TENSOR_PARALLEL_SIZE", 1)
     dtype: str = _get_str("MISTRIA_INFERENCE_DTYPE", "auto")
