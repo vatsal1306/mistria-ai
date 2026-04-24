@@ -1,7 +1,7 @@
 # Mistria AI — API Integration Guide
 
 > **Version:** 2.0  
-> **Last Updated:** 2026-04-22  
+> **Last Updated:** 2026-04-24  
 > **Milestone:** M2  
 > **Audience:** Frontend / Web App Engineers  
 > **ServerLink:** http://45.248.33.161:8080/docs
@@ -20,6 +20,7 @@
    - [POST /user-companion](#post-user-companion)
    - [GET /user-companion/{user_mail_id}](#get-user-companionuser_mail_id)
    - [POST /ai-companion](#post-ai-companion)
+   - [POST /ai-companion/generate](#post-ai-companiongenerate)
    - [GET /ai-companion](#get-ai-companion)
    - [GET /ai-companion/{ai_companion_id}](#get-ai-companionai_companion_id)
 5. [WebSocket Endpoint](#websocket-endpoint)
@@ -38,7 +39,7 @@
 
 Mistria AI exposes a FastAPI backend with:
 
-- **8 HTTP endpoints** for user management, companion preferences, and AI persona CRUD.
+- **9 HTTP endpoints** for user management, companion preferences, and AI persona generation/CRUD.
 - **1 WebSocket endpoint** for real-time streamed chat with the AI companion.
 
 All HTTP endpoints accept and return `application/json`. The WebSocket endpoint exchanges JSON text frames.
@@ -321,6 +322,54 @@ Content-Type: application/json
   "detail": "User not registered."
 }
 ```
+
+---
+
+### POST /ai-companion/generate
+
+Generate AI companion metadata directly from the LLM without requiring a registered user and without saving anything to the database.
+
+**Request:**
+```
+POST /ai-companion/generate
+Content-Type: application/json
+
+{
+  "gender": "Female",
+  "style": "Anime",
+  "ethnicity": "East Asian",
+  "eyeColor": "Green",
+  "hairStyle": "Long",
+  "hairColor": "Pink",
+  "personality": "Playful",
+  "voice": "Breathy",
+  "connection": "Passionate Lover"
+}
+```
+
+| Field | Type | Allowed Values | Required |
+|---|---|---|---|
+| `gender` | `string` | `"Female"`, `"Male"`, `"Other"` | ✅ |
+| `style` | `string` | `"Realistic"`, `"Anime"`, `"Cartoon"`, `"Retro Noir"` | ✅ |
+| `ethnicity` | `string` | See [Allowed Values](#allowed-values-reference) | ✅ |
+| `eyeColor` | `string` | `"Brown"`, `"Blue"`, `"Green"`, `"Hazel"`, `"Gray"`, `"Black"` | ✅ |
+| `hairStyle` | `string` | `"Short"`, `"Straight"`, `"Long"`, `"Curly"`, `"Braids"`, `"Pixie"` | ✅ |
+| `hairColor` | `string` | `"Black"`, `"Brunette"`, `"Blonde"`, `"Pink"`, `"Red"`, `"White"` | ✅ |
+| `personality` | `string` | See [Allowed Values](#allowed-values-reference) | ✅ |
+| `voice` | `string` | `"Calm"`, `"Breathy"`, `"Confident"`, `"Playful"`, `"Deep"`, `"Soft"` | ✅ |
+| `connection` | `string` | See [Allowed Values](#allowed-values-reference) | ✅ |
+
+> **Note:** This endpoint does not require `user_mail_id`, does not create an `ai_companion_id`, and does not persist any data.
+
+**Response:** `200 OK`
+```json
+{
+  "title": "Luna",
+  "description": "A playful, passionate anime companion with a flirtatious voice and intense romantic energy."
+}
+```
+
+**Error:** `422 Unprocessable Entity` — Payload validation failed
 
 ---
 
@@ -664,19 +713,24 @@ For `422` validation errors, FastAPI returns:
    POST /users  →  POST /user-companion  →  POST /ai-companion  →  WebSocket /ws/chat
    ```
 
-3. **WebSocket Lifecycle:**
+3. **Preview Generation Flow:** If the frontend only needs a generated title and description before account creation or before saving, call:
+   ```
+   POST /ai-companion/generate
+   ```
+
+4. **WebSocket Lifecycle:**
    - Open one connection per chat session.
    - Wait for the `ready` event before sending the first message.
    - Concatenate all `delta` values to build the assistant's response.
    - Wait for `done` before sending the next user message.
    - On `error`, display the `detail` to the user and allow retry.
 
-4. **Conversation History:** The backend automatically manages and stores the conversation history in the database. The client only needs to send the latest `user_message`. The server retrieves the history, trims it to the last 24 messages, and appends the new message before processing.
+5. **Conversation History:** The backend automatically manages and stores the conversation history in the database. The client only needs to send the latest `user_message`. The server retrieves the history, trims it to the last 24 messages, and appends the new message before processing.
 
-5. **camelCase Fields:** AI companion fields `eyeColor`, `hairStyle`, and `hairColor` use camelCase in the API. All other fields use snake_case.
+6. **camelCase Fields:** AI companion fields `eyeColor`, `hairStyle`, and `hairColor` use camelCase in the API. All other fields use snake_case.
 
-6. **Email Normalization:** Emails are automatically lowercased and trimmed. `"User@Example.COM"` becomes `"user@example.com"`.
+7. **Email Normalization:** Emails are automatically lowercased and trimmed. `"User@Example.COM"` becomes `"user@example.com"`.
 
-7. **Retry Strategy:** If `/health` shows `engine_ready: false`, poll every 5–10 seconds until `engine_ready: true` before attempting WebSocket chat.
+8. **Retry Strategy:** If `/health` shows `engine_ready: false`, poll every 5–10 seconds until `engine_ready: true` before attempting WebSocket chat.
 
-8. **CORS:** The backend currently allows requests from `http://127.0.0.1:8501` and `http://localhost:8501` only. If your frontend runs on a different origin (e.g., `http://localhost:3000`), the `MISTRIA_API_CORS_ORIGINS` environment variable must be updated on the backend or you will receive CORS errors.
+9. **CORS:** The backend currently allows requests from `http://127.0.0.1:8501` and `http://localhost:8501` only. If your frontend runs on a different origin (e.g., `http://localhost:3000`), the `MISTRIA_API_CORS_ORIGINS` environment variable must be updated on the backend or you will receive CORS errors.
