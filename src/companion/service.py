@@ -103,21 +103,26 @@ class CompanionService:
         """Persist a new AI companion persona and return its identifier and metadata."""
         logger.info("Creating AI companion email=%s title=%s", payload.user_mail_id, payload.title or "auto")
         user = self._get_user_by_email(payload.user_mail_id)
-        metadata = await self._generate_ai_companion_metadata(
-            gender=payload.gender,
-            style=payload.style,
-            ethnicity=payload.ethnicity,
-            eye_color=payload.eyeColor,
-            hair_style=payload.hairStyle,
-            hair_color=payload.hairColor,
-            personality=payload.personality,
-            voice=payload.voice,
-            connection=payload.connection,
-            generate_title=not payload.title,
-        )
+        if payload.title and payload.description:
+            title = payload.title
+            description = payload.description
+            logger.info("Using provided AI companion metadata email=%s", payload.user_mail_id)
+        else:
+            metadata = await self._generate_ai_companion_metadata(
+                gender=payload.gender,
+                style=payload.style,
+                ethnicity=payload.ethnicity,
+                eye_color=payload.eyeColor,
+                hair_style=payload.hairStyle,
+                hair_color=payload.hairColor,
+                personality=payload.personality,
+                voice=payload.voice,
+                connection=payload.connection,
+                generate_title=not payload.title,
+            )
 
-        title = payload.title or metadata.title
-        description = metadata.description
+            title = payload.title or metadata.title
+            description = metadata.description
 
         record = self.ai_companion_repository.create(
             user_id=user.id,

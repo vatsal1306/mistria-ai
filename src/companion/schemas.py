@@ -103,6 +103,7 @@ class AICompanionCreateRequest(BaseModel):
 
     user_mail_id: str = Field(min_length=3, max_length=320)
     title: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, min_length=1)
     gender: AIGender
     style: AIStyle
     ethnicity: AIEthnicity
@@ -123,6 +124,15 @@ class AICompanionCreateRequest(BaseModel):
     @classmethod
     def validate_title(cls, value: str | None) -> str | None:
         """Collapse blank titles to `None` so the service can generate a default."""
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+    @field_validator("description")
+    @classmethod
+    def validate_description(cls, value: str | None) -> str | None:
+        """Collapse blank descriptions to `None` so the service can generate a default."""
         if value is None:
             return None
         normalized = value.strip()
