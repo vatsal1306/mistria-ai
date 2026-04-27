@@ -157,7 +157,14 @@ class WebSocketChatHandler:
                 except Exception:
                     logger.exception("Pre-fetch history task failed for client=%s", client_label)
 
-            async for token in self.service.stream_response(request, user.id, snapshot):
+            async for token in self.service.stream_response(
+                    request,
+                    user.id,
+                    user.name,
+                    user_companion,
+                    ai_companion,
+                    snapshot,
+            ):
                 await self._send_event(
                     websocket,
                     ChatSocketEvent(type="delta", backend=self.service.runtime.backend_name, delta=token),

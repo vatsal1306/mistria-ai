@@ -9,7 +9,9 @@ import asyncio
 from src.backend.runtime import BaseInferenceRuntime
 from src.backend.schemas import ChatMessage, ChatSocketRequest, InferencePromptRequest
 from src.config import Chat
+from src.prompts import build_chat_system_prompt
 from src.storage.conversation_store import ConversationSnapshot
+from src.storage.models import AICompanionRecord, UserCompanionRecord
 from src.storage.service import ChatHistoryService
 
 logger = get_logger(__name__)
@@ -27,6 +29,9 @@ class ChatService:
         self, 
         request: ChatSocketRequest, 
         internal_user_id: int, 
+        user_name: str | None,
+        user_companion: UserCompanionRecord,
+        ai_companion: AICompanionRecord,
         snapshot: ConversationSnapshot | None = None
     ) -> AsyncGenerator[str, None]:
         """Trim message history, persist logic via DB, and delegate streamed generation to the runtime."""
@@ -101,7 +106,7 @@ class ChatService:
         mapped_messages.append(ChatMessage(role="user", content=request.user_message))
 
         inference_request = InferencePromptRequest(
-            system_prompt=request.system_prompt,
+            system_prompt=self._build_system_prompt(request, user_name, user_companion, ai_companion),
             messages=mapped_messages,
         )
 
@@ -140,3 +145,18 @@ class ChatService:
                 "Completed streamed chat response with empty assistant output conversation_id=%s",
                 conversation.id,
             )
+
+    def _build_system_prompt(
+            self,
+            request: ChatSocketRequest,
+            user_name: str | None,
+            user_companion: UserCompanionRecord,
+            ai_companion: AICompanionRecord,
+    ) -> str:
+        base_prompt = request.system_prompt or self.chat_config.system_prompt
+        return build_chat_system_prompt(
+            base_prompt=base_prompt,
+            user_name=user_name,
+            user_companion=user_companion,
+            ai_companion=ai_companion,
+        )

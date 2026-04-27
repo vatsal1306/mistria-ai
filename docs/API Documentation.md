@@ -1,7 +1,7 @@
 # Mistria AI — API Integration Guide
 
 > **Version:** 2.0  
-> **Last Updated:** 2026-04-24  
+> **Last Updated:** 2026-04-27  
 > **Milestone:** M2  
 > **Audience:** Frontend / Web App Engineers  
 > **ServerLink:** http://45.248.33.161:8080/docs
@@ -271,6 +271,9 @@ GET /user-companion/user@example.com
 
 Create a new AI companion persona for a registered user.
 
+- If both `title` and `description` are provided, the API saves the companion exactly as provided and does not call AI generation.
+- If `description` is omitted, the API generates the description from the companion attributes. If `title` is also omitted, it generates both title and description.
+
 **Request:**
 ```
 POST /ai-companion
@@ -279,6 +282,7 @@ Content-Type: application/json
 {
   "user_mail_id": "user@example.com",
   "title": "Luna",
+  "description": "A playful, passionate anime companion with a flirtatious voice and intense romantic energy.",
   "gender": "Female",
   "style": "Anime",
   "ethnicity": "East Asian",
@@ -295,6 +299,7 @@ Content-Type: application/json
 |---|---|---|---|
 | `user_mail_id` | `string` | Valid email, 3–320 chars | ✅ |
 | `title` | `string \| null` | 1–120 chars (auto-generated if omitted) | ❌ |
+| `description` | `string \| null` | Free text; if provided with `title`, AI generation is skipped | ❌ |
 | `gender` | `string` | `"Female"`, `"Male"`, `"Other"` | ✅ |
 | `style` | `string` | `"Realistic"`, `"Anime"`, `"Cartoon"`, `"Retro Noir"` | ✅ |
 | `ethnicity` | `string` | See [Allowed Values](#allowed-values-reference) | ✅ |
@@ -306,6 +311,8 @@ Content-Type: application/json
 | `connection` | `string` | See [Allowed Values](#allowed-values-reference) | ✅ |
 
 > **Note:** `eyeColor`, `hairStyle`, and `hairColor` use **camelCase** to match the frontend contract.
+>
+> **Admin flow note:** This endpoint supports both manual creation and AI-assisted creation. For manual assignment from the admin UI, send both `title` and `description`. For AI-assisted creation, omit `description` and optionally omit `title`.
 
 **Response:** `201 Created`
 ```json
@@ -718,16 +725,18 @@ For `422` validation errors, FastAPI returns:
    POST /ai-companion/generate
    ```
 
-4. **WebSocket Lifecycle:**
+4. **Admin Manual Create Flow:** If an admin already has the final companion content and only wants to assign it to a registered user, call `POST /ai-companion` with `user_mail_id`, all required companion attributes, and both `title` and `description`. In that case the backend stores the provided values directly and skips AI generation.
+
+5. **WebSocket Lifecycle:**
    - Open one connection per chat session.
    - Wait for the `ready` event before sending the first message.
    - Concatenate all `delta` values to build the assistant's response.
    - Wait for `done` before sending the next user message.
    - On `error`, display the `detail` to the user and allow retry.
 
-5. **Conversation History:** The backend automatically manages and stores the conversation history in the database. The client only needs to send the latest `user_message`. The server retrieves the history, trims it to the last 24 messages, and appends the new message before processing.
+6. **Conversation History:** The backend automatically manages and stores the conversation history in the database. The client only needs to send the latest `user_message`. The server retrieves the history, trims it to the last 24 messages, and appends the new message before processing.
 
-6. **camelCase Fields:** AI companion fields `eyeColor`, `hairStyle`, and `hairColor` use camelCase in the API. All other fields use snake_case.
+7. **camelCase Fields:** AI companion fields `eyeColor`, `hairStyle`, and `hairColor` use camelCase in the API. All other fields use snake_case.
 
 7. **Email Normalization:** Emails are automatically lowercased and trimmed. `"User@Example.COM"` becomes `"user@example.com"`.
 
