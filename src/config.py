@@ -160,6 +160,19 @@ class AppLogging:
 
 
 @dataclass(frozen=True, slots=True)
+class Memory:
+    """Long-term memory layer settings."""
+    enabled: bool = _get_bool("MISTRIA_MEMORY_ENABLED", False)
+    qdrant_url: str = _get_str("MISTRIA_MEMORY_QDRANT_URL", "http://localhost:6333")
+    qdrant_collection: str = _get_str("MISTRIA_MEMORY_QDRANT_COLLECTION", "mistria_memories")
+    embedding_model_name: str = _get_str("MISTRIA_MEMORY_EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
+    retrieval_top_k: int = _get_int("MISTRIA_MEMORY_RETRIEVAL_TOP_K", 5)
+    retrieval_min_score: float = _get_float("MISTRIA_MEMORY_RETRIEVAL_MIN_SCORE", 0.35)
+    raw_content_logging_enabled: bool = _get_bool("MISTRIA_MEMORY_RAW_CONTENT_LOGGING_ENABLED", True)
+    extraction_enabled: bool = _get_bool("MISTRIA_MEMORY_EXTRACTION_ENABLED", False)
+
+
+@dataclass(frozen=True, slots=True)
 class Secrets:
     """Secret configuration loaded from the environment."""
     api_key: str = field(default_factory=lambda: _get_str("MISTRIA_API_KEY", "local-dev-api-key"))
@@ -177,6 +190,7 @@ class Settings:
     chat: Chat = field(default_factory=Chat)
     inference: Inference = field(default_factory=Inference)
     logging: AppLogging = field(default_factory=AppLogging)
+    memory: Memory = field(default_factory=Memory)
     storage: Storage = field(default_factory=Storage)
     secrets: Secrets = field(default_factory=Secrets)
 
