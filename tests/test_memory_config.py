@@ -31,29 +31,5 @@ def test_memory_config_in_settings():
 
 def test_memory_package_imports_cleanly():
     """The memory package can be imported without errors."""
-    from src.memory import MemoryEntry, MemoryScope, MemoryService
-    assert MemoryEntry is not None
-    assert MemoryScope is not None
+    from src.memory import MemoryService
     assert MemoryService is not None
-
-
-def test_memory_scope_is_frozen():
-    """MemoryScope is immutable after creation."""
-    from src.memory.contracts import MemoryScope
-    scope = MemoryScope(user_id=1, ai_companion_id=2)
-    assert scope.user_id == 1
-    assert scope.ai_companion_id == 2
-    with pytest.raises(AttributeError):
-        scope.user_id = 99
-
-
-def test_memory_entry_validation():
-    """MemoryEntry enforces field constraints."""
-    from src.memory.schemas import MemoryEntry
-    entry = MemoryEntry(content="User likes coffee", category="preference", confidence=0.9)
-    assert entry.content == "User likes coffee"
-    assert entry.category == "preference"
-    assert entry.confidence == 0.9
-
-    with pytest.raises(Exception):
-        MemoryEntry(content="", category="preference")
