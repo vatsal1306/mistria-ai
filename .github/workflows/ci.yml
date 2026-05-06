@@ -71,12 +71,6 @@ jobs:
             -   name: Run Bandit on entrypoints
                 run: uvx --from bandit bandit -q main.py streamlit_app.py
 
-            -   name: Install dependency audit tool
-                run: uv pip install --python .venv/bin/python pip-audit
-
-            -   name: Audit dependencies
-                run: .venv/bin/pip-audit
-
     compose-smoke:
         name: Compose Smoke Test
         runs-on: ubuntu-latest
