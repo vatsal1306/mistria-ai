@@ -6,6 +6,7 @@ from src.storage.exceptions import DatabaseInitializationError, RepositoryError,
 from src.storage.models import (
     AICompanionRecord,
     ConversationRecord,
+    MemoryRecord,
     MessageRecord,
     UserCompanionRecord,
     UserRecord,
