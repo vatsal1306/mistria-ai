@@ -70,3 +70,24 @@ class MessageRecord:
     content: str
     created_at: str
     updated_at: str
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryRecord:
+    """Persisted long-term memory row."""
+    id: int
+    user_id: int
+    ai_companion_id: int
+    source_conversation_id: int | None
+    source_message_id: int | None
+    memory_type: str
+    canonical_key: str
+    content: str
+    importance: int
+    confidence: float
+    status: str
+    supersedes_memory_id: int | None
+    created_at: str
+    updated_at: str
+    last_retrieved_at: str | None
+    retrieval_count: int

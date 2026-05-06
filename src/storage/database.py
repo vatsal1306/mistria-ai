@@ -275,6 +275,32 @@ class SQLiteDatabase:
             ) ON DELETE CASCADE
                 )
             """,
+            """
+            CREATE TABLE IF NOT EXISTS memories
+            (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                ai_companion_id INTEGER NOT NULL,
+                source_conversation_id INTEGER,
+                source_message_id INTEGER,
+                memory_type TEXT NOT NULL CHECK (memory_type IN ('fact','preference','pattern','emotional')),
+                canonical_key TEXT NOT NULL,
+                content TEXT NOT NULL,
+                importance INTEGER NOT NULL,
+                confidence REAL NOT NULL,
+                status TEXT NOT NULL CHECK (status IN ('active','superseded','archived')) DEFAULT 'active',
+                supersedes_memory_id INTEGER,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                last_retrieved_at TEXT,
+                retrieval_count INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                FOREIGN KEY (ai_companion_id) REFERENCES ai_companion (id) ON DELETE CASCADE,
+                FOREIGN KEY (source_conversation_id) REFERENCES conversations (id) ON DELETE SET NULL,
+                FOREIGN KEY (source_message_id) REFERENCES messages (id) ON DELETE SET NULL,
+                FOREIGN KEY (supersedes_memory_id) REFERENCES memories (id) ON DELETE SET NULL
+            )
+            """,
         )
 
         index_statements = (
@@ -300,6 +326,18 @@ class SQLiteDatabase:
             """
             CREATE INDEX IF NOT EXISTS idx_messages_conversation_created_at
                 ON messages(conversation_id, created_at ASC, id ASC)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_memories_scope_status
+                ON memories(user_id, ai_companion_id, status)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_memories_scope_key_status
+                ON memories(user_id, ai_companion_id, canonical_key, status)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_memories_source_message
+                ON memories(source_message_id)
             """,
         )
 
@@ -371,6 +409,18 @@ class SQLiteDatabase:
             UPDATE conversations
             SET updated_at = CURRENT_TIMESTAMP
             WHERE id = NEW.conversation_id;
+            END
+            """,
+            """
+            CREATE TRIGGER IF NOT EXISTS trg_memories_updated_at
+            AFTER
+            UPDATE ON memories
+                FOR EACH ROW
+                WHEN NEW.updated_at = OLD.updated_at
+            BEGIN
+            UPDATE memories
+            SET updated_at = CURRENT_TIMESTAMP
+            WHERE id = OLD.id;
             END
             """,
         )
