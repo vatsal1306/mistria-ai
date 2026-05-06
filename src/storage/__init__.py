@@ -10,6 +10,7 @@ from src.storage.models import (
     UserCompanionRecord,
     UserRecord,
 )
+from src.storage.memory_repository import MemoryRepository, SQLiteMemoryRepository
 from src.storage.repositories import (
     SQLiteAICompanionRepository,
     SQLiteConversationRepository,
@@ -26,12 +27,15 @@ __all__ = [
     "ConversationSnapshot",
     "ConversationStore",
     "DatabaseInitializationError",
+    "MemoryRecord",
+    "MemoryRepository",
     "MessageRecord",
     "RepositoryError",
     "SQLiteAICompanionRepository",
     "SQLiteConversationRepository",
     "SQLiteConversationStore",
     "SQLiteDatabase",
+    "SQLiteMemoryRepository",
     "SQLiteUserCompanionRepository",
     "SQLiteUserRepository",
     "StorageError",
