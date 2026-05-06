@@ -14,9 +14,6 @@ dependencies = [
     "websockets>=15.0.1",
 ]
 
-[tool.uv]
-constraint-dependencies = ["gitpython>=3.1.47"]
-
 [project.optional-dependencies]
 inference = [
     "transformers>=4.51.1,<4.53.0",
