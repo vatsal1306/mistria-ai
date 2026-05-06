@@ -65,6 +65,7 @@ class QdrantVectorStore(BaseVectorStore):
         self._client: Any = None
 
     def _get_client(self) -> Any:
+        """Lazy-load the qdrant client and handle connection/import errors."""
         if not self.enabled:
             return None
             
@@ -192,14 +193,14 @@ class QdrantVectorStore(BaseVectorStore):
         )
 
         try:
-            hits = client.search(
+            response = client.query_points(
                 collection_name=self.collection_name,
-                query_vector=query_vector,
+                query=query_vector,
                 query_filter=search_filter,
                 limit=limit,
             )
             
-            return [VectorStoreResult(memory_id=hit.payload["memory_id"], score=hit.score) for hit in hits if hit.payload]
+            return [VectorStoreResult(memory_id=hit.payload["memory_id"], score=hit.score) for hit in response.points if hit.payload]
         except Exception as e:
             logger.error("Failed to search Qdrant for user %d, companion %d: %s", user_id, ai_companion_id, e)
             return []
@@ -209,6 +210,7 @@ class NoOpVectorStore(BaseVectorStore):
     """A disabled vector store that does nothing safely."""
 
     def bootstrap_collection(self, dimension: int) -> None:
+        """Do nothing since this is a no-op store."""
         pass
 
     def upsert_memory(
@@ -221,9 +223,11 @@ class NoOpVectorStore(BaseVectorStore):
         status: str,
         vector: list[float],
     ) -> None:
+        """Do nothing since this is a no-op store."""
         pass
 
     def delete_memory(self, memory_id: int) -> None:
+        """Do nothing since this is a no-op store."""
         pass
 
     def search(
@@ -233,4 +237,5 @@ class NoOpVectorStore(BaseVectorStore):
         query_vector: list[float],
         limit: int,
     ) -> list[VectorStoreResult]:
+        """Return an empty list since this is a no-op store."""
         return []

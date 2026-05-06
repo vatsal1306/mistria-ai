@@ -95,7 +95,10 @@ def test_qdrant_search_builds_strict_filters():
     mock_hit = mock.Mock()
     mock_hit.score = 0.95
     mock_hit.payload = {"memory_id": 42}
-    mock_client.search.return_value = [mock_hit]
+    
+    mock_response = mock.Mock()
+    mock_response.points = [mock_hit]
+    mock_client.query_points.return_value = mock_response
     
     store._client = mock_client
     
@@ -108,8 +111,8 @@ def test_qdrant_search_builds_strict_filters():
         assert results[0].memory_id == 42
         assert results[0].score == 0.95
         
-        mock_client.search.assert_called_once()
-        kwargs = mock_client.search.call_args.kwargs
+        mock_client.query_points.assert_called_once()
+        kwargs = mock_client.query_points.call_args.kwargs
         assert kwargs["collection_name"] == "test"
         assert kwargs["limit"] == 3
         

@@ -1,5 +1,6 @@
 """Embedding provider abstractions for memory retrieval."""
 
+import hashlib
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -119,12 +120,23 @@ class DeterministicEmbeddingProvider(BaseEmbeddingProvider):
         self.dimension = dimension
 
     def _text_to_vector(self, text: str) -> list[float]:
+        """Convert text to a deterministic vector using a stable hash.
+        
+        Args:
+            text: The text to hash.
+            
+        Returns:
+            A deterministic list of floats.
+        """
         if not text or not text.strip():
             return [0.0] * self.dimension
             
-        # Create a simple deterministic float vector based on the string hash
-        # Not semantically meaningful, but consistent and stable for tests.
-        base_val = (hash(text) % 1000) / 1000.0
+        # Create a simple deterministic float vector based on SHA-256
+        # Not semantically meaningful, but consistent and stable across processes for tests.
+        hash_digest = hashlib.sha256(text.encode('utf-8')).hexdigest()
+        base_int = int(hash_digest[:8], 16)
+        base_val = (base_int % 1000) / 1000.0
+        
         return [base_val + (i * 0.001) for i in range(self.dimension)]
 
     def embed_text(self, text: str) -> list[float]:
