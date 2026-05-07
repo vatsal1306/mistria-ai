@@ -31,6 +31,7 @@ async def test_extract_memories_disabled_by_settings(extraction_service, mock_ru
             user_id=1,
             ai_companion_id=2,
             conversation_id="conv-1",
+            message_id="msg-1",
             message_content="Remember I like coffee."
         )
     
@@ -47,6 +48,7 @@ async def test_extract_memories_empty_message(extraction_service, mock_runtime):
             user_id=1,
             ai_companion_id=2,
             conversation_id="conv-1",
+            message_id="msg-1",
             message_content="   "
         )
     
@@ -80,6 +82,7 @@ async def test_extract_memories_returns_validated_candidates(extraction_service,
             user_id=1,
             ai_companion_id=2,
             conversation_id="conv-1",
+            message_id="msg-1",
             message_content="I really enjoy BDSM."
         )
     
@@ -110,6 +113,7 @@ async def test_extract_memories_malformed_json_returns_empty_list(extraction_ser
             user_id=1,
             ai_companion_id=2,
             conversation_id="conv-1",
+            message_id="msg-1",
             message_content="I really enjoy BDSM."
         )
     
@@ -127,6 +131,7 @@ async def test_extract_memories_runtime_exception_returns_empty_list(extraction_
             user_id=1,
             ai_companion_id=2,
             conversation_id="conv-1",
+            message_id="msg-1",
             message_content="Hello"
         )
     

@@ -28,7 +28,9 @@ class MemoryExtractionService:
         user_id: int,
         ai_companion_id: int,
         conversation_id: str,
+        message_id: str,
         message_content: str,
+        recent_messages: list[ChatMessage] | None = None,
     ) -> list[MemoryExtraction]:
         """Extract memory candidates from a user message.
         
@@ -36,10 +38,12 @@ class MemoryExtractionService:
             user_id: The ID of the user.
             ai_companion_id: The ID of the companion.
             conversation_id: The ID of the current conversation session.
+            message_id: The ID of the current user message.
             message_content: The text of the user's latest message.
+            recent_messages: Optional list of recent messages for context.
             
         Returns:
-            A list of validated MemoryExtraction objects. Returns an empty list if extraction is disabled or fails.
+            A list of validated MemoryExtraction objects worth remembering. Returns an empty list if extraction is disabled or fails.
         """
         if not settings.memory.extraction_enabled:
             logger.debug("Memory extraction is disabled in settings. Skipping extraction for user_id=%s", user_id)
@@ -49,16 +53,21 @@ class MemoryExtractionService:
             return []
 
         logger.info(
-            "Extracting memories for user_id=%s companion_id=%s conversation_id=%s",
-            user_id, ai_companion_id, conversation_id
+            "Extracting memories for user_id=%s companion_id=%s conversation_id=%s message_id=%s",
+            user_id, ai_companion_id, conversation_id, message_id
         )
         
         if settings.memory.raw_content_logging_enabled:
             logger.debug("Extraction input content: %s", message_content)
 
+        messages = []
+        if recent_messages:
+            messages.extend(recent_messages)
+        messages.append(ChatMessage(role="user", content=message_content))
+
         req = InferencePromptRequest(
             system_prompt=MEMORY_EXTRACTION_SYSTEM_PROMPT,
-            messages=[ChatMessage(role="user", content=message_content)],
+            messages=messages,
             json_schema=MemoryExtractionResult.model_json_schema(),
         )
 
@@ -71,14 +80,16 @@ class MemoryExtractionService:
         try:
             result = MemoryExtractionResult.model_validate_json(output_text.strip())
             
+            valid_memories = [memory for memory in result.memories if memory.should_remember]
+            
             if settings.memory.raw_content_logging_enabled:
-                for idx, memory in enumerate(result.memories):
+                for idx, memory in enumerate(valid_memories):
                     logger.debug(
-                        "Extracted candidate %d: should_remember=%s type=%s key=%s content='%s' reason='%s'", 
-                        idx, memory.should_remember, memory.memory_type, memory.canonical_key, memory.content, memory.reason
+                        "Extracted candidate %d: type=%s key=%s content='%s' reason='%s'", 
+                        idx, memory.memory_type, memory.canonical_key, memory.content, memory.reason
                     )
             
-            return result.memories
+            return valid_memories
 
         except ValidationError as e:
             logger.error("Malformed JSON or schema validation error during memory extraction: %s", e)
