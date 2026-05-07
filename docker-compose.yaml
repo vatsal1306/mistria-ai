@@ -1,71 +1,101 @@
+name: ${COMPOSE_PROJECT_NAME:-mistria-ai}
+
 services:
     backend:
         build:
             context: .
-            target: backend
-        image: mistria-ai-backend:local
+            dockerfile: Dockerfile
+            target: backend-vllm
+        image: mistria-ai-backend:${IMAGE_TAG:-latest}
+        env_file:
+            - ${ENV_FILE:-.env}
         environment:
             MISTRIA_API_HOST: 0.0.0.0
             MISTRIA_API_PORT: 8080
             MISTRIA_API_RELOAD: "false"
-            MISTRIA_INFERENCE_BACKEND: ${MISTRIA_INFERENCE_BACKEND:-mock}
+            MISTRIA_INFERENCE_BACKEND: ${MISTRIA_INFERENCE_BACKEND:-vllm}
+            MISTRIA_INFERENCE_MODEL_NAME: ${MISTRIA_INFERENCE_MODEL_NAME:-dphn/Dolphin3.0-Llama3.1-8B}
             MISTRIA_LOG_LEVEL: ${MISTRIA_LOG_LEVEL:-INFO}
-            MISTRIA_AUTH_ENCRYPTION_KEY: ${MISTRIA_AUTH_ENCRYPTION_KEY:-change-me-before-production}
-            MISTRIA_API_KEY: ${MISTRIA_API_KEY:-change-me-before-production}
             MISTRIA_STORAGE_SQLITE_PATH: /app/data/db/app.db
         ports:
-            - "8080:8080"
+            - "${MISTRIA_BACKEND_PORT:-8080}:8080"
         volumes:
             - mistria_data:/app/data
+            - mistria_logs:/app/Logs
+            - mistria_hf_cache:/app/.cache/huggingface
+        gpus: all
+        restart: unless-stopped
+        networks:
+            - mistria
         healthcheck:
             test:
-              [
-                  "CMD",
-                  "python",
-                  "scripts/http_probe.py",
-                  "--url",
-                  "http://127.0.0.1:8080/health",
-              ]
-            interval: 10s
-            timeout: 5s
-            retries: 12
-            start_period: 10s
+                [
+                    "CMD",
+                    "python",
+                    "scripts/http_probe.py",
+                    "--url",
+                    "http://127.0.0.1:8080/health",
+                    "--expect-json",
+                    "status=ok",
+                    "--expect-json",
+                    "engine_ready=true",
+                ]
+            interval: 30s
+            timeout: 10s
+            retries: 60
+            start_period: 60s
+        logging:
+            driver: json-file
+            options:
+                max-size: "10m"
+                max-file: "5"
 
     frontend:
         build:
             context: .
+            dockerfile: Dockerfile
             target: frontend
-        image: mistria-ai-frontend:local
+        image: mistria-ai-frontend:${IMAGE_TAG:-latest}
+        env_file:
+            - ${ENV_FILE:-.env}
         depends_on:
             backend:
                 condition: service_healthy
         environment:
             MISTRIA_API_HOST: backend
             MISTRIA_API_PORT: 8080
-            MISTRIA_INFERENCE_BACKEND: ${MISTRIA_INFERENCE_BACKEND:-mock}
             MISTRIA_LOG_LEVEL: ${MISTRIA_LOG_LEVEL:-INFO}
-            MISTRIA_AUTH_ENCRYPTION_KEY: ${MISTRIA_AUTH_ENCRYPTION_KEY:-change-me-before-production}
-            MISTRIA_API_KEY: ${MISTRIA_API_KEY:-change-me-before-production}
-            MISTRIA_STORAGE_SQLITE_PATH: /app/data/db/app.db
         ports:
-            - "8501:8501"
-        volumes:
-            - mistria_data:/app/data
+            - "${MISTRIA_FRONTEND_PORT:-8501}:8501"
+        restart: unless-stopped
+        networks:
+            - mistria
         healthcheck:
             test:
-              [
-                  "CMD",
-                  "python",
-                  "scripts/http_probe.py",
-                  "--url",
-                  "http://127.0.0.1:8501/",
-                  "--expected-status",
-                  "200",
-              ]
-            interval: 10s
-            timeout: 5s
-            retries: 18
-            start_period: 20s
+                [
+                    "CMD",
+                    "python",
+                    "scripts/http_probe.py",
+                    "--url",
+                    "http://127.0.0.1:8501/",
+                    "--expected-status",
+                    "200",
+                ]
+            interval: 30s
+            timeout: 10s
+            retries: 20
+            start_period: 30s
+        logging:
+            driver: json-file
+            options:
+                max-size: "10m"
+                max-file: "5"
+
+networks:
+    mistria:
+        driver: bridge
 
 volumes:
     mistria_data:
+    mistria_logs:
+    mistria_hf_cache:

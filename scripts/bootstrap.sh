@@ -6,17 +6,17 @@ REPO_URL="${REPO_URL:-https://github.com/vatsal1306/mistria-ai.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
 REPO_DIR="${REPO_DIR:-${WORKSPACE_DIR}/mistria-ai}"
 ENV_FILE="${ENV_FILE:-${REPO_DIR}/.env}"
-DATA_DIR="${DATA_DIR:-${REPO_DIR}/data/db}"
-LOG_DIR="${LOG_DIR:-${REPO_DIR}/Logs}"
-HF_HOME_DIR="${HF_HOME_DIR:-${WORKSPACE_DIR}/hf-cache}"
 
-BACKEND_SESSION="${BACKEND_SESSION:-mistria-backend}"
-FRONTEND_SESSION="${FRONTEND_SESSION:-mistria-frontend}"
 BACKEND_PORT="${BACKEND_PORT:-8080}"
 FRONTEND_PORT="${FRONTEND_PORT:-8501}"
-
+COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-mistria-ai}"
+IMAGE_TAG="${IMAGE_TAG:-latest}"
 MISTRIA_MODEL_NAME="${MISTRIA_MODEL_NAME:-dphn/Dolphin3.0-Llama3.1-8B}"
+
 OVERWRITE_ENV="${OVERWRITE_ENV:-0}"
+SKIP_DOCKER_INSTALL="${SKIP_DOCKER_INSTALL:-0}"
+SKIP_GPU_CHECK="${SKIP_GPU_CHECK:-0}"
+RUN_SMOKE="${RUN_SMOKE:-0}"
 
 if [[ -t 1 ]]; then
   COLOR_RED=$'\033[0;31m'
@@ -76,8 +76,11 @@ require_cmd() {
   fi
 }
 
-apt_prefix() {
-  if command -v sudo >/dev/null 2>&1; then
+sudo_prefix() {
+  if [[ "$(id -u)" -ne 0 ]]; then
+    if ! command -v sudo >/dev/null 2>&1; then
+      fail "This step needs root privileges. Install sudo or run bootstrap as root."
+    fi
     printf 'sudo '
   fi
 }
@@ -106,58 +109,71 @@ prompt_env() {
   export "$var_name=$current_value"
 }
 
-write_env_file() {
-  if [[ -f "$ENV_FILE" && "$OVERWRITE_ENV" != "1" ]]; then
-    warn "Keeping existing .env at ${ENV_FILE}"
-    return
-  fi
-
-  prompt_env "MISTRIA_AUTH_ENCRYPTION_KEY" "Enter MISTRIA_AUTH_ENCRYPTION_KEY" 1
-  prompt_env "MISTRIA_API_KEY" "Enter MISTRIA_API_KEY" 1
-
-  mkdir -p "$(dirname "$ENV_FILE")"
-  : >"$ENV_FILE"
-  printf 'MISTRIA_AUTH_ENCRYPTION_KEY=%s\n' "$MISTRIA_AUTH_ENCRYPTION_KEY" >>"$ENV_FILE"
-  printf 'MISTRIA_API_KEY=%s\n' "$MISTRIA_API_KEY" >>"$ENV_FILE"
-  printf 'MISTRIA_INFERENCE_BACKEND=vllm\n' >>"$ENV_FILE"
-  printf 'MISTRIA_INFERENCE_MODEL_NAME=%s\n' "$MISTRIA_MODEL_NAME" >>"$ENV_FILE"
-  printf 'MISTRIA_STORAGE_SQLITE_PATH=%s/app.db\n' "$DATA_DIR" >>"$ENV_FILE"
-
-  if [[ -n "${HF_TOKEN:-}" ]]; then
-    printf 'HF_TOKEN=%s\n' "$HF_TOKEN" >>"$ENV_FILE"
-  fi
-
-  success "Wrote ${ENV_FILE}"
-}
-
-install_system_packages() {
+install_base_packages() {
+  require_cmd apt-get
   local prefix
-  prefix="$(apt_prefix)"
+  prefix="$(sudo_prefix)"
 
-  if ! command -v byobu >/dev/null 2>&1; then
-    info "Installing byobu, git, curl, nano and ca-certificates"
-    ${prefix}apt-get update
-    ${prefix}apt-get install -y byobu git curl nano ca-certificates
-    success "Installed system packages"
-  else
-    success "byobu already installed"
-  fi
+  info "Installing base packages"
+  ${prefix}apt-get update
+  ${prefix}apt-get install -y ca-certificates curl git gnupg make
+  success "Base packages are installed"
 }
 
-install_uv() {
-  if command -v uv >/dev/null 2>&1; then
-    info "uv already installed"
+install_docker() {
+  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+    success "Docker Engine and Compose plugin are already installed"
     return
   fi
 
-  require_cmd curl
-  info "Installing uv"
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  export PATH="${HOME}/.local/bin:${PATH}"
-  # Make it permanent for the user
-  echo 'export PATH="${HOME}/.local/bin:${PATH}"' >> "${HOME}/.bashrc"
-  require_cmd uv
-  success "Installed uv"
+  if [[ "$SKIP_DOCKER_INSTALL" == "1" ]]; then
+    fail "Docker Engine or Compose plugin is missing and SKIP_DOCKER_INSTALL=1"
+  fi
+
+  require_cmd apt-get
+  local prefix
+  prefix="$(sudo_prefix)"
+
+  info "Installing Docker Engine and Compose plugin from Docker's apt repository"
+  ${prefix}install -m 0755 -d /etc/apt/keyrings
+
+  local distro_id
+  local codename
+  distro_id="$(. /etc/os-release && printf '%s' "${ID}")"
+  codename="$(. /etc/os-release && printf '%s' "${VERSION_CODENAME}")"
+  case "$distro_id" in
+    ubuntu|debian) ;;
+    *) fail "Automatic Docker install supports Ubuntu/Debian only. Install Docker manually or set SKIP_DOCKER_INSTALL=1." ;;
+  esac
+
+  curl -fsSL "https://download.docker.com/linux/${distro_id}/gpg" | ${prefix}gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg
+  ${prefix}chmod a+r /etc/apt/keyrings/docker.gpg
+
+  printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu %s stable\n' \
+    "$(dpkg --print-architecture)" "$codename" \
+    | sed "s#linux/ubuntu#linux/${distro_id}#" \
+    | ${prefix}tee /etc/apt/sources.list.d/docker.list >/dev/null
+
+  ${prefix}apt-get update
+  ${prefix}apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  success "Docker Engine and Compose plugin are installed"
+}
+
+ensure_docker_access() {
+  if docker info >/dev/null 2>&1; then
+    success "Current user can access Docker"
+    return
+  fi
+
+  local prefix
+  prefix="$(sudo_prefix)"
+  if ${prefix}docker info >/dev/null 2>&1; then
+    warn "Docker is available through sudo. Adding current user to the docker group for future sessions."
+    ${prefix}usermod -aG docker "$USER" || true
+    fail "Docker is not available to the current shell without sudo. Log out/in or run bootstrap as root, then rerun."
+  fi
+
+  fail "Docker daemon is not reachable. Start Docker and rerun bootstrap."
 }
 
 sync_repo() {
@@ -177,74 +193,98 @@ sync_repo() {
   success "Repo cloned"
 }
 
-install_dependencies() {
-  info "Installing Python dependencies with vLLM extra"
+write_env_file() {
+  if [[ -f "$ENV_FILE" && "$OVERWRITE_ENV" != "1" ]]; then
+    warn "Keeping existing env file at ${ENV_FILE}"
+    return
+  fi
+
+  prompt_env "MISTRIA_AUTH_ENCRYPTION_KEY" "Enter MISTRIA_AUTH_ENCRYPTION_KEY" 1
+  prompt_env "MISTRIA_API_KEY" "Enter MISTRIA_API_KEY" 1
+
+  mkdir -p "$(dirname "$ENV_FILE")"
+  {
+    printf 'MISTRIA_AUTH_ENCRYPTION_KEY=%s\n' "$MISTRIA_AUTH_ENCRYPTION_KEY"
+    printf 'MISTRIA_API_KEY=%s\n' "$MISTRIA_API_KEY"
+    printf 'MISTRIA_INFERENCE_BACKEND=vllm\n'
+    printf 'MISTRIA_INFERENCE_MODEL_NAME=%s\n' "$MISTRIA_MODEL_NAME"
+    printf 'MISTRIA_LOG_LEVEL=INFO\n'
+    printf 'MISTRIA_BACKEND_PORT=%s\n' "$BACKEND_PORT"
+    printf 'MISTRIA_FRONTEND_PORT=%s\n' "$FRONTEND_PORT"
+    printf 'COMPOSE_PROJECT_NAME=%s\n' "$COMPOSE_PROJECT_NAME"
+    printf 'IMAGE_TAG=%s\n' "$IMAGE_TAG"
+    if [[ -n "${HF_TOKEN:-}" ]]; then
+      printf 'HF_TOKEN=%s\n' "$HF_TOKEN"
+    fi
+  } >"$ENV_FILE"
+
+  chmod 600 "$ENV_FILE"
+  success "Wrote ${ENV_FILE}"
+}
+
+verify_gpu_runtime() {
+  if [[ "$SKIP_GPU_CHECK" == "1" ]]; then
+    warn "Skipping Docker GPU verification because SKIP_GPU_CHECK=1"
+    return
+  fi
+
+  require_cmd nvidia-smi
+  info "Verifying Docker GPU access"
+  docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi >/dev/null
+  success "Docker can access the NVIDIA GPU"
+}
+
+make_stack() {
+  local target="$1"
   (
     cd "$REPO_DIR"
-    export PATH="${HOME}/.local/bin:${PATH}"
-    # Force copy mode to avoid hardlink issues on RunPod volumes
-    export UV_LINK_MODE=copy
-    uv sync --frozen --extra inference
+    ENV_FILE="$ENV_FILE" \
+    COMPOSE_PROJECT_NAME="$COMPOSE_PROJECT_NAME" \
+    IMAGE_TAG="$IMAGE_TAG" \
+    BACKEND_PORT="$BACKEND_PORT" \
+    FRONTEND_PORT="$FRONTEND_PORT" \
+    make "$target"
   )
-  success "Python dependencies installed"
-}
-
-kill_session_if_exists() {
-  local session_name="$1"
-  if byobu has-session -t "$session_name" 2>/dev/null; then
-    warn "Restarting byobu session ${session_name}"
-    byobu kill-session -t "$session_name"
-  fi
-}
-
-verify_session() {
-  local session_name="$1"
-  sleep 2
-
-  if ! byobu has-session -t "$session_name" 2>/dev/null; then
-    fail "Byobu session did not stay alive: ${session_name}"
-  fi
-
-  success "Byobu session running: ${session_name}"
-}
-
-start_backend() {
-  local cmd
-  cmd="cd ${REPO_DIR} && export PATH=${HOME}/.local/bin:\$PATH && export HF_HOME=${HF_HOME_DIR} && export PYTHONUNBUFFERED=1 && export MISTRIA_API_HOST=0.0.0.0 && export MISTRIA_API_PORT=${BACKEND_PORT} && export MISTRIA_API_RELOAD=false && export MISTRIA_LOG_DIR=${LOG_DIR} && uv run python main.py"
-  kill_session_if_exists "$BACKEND_SESSION"
-  byobu new-session -d -s "$BACKEND_SESSION" "bash -lc '$cmd'"
-  verify_session "$BACKEND_SESSION"
-}
-
-start_frontend() {
-  local cmd
-  cmd="cd ${REPO_DIR} && export PATH=${HOME}/.local/bin:\$PATH && export HF_HOME=${HF_HOME_DIR} && export PYTHONUNBUFFERED=1 && export MISTRIA_API_HOST=127.0.0.1 && export MISTRIA_API_PORT=${BACKEND_PORT} && export MISTRIA_LOG_DIR=${LOG_DIR} && uv run streamlit run streamlit_app.py --server.address=0.0.0.0 --server.port=${FRONTEND_PORT} --server.enableCORS=false --server.enableXsrfProtection=false --server.enableWebsocketCompression=false"
-  kill_session_if_exists "$FRONTEND_SESSION"
-  byobu new-session -d -s "$FRONTEND_SESSION" "bash -lc '$cmd'"
-  verify_session "$FRONTEND_SESSION"
 }
 
 verify_health() {
   local health_url="http://127.0.0.1:${BACKEND_PORT}/health"
   local frontend_url="http://127.0.0.1:${FRONTEND_PORT}/"
-  local tries=30
+  local tries=90
 
-  info "Waiting for backend health endpoint"
+  info "Waiting for backend vLLM readiness"
   for _ in $(seq 1 "$tries"); do
-    if curl -fsS "$health_url" >/dev/null 2>&1; then
-      success "Backend is healthy"
+    if (
+      cd "$REPO_DIR"
+      ENV_FILE="$ENV_FILE" COMPOSE_PROJECT_NAME="$COMPOSE_PROJECT_NAME" IMAGE_TAG="$IMAGE_TAG" MISTRIA_BACKEND_PORT="$BACKEND_PORT" MISTRIA_FRONTEND_PORT="$FRONTEND_PORT" \
+        docker compose --env-file "$ENV_FILE" exec -T backend \
+      python scripts/http_probe.py \
+        --url "http://127.0.0.1:8080/health" \
+        --expect-json status=ok \
+        --expect-json engine_ready=true
+    ) >/dev/null 2>&1; then
+      success "Backend is ready at ${health_url}"
       break
     fi
-    sleep 2
+    sleep 10
   done
-  if ! curl -fsS "$health_url" >/dev/null 2>&1; then
-    fail "Backend health check failed at ${health_url}"
+
+  if ! (
+    cd "$REPO_DIR"
+    ENV_FILE="$ENV_FILE" COMPOSE_PROJECT_NAME="$COMPOSE_PROJECT_NAME" IMAGE_TAG="$IMAGE_TAG" MISTRIA_BACKEND_PORT="$BACKEND_PORT" MISTRIA_FRONTEND_PORT="$FRONTEND_PORT" \
+      docker compose --env-file "$ENV_FILE" exec -T backend \
+        python scripts/http_probe.py \
+          --url "http://127.0.0.1:8080/health" \
+          --expect-json status=ok \
+          --expect-json engine_ready=true
+  ) >/dev/null 2>&1; then
+    fail "Backend readiness check failed at ${health_url}. Run 'make logs' in ${REPO_DIR} for details."
   fi
 
   info "Waiting for Streamlit frontend"
-  for _ in $(seq 1 "$tries"); do
+  for _ in $(seq 1 30); do
     if curl -fsS "$frontend_url" >/dev/null 2>&1; then
-      success "Frontend is reachable"
+      success "Frontend is reachable at ${frontend_url}"
       return
     fi
     sleep 2
@@ -259,50 +299,45 @@ ${COLOR_GREEN}${COLOR_BOLD}Setup complete.${COLOR_RESET}
 
 Repo: ${REPO_DIR}
 Env: ${ENV_FILE}
-SQLite: ${DATA_DIR}/app.db
-HF cache: ${HF_HOME_DIR}
-
-Byobu sessions:
-  - ${BACKEND_SESSION}
-  - ${FRONTEND_SESSION}
+Backend health: http://127.0.0.1:${BACKEND_PORT}/health
+Streamlit: http://127.0.0.1:${FRONTEND_PORT}
 
 Useful commands:
-  byobu ls
-  byobu attach -t ${BACKEND_SESSION}
-  byobu attach -t ${FRONTEND_SESSION}
-  curl http://127.0.0.1:${BACKEND_PORT}/health
-  ss -tulpn | grep ${BACKEND_PORT}
-  ss -tulpn | grep ${FRONTEND_PORT}
-
-Runpod exposure:
-  - Expose TCP ${BACKEND_PORT} for FastAPI/websocket
-  - Expose HTTP ${FRONTEND_PORT} for Streamlit
+  cd ${REPO_DIR}
+  make ps
+  make logs
+  make restart
+  make down
 EOF
 }
 
 main() {
   trap 'on_error $?' ERR
 
-  step "Install system packages"
-  install_system_packages
-  step "Install uv"
-  install_uv
+  step "Install base packages"
+  install_base_packages
+  step "Install Docker"
+  install_docker
+  step "Verify Docker access"
+  ensure_docker_access
   step "Sync repository"
   sync_repo
-
-  mkdir -p "$DATA_DIR" "$LOG_DIR" "$HF_HOME_DIR"
-  success "Workspace directories ready"
-
   step "Write environment file"
   write_env_file
-  step "Install Python dependencies"
-  install_dependencies
-  step "Start backend"
-  start_backend
-  step "Start frontend"
-  start_frontend
+  step "Verify GPU runtime"
+  verify_gpu_runtime
+  step "Build Docker images"
+  make_stack build
+  step "Start Docker stack"
+  make_stack up
   step "Verify services"
   verify_health
+
+  if [[ "$RUN_SMOKE" == "1" ]]; then
+    step "Run smoke test"
+    make_stack smoke
+  fi
+
   print_summary
 }
 
