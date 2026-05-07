@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from src.memory.schemas import MemoryExtraction
-from src.memory.prompts import MEMORY_EXTRACTION_SYSTEM_PROMPT
+from src.prompts import MEMORY_EXTRACTION_SYSTEM_PROMPT
 
 
 def test_memory_extraction_schema_valid_payload():
