@@ -1,117 +1,165 @@
 # Mistria AI Streaming Chat MVP
 
-This repo currently ships a Python-only AI MVP with:
+Mistria AI ships a FastAPI backend, an embedded vLLM inference runtime, and a Streamlit chat UI. The production runtime is Docker Compose: one backend container for HTTP/WebSocket APIs and model inference, and one frontend container for Streamlit.
 
-- `main.py`: FastAPI backend entrypoint (HTTP + WebSocket)
-- `streamlit_app.py`: Streamlit UI entrypoint
-- `src/backend`: websocket transport and inference runtime orchestration
-- `src/companion`: companion persona creation and user preference management
-- `src/auth`: signup, login, and password encryption
-- `src/storage`: SQLite-backed user, conversation, and message persistence
+## What It Does
 
-## What it does
-
-- Streams assistant responses over a FastAPI websocket endpoint
-- Exposes REST endpoints for user registration, companion preferences, and AI persona management
-- Persists user auth and chat history in SQLite
-- Starts the inference runtime from Python code instead of a separate `vllm serve` process
-- Keeps Streamlit as the user-facing companion UI
-- Centralizes non-secret config in `src/config.py`
-- Centralizes prompts in `src/prompts.py`
+- Streams assistant responses over a FastAPI WebSocket endpoint.
+- Exposes REST endpoints for user registration, companion preferences, and AI persona management.
+- Persists users, companion data, conversations, and messages in SQLite.
+- Starts vLLM from the Python backend process instead of a separate `vllm serve` process.
+- Keeps Streamlit as the user-facing chat UI.
+- Centralizes configuration in environment variables and `src/config.py`.
 
 ## API Documentation
 
 Full API integration guide for frontend engineers:
 
-📄 **[API Integration Guide](docs/api_integration_guide.md)** — covers all HTTP endpoints, WebSocket chat flow, request/response schemas, allowed values, and frontend integration notes.
+- [API Integration Guide](docs/API%20Documentation.md) covers HTTP endpoints, WebSocket flow, schemas, and frontend integration notes.
 
-## Recommended model
+## Production Requirements
 
-Use `dphn/Dolphin3.0-Llama3.1-8B` for the first pass. It is lightweight enough for an MVP and its model card explicitly positions it around owner-controlled alignment and system-prompt steerability, which fits your self-hosted adult-chat requirement.
+- Ubuntu/Debian server with Docker Engine and the Docker Compose plugin.
+- NVIDIA GPU drivers and NVIDIA Container Toolkit configured for `docker run --gpus all`.
+- Enough disk space for the Docker images, SQLite data, logs, and Hugging Face model cache.
+- Production secrets in `.env`.
 
-## Run it
+Recommended model:
 
-1. Sync dependencies:
+```text
+dphn/Dolphin3.0-Llama3.1-8B
+```
 
-   ```bash
-   uv sync --frozen
-   ```
+## Configure
 
-2. Adjust non-secret configuration in `src/config.py` and prompts in `src/prompts.py` if needed.
-   For local smoke tests on unsupported hosts, leave `Inference.backend = "mock"`.
-   For embedded model inference, switch `Inference.backend = "vllm"`.
+Create a production env file from the example:
 
-3. Start the FastAPI backend:
+```bash
+cp .env.example .env
+chmod 600 .env
+```
 
-   ```bash
-   uv run python main.py
-   ```
+Update at least these values:
 
-4. Launch the app:
+```bash
+MISTRIA_AUTH_ENCRYPTION_KEY=replace-with-a-strong-secret
+MISTRIA_API_KEY=replace-with-a-strong-secret
+MISTRIA_INFERENCE_BACKEND=vllm
+MISTRIA_INFERENCE_MODEL_NAME=dphn/Dolphin3.0-Llama3.1-8B
+HF_TOKEN=optional-hugging-face-token
+```
 
-   ```bash
-   uv run streamlit run streamlit_app.py
-   ```
+If a value contains `$`, escape it as `$$` because Docker Compose performs variable interpolation.
 
-## Embedded vLLM notes
+## Run With Docker
 
-- `main.py` initializes the inference runtime during FastAPI startup and shuts it down on app exit.
-- To install the optional vLLM dependency on supported Linux hosts:
+Build and start the production stack:
 
-  ```bash
-  uv sync --frozen --extra inference
-  ```
+```bash
+make build
+make up
+```
 
-- The current default backend is `mock` so the app remains runnable without GPU inference on this machine.
+Check service status and readiness:
 
-## Docker Compose
+```bash
+make ps
+make health
+```
 
-The repo includes a single `docker-compose.yaml` that works for local development and a simple Ubuntu server deployment.
+Access the services:
 
-1. Update the secrets in `.env`.
-   If a secret contains `$`, escape it as `$$` so Docker Compose treats it literally.
+- Streamlit: `http://127.0.0.1:8501`
+- FastAPI health: `http://127.0.0.1:8080/health`
+- FastAPI docs: `http://127.0.0.1:8080/docs`
 
-2. Build and start the stack:
+Stop the stack:
 
-   ```bash
-   docker compose up -d --build
-   ```
+```bash
+make down
+```
 
-3. Access:
+## Make Commands
 
-   - Streamlit: `http://127.0.0.1:8501`
-   - FastAPI health: `http://127.0.0.1:8080/health`
+- `make build`: build backend and frontend images.
+- `make up`: start the Compose stack in the background.
+- `make down`: stop containers and remove orphan containers.
+- `make restart`: restart running containers.
+- `make ps`: show Compose service status.
+- `make logs`: follow all service logs.
+- `make backend-logs`: follow backend logs.
+- `make frontend-logs`: follow frontend logs.
+- `make health`: verify backend model readiness and frontend reachability.
+- `make smoke`: run the end-to-end HTTP/WebSocket smoke test against the running stack.
+- `make clean`: stop the stack and remove named volumes.
 
-The stack mounts a named volume for `data/app.db`, so SQLite state survives container restarts. Container logs stay on standard Docker stdout/stderr.
+Optional Make variables:
 
-## CI
+```bash
+ENV_FILE=.env
+COMPOSE_PROJECT_NAME=mistria-ai
+IMAGE_TAG=latest
+BACKEND_PORT=8080
+FRONTEND_PORT=8501
+```
 
-GitHub Actions now runs three checks on every push and pull request:
+Example:
 
-- Python compilation and dependency install
-- Security checks with Bandit and `pip-audit`
-- Full Docker Compose smoke test that builds both images, starts both containers, probes the app, and performs a websocket round-trip against the `mock` backend
+```bash
+make up ENV_FILE=/secure/path/mistria.env BACKEND_PORT=18080 FRONTEND_PORT=18501
+```
 
-## Configuration layout
+## Bootstrap A Server
 
-- `.env`
-  - Secrets only. Right now that includes `MISTRIA_API_KEY` and optional `HF_TOKEN`.
-- `src/config.py`
-  - Non-secret application config grouped by classes such as `App`, `Api`, `Chat`, and `Inference`.
-- `src/prompts.py`
-  - Prompt text used by the app, starting with the chat system prompt.
+For a fresh Ubuntu/Debian server:
 
-## Environment variables
-
-- `MISTRIA_API_KEY`
-- `MISTRIA_AUTH_ENCRYPTION_KEY`
-- `HF_TOKEN`
-
-## How to use Pod
-
-```shell
+```bash
 cd /workspace
 curl -O https://raw.githubusercontent.com/vatsal1306/mistria-ai/main/scripts/bootstrap.sh
 chmod +x bootstrap.sh
 bash ./bootstrap.sh
 ```
+
+Bootstrap will:
+
+- Install base packages.
+- Install Docker Engine and the Docker Compose plugin if missing.
+- Sync or clone this repository.
+- Write `.env` with production vLLM defaults.
+- Verify Docker GPU access.
+- Run `make build` and `make up`.
+- Wait for backend vLLM readiness and Streamlit reachability.
+
+Useful bootstrap variables:
+
+```bash
+REPO_BRANCH=main
+REPO_DIR=/workspace/mistria-ai
+BACKEND_PORT=8080
+FRONTEND_PORT=8501
+MISTRIA_MODEL_NAME=dphn/Dolphin3.0-Llama3.1-8B
+OVERWRITE_ENV=0
+SKIP_GPU_CHECK=0
+RUN_SMOKE=0
+```
+
+## Persistence
+
+Compose uses named volumes:
+
+- `mistria_data`: SQLite database at `/app/data/db/app.db`.
+- `mistria_logs`: application logs at `/app/Logs`.
+- `mistria_hf_cache`: Hugging Face model cache at `/app/.cache/huggingface`.
+
+Container stdout/stderr is handled by Docker's `json-file` logging driver with rotation enabled.
+
+## Development Notes
+
+The backend entrypoint is `main.py`; the Streamlit entrypoint is `streamlit_app.py`. For non-Docker code checks:
+
+```bash
+uv sync --frozen
+uv run python -m compileall main.py streamlit_app.py src scripts
+```
+
+The production Docker image installs the optional `inference` extra so the embedded vLLM runtime can import and initialize inside the backend container.
