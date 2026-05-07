@@ -35,3 +35,13 @@ class MemoryExtraction(BaseModel):
     reason: str = Field(
         description="Brief reason for why this memory was extracted or why it was ignored."
     )
+
+
+class MemoryExtractionResult(BaseModel):
+    """Wrapper schema for extracting multiple memory candidates from a single chat message."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    memories: list[MemoryExtraction] = Field(
+        description="List of extracted memory candidates."
+    )
