@@ -27,8 +27,8 @@ class MemoryExtractionService:
         self,
         user_id: int,
         ai_companion_id: int,
-        conversation_id: str,
-        message_id: str,
+        conversation_id: int,
+        message_id: int,
         message_content: str,
         recent_messages: list[ChatMessage] | None = None,
     ) -> list[MemoryExtraction]:
@@ -53,7 +53,7 @@ class MemoryExtractionService:
             return []
 
         logger.info(
-            "Extracting memories for user_id=%s companion_id=%s conversation_id=%s message_id=%s",
+            "Extracting memories for user_id=%d companion_id=%d conversation_id=%d message_id=%d",
             user_id, ai_companion_id, conversation_id, message_id
         )
         
@@ -82,6 +82,9 @@ class MemoryExtractionService:
             
             valid_memories = [memory for memory in result.memories if memory.should_remember]
             
+            for memory in valid_memories:
+                memory.source_message_id = message_id
+
             if settings.memory.raw_content_logging_enabled:
                 for idx, memory in enumerate(valid_memories):
                     logger.debug(

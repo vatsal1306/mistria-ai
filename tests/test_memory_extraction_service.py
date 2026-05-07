@@ -30,8 +30,8 @@ async def test_extract_memories_disabled_by_settings(extraction_service, mock_ru
         result = await extraction_service.extract_memories(
             user_id=1,
             ai_companion_id=2,
-            conversation_id="conv-1",
-            message_id="msg-1",
+            conversation_id=101,
+            message_id=202,
             message_content="Remember I like coffee."
         )
     
@@ -47,8 +47,8 @@ async def test_extract_memories_empty_message(extraction_service, mock_runtime):
         result = await extraction_service.extract_memories(
             user_id=1,
             ai_companion_id=2,
-            conversation_id="conv-1",
-            message_id="msg-1",
+            conversation_id=101,
+            message_id=202,
             message_content="   "
         )
     
@@ -81,14 +81,15 @@ async def test_extract_memories_returns_validated_candidates(extraction_service,
         result = await extraction_service.extract_memories(
             user_id=1,
             ai_companion_id=2,
-            conversation_id="conv-1",
-            message_id="msg-1",
+            conversation_id=101,
+            message_id=202,
             message_content="I really enjoy BDSM."
         )
     
     assert len(result) == 1
     assert isinstance(result[0], MemoryExtraction)
     assert result[0].canonical_key == "likes_bdsm"
+    assert result[0].source_message_id == 202
 
 
 @pytest.mark.anyio
@@ -112,8 +113,8 @@ async def test_extract_memories_malformed_json_returns_empty_list(extraction_ser
         result = await extraction_service.extract_memories(
             user_id=1,
             ai_companion_id=2,
-            conversation_id="conv-1",
-            message_id="msg-1",
+            conversation_id=101,
+            message_id=202,
             message_content="I really enjoy BDSM."
         )
     
@@ -130,8 +131,8 @@ async def test_extract_memories_runtime_exception_returns_empty_list(extraction_
         result = await extraction_service.extract_memories(
             user_id=1,
             ai_companion_id=2,
-            conversation_id="conv-1",
-            message_id="msg-1",
+            conversation_id=101,
+            message_id=202,
             message_content="Hello"
         )
     
