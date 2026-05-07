@@ -35,10 +35,6 @@ class MemoryExtraction(BaseModel):
     reason: str = Field(
         description="Brief reason for why this memory was extracted or why it was ignored."
     )
-    source_message_id: int | None = Field(
-        default=None,
-        description="The ID of the source message from which this memory was extracted.",
-    )
 
 
 class MemoryExtractionResult(BaseModel):

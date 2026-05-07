@@ -82,9 +82,6 @@ class MemoryExtractionService:
             
             valid_memories = [memory for memory in result.memories if memory.should_remember]
             
-            for memory in valid_memories:
-                memory.source_message_id = message_id
-
             if settings.memory.raw_content_logging_enabled:
                 for idx, memory in enumerate(valid_memories):
                     logger.debug(

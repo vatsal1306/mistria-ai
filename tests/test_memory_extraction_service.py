@@ -89,7 +89,6 @@ async def test_extract_memories_returns_validated_candidates(extraction_service,
     assert len(result) == 1
     assert isinstance(result[0], MemoryExtraction)
     assert result[0].canonical_key == "likes_bdsm"
-    assert result[0].source_message_id == 202
 
 
 @pytest.mark.anyio
