@@ -45,3 +45,17 @@ class MemoryExtractionResult(BaseModel):
     memories: list[MemoryExtraction] = Field(
         description="List of extracted memory candidates."
     )
+
+
+class MemorySearchResult(BaseModel):
+    """A single memory search result."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    memory_id: int
+    memory_type: str
+    content: str
+    canonical_key: str
+    score: float
+    source: Literal["semantic", "keyword", "hybrid"]
+

@@ -1,5 +1,6 @@
 """Unit tests for the memory service."""
 
+from datetime import datetime, timezone
 from unittest import mock
 import pytest
 
@@ -205,3 +206,105 @@ async def test_store_memories_resilience_to_vector_failure(memory_service, mock_
     # Result should still include the ID because it was saved to SQLite
     assert ids == [1]
     mock_repo.create_memory.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_retrieve_memories_hybrid_merge(memory_service, mock_repo, mock_vector_store):
+    """Test that results from semantic and keyword search are merged and deduplicated."""
+    from src.memory.vector_store import VectorStoreResult
+
+    # 1. Mock Qdrant result (ID 1)
+    mock_vector_store.search.return_value = [VectorStoreResult(memory_id=1, score=0.8)]
+    
+    # 2. Mock SQLite keyword result (IDs 1 and 2)
+    record1 = mock.Mock(
+        spec=MemoryRecord, id=1, user_id=1, ai_companion_id=2, status="active", 
+        importance=3, confidence=1.0, updated_at=datetime.now(timezone.utc).isoformat(),
+        memory_type="fact", content="Content 1", canonical_key="key1"
+    )
+    record2 = mock.Mock(
+        spec=MemoryRecord, id=2, user_id=1, ai_companion_id=2, status="active", 
+        importance=3, confidence=1.0, updated_at=datetime.now(timezone.utc).isoformat(),
+        memory_type="fact", content="Content 2", canonical_key="key2"
+    )
+    mock_repo.keyword_search.return_value = [record1, record2]
+    
+    # 3. Mock find_by_id for record 1 (though it's already in keyword hits)
+    mock_repo.find_by_id.side_effect = lambda mid: record1 if mid == 1 else record2
+
+    results = await memory_service.retrieve_memories(user_id=1, ai_companion_id=2, query="test")
+    
+    # Verify merging (IDs 1 and 2)
+    assert len(results) == 2
+    ids = [r.memory_id for r in results]
+    assert 1 in ids
+    assert 2 in ids
+    # ID 1 should be hybrid
+    res1 = next(r for r in results if r.memory_id == 1)
+    assert res1.source == "hybrid"
+    # ID 2 should be keyword
+    res2 = next(r for r in results if r.memory_id == 2)
+    assert res2.source == "keyword"
+
+
+@pytest.mark.anyio
+async def test_retrieve_memories_thresholding(memory_service, mock_repo, mock_vector_store):
+    """Test that results below the min_score threshold are filtered out."""
+    from src.memory.vector_store import VectorStoreResult
+    
+    # Low score semantic result
+    mock_vector_store.search.return_value = [VectorStoreResult(memory_id=99, score=0.1)]
+    mock_repo.keyword_search.return_value = []
+    
+    low_record = mock.Mock(
+        spec=MemoryRecord, id=99, user_id=1, ai_companion_id=2, status="active", 
+        importance=1, confidence=0.5, updated_at="2020-01-01T00:00:00Z",
+        memory_type="fact", content="Low", canonical_key="low"
+    )
+    mock_repo.find_by_id.return_value = low_record
+    
+    results = await memory_service.retrieve_memories(user_id=1, ai_companion_id=2, query="test")
+    
+    assert len(results) == 0
+
+
+@pytest.mark.anyio
+async def test_retrieve_memories_isolation(memory_service, mock_repo, mock_vector_store):
+    """Test that memories from other users/companions are never returned."""
+    from src.memory.vector_store import VectorStoreResult
+    
+    # Vector store accidentally returns another user's memory
+    mock_vector_store.search.return_value = [VectorStoreResult(memory_id=500, score=0.9)]
+    mock_repo.keyword_search.return_value = []
+    
+    wrong_record = mock.Mock(
+        spec=MemoryRecord, id=500, user_id=999, ai_companion_id=888, status="active", 
+        importance=5, confidence=1.0, updated_at=datetime.now(timezone.utc).isoformat(),
+        memory_type="fact", content="Wrong", canonical_key="wrong"
+    )
+    mock_repo.find_by_id.return_value = wrong_record
+    
+    results = await memory_service.retrieve_memories(user_id=1, ai_companion_id=2, query="test")
+    
+    assert len(results) == 0
+
+
+@pytest.mark.anyio
+async def test_retrieve_memories_vector_failure_fallback(memory_service, mock_repo, mock_vector_store):
+    """Test that keyword search works even if semantic search fails."""
+    mock_vector_store.search.side_effect = Exception("Vector store down")
+    
+    record = mock.Mock(
+        spec=MemoryRecord, id=10, user_id=1, ai_companion_id=2, status="active", 
+        importance=3, confidence=1.0, updated_at=datetime.now(timezone.utc).isoformat(),
+        memory_type="fact", content="Fallback", canonical_key="fallback"
+    )
+    mock_repo.keyword_search.return_value = [record]
+
+    
+    results = await memory_service.retrieve_memories(user_id=1, ai_companion_id=2, query="test")
+    
+    assert len(results) == 1
+    assert results[0].memory_id == 10
+    assert results[0].source == "keyword"
+
