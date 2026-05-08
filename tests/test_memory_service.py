@@ -63,6 +63,7 @@ async def test_store_memories_basic_storage(memory_service, mock_repo, mock_vect
         user_id=1,
         ai_companion_id=2,
         conversation_id=10,
+        message_id=202,
         extracted_memories=[candidate]
     )
     
@@ -102,6 +103,7 @@ async def test_store_memories_conflict_resolution(memory_service, mock_repo, moc
         user_id=1,
         ai_companion_id=2,
         conversation_id=10,
+        message_id=202,
         extracted_memories=[candidate]
     )
     
@@ -141,6 +143,7 @@ async def test_store_memories_isolation(memory_service, mock_repo):
         user_id=1,
         ai_companion_id=2, # Companion 2
         conversation_id=10,
+        message_id=202,
         extracted_memories=[candidate]
     )
     
@@ -167,6 +170,7 @@ async def test_store_memories_skips_ignored_candidates(memory_service, mock_repo
         user_id=1,
         ai_companion_id=2,
         conversation_id=10,
+        message_id=202,
         extracted_memories=[candidate]
     )
     
@@ -194,6 +198,7 @@ async def test_store_memories_resilience_to_vector_failure(memory_service, mock_
         user_id=1,
         ai_companion_id=2,
         conversation_id=10,
+        message_id=202,
         extracted_memories=[candidate]
     )
     

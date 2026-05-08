@@ -43,6 +43,7 @@ class MemoryService:
         user_id: int,
         ai_companion_id: int,
         conversation_id: int,
+        message_id: int,
         extracted_memories: list[MemoryExtraction],
     ) -> list[int]:
         """Persist extracted memory candidates and sync with vector store.
@@ -54,6 +55,7 @@ class MemoryService:
             user_id: The ID of the user.
             ai_companion_id: The ID of the companion persona.
             conversation_id: The ID of the current conversation.
+            message_id: The ID of the current user message.
             extracted_memories: List of memory candidates extracted from chat.
             
         Returns:
@@ -90,6 +92,7 @@ class MemoryService:
                     importance=candidate.importance,
                     confidence=candidate.confidence,
                     source_conversation_id=conversation_id,
+                    source_message_id=message_id,
                 )
                 
                 new_id = new_record.id
