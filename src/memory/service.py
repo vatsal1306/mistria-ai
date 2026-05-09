@@ -227,11 +227,15 @@ class MemoryService:
 
             # Recency decay (Monthly)
             try:
-                # SQLite timestamps are UTC strings
-                updated_at = datetime.fromisoformat(record.updated_at.replace("Z", "+00:00"))
+                # SQLite timestamps are UTC strings, potentially naive
+                ts_str = record.updated_at
+                updated_at = datetime.fromisoformat(ts_str)
+                if updated_at.tzinfo is None:
+                    updated_at = updated_at.replace(tzinfo=timezone.utc)
+                
                 now = datetime.now(timezone.utc)
                 days_old = (now - updated_at).days
-                recency_multiplier = 1.0 / (1.0 + (days_old / 30.0))
+                recency_multiplier = 1.0 / (1.0 + (max(0, days_old) / 30.0))
                 final_score *= recency_multiplier
             except Exception as e:
                 logger.debug("Failed to calculate recency for memory %d: %s", mid, e)
