@@ -1,12 +1,5 @@
 """Tests for memory configuration defaults and environment variable parsing."""
 
-from pathlib import Path
-import sys
-
-import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 
 def test_memory_config_defaults():
     """Memory config has safe defaults for local development."""
