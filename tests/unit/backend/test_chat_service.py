@@ -1,10 +1,6 @@
-from pathlib import Path
-import sys
 from types import SimpleNamespace
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.backend.schemas import ChatSocketRequest
 from src.backend.service import ChatService
@@ -25,14 +21,18 @@ class _StreamingRuntimeStub:
 
 
 class _HistoryServiceStub:
-    def __init__(self, snapshot: ConversationSnapshot):
+    def __init__(self, snapshot: ConversationSnapshot | None):
         self.snapshot = snapshot
         self.saved_messages: list[tuple[int, str, str]] = []
+        self.loaded: list[tuple[int, int]] = []
+        self.started: list[tuple[int, int]] = []
 
-    def load_latest(self, user_id: int, ai_companion_id: int) -> ConversationSnapshot:
+    def load_latest(self, user_id: int, ai_companion_id: int) -> ConversationSnapshot | None:
+        self.loaded.append((user_id, ai_companion_id))
         return self.snapshot
 
     def start_fresh(self, user_id: int, ai_companion_id: int) -> ConversationSnapshot:
+        self.started.append((user_id, ai_companion_id))
         return self.snapshot
 
     def save_message(self, conversation_id: int, role: str, content: str):
@@ -160,3 +160,125 @@ async def test_stream_response_builds_companion_contract_prompt_and_trims_histor
         (10, "user", "so what now?"),
         (10, "assistant", "You lead."),
     ]
+
+
+@pytest.mark.anyio
+async def test_stream_response_discards_mismatched_prefetched_snapshot_and_starts_fresh(
+    sample_user_companion,
+    sample_ai_companion,
+):
+    runtime = _StreamingRuntimeStub(tokens=[])
+    fresh_snapshot = ConversationSnapshot(
+        conversation=ConversationRecord(
+            id=20,
+            user_id=1,
+            ai_companion_id=2,
+            created_at="2026-04-24 10:00:00",
+            updated_at="2026-04-24 10:00:00",
+        ),
+        messages=[],
+    )
+    mismatched_snapshot = ConversationSnapshot(
+        conversation=ConversationRecord(
+            id=99,
+            user_id=999,
+            ai_companion_id=2,
+            created_at="2026-04-24 10:00:00",
+            updated_at="2026-04-24 10:00:00",
+        ),
+        messages=[MessageRecord(1, 99, "user", "wrong history", "t", "t")],
+    )
+    history_service = _HistoryServiceStub(snapshot=fresh_snapshot)
+    service = ChatService(
+        chat_config=SimpleNamespace(history_message_limit=2, system_prompt="Base chat prompt."),
+        runtime=runtime,
+        history_service=history_service,
+    )
+    request = ChatSocketRequest(user_id="user@example.com", ai_companion_id=2, user_message="hello")
+
+    chunks = [
+        chunk
+        async for chunk in service.stream_response(
+            request,
+            internal_user_id=1,
+            user_name=None,
+            user_companion=sample_user_companion,
+            ai_companion=sample_ai_companion,
+            snapshot=mismatched_snapshot,
+        )
+    ]
+
+    assert chunks == []
+    assert history_service.loaded == [(1, 2)]
+    assert history_service.started == []
+    assert history_service.saved_messages == [(20, "user", "hello")]
+
+
+@pytest.mark.anyio
+async def test_stream_response_starts_fresh_when_no_history_exists(sample_user_companion, sample_ai_companion):
+    fresh_snapshot = ConversationSnapshot(
+        conversation=ConversationRecord(30, 1, 2, "2026-04-24 10:00:00", "2026-04-24 10:00:00"),
+        messages=[],
+    )
+
+    class _History(_HistoryServiceStub):
+        def load_latest(self, user_id: int, ai_companion_id: int):
+            self.loaded.append((user_id, ai_companion_id))
+            return None
+
+        def start_fresh(self, user_id: int, ai_companion_id: int):
+            self.started.append((user_id, ai_companion_id))
+            return fresh_snapshot
+
+    runtime = _StreamingRuntimeStub(tokens=["done"])
+    history_service = _History(snapshot=None)
+    service = ChatService(
+        chat_config=SimpleNamespace(history_message_limit=2, system_prompt="Base chat prompt."),
+        runtime=runtime,
+        history_service=history_service,
+    )
+
+    chunks = [
+        chunk
+        async for chunk in service.stream_response(
+            ChatSocketRequest(user_id="user@example.com", ai_companion_id=2, user_message="hello"),
+            1,
+            None,
+            sample_user_companion,
+            sample_ai_companion,
+        )
+    ]
+
+    assert chunks == ["done"]
+    assert history_service.started == [(1, 2)]
+    assert history_service.saved_messages[-1] == (30, "assistant", "done")
+
+
+@pytest.mark.anyio
+async def test_stream_response_propagates_runtime_failure(sample_user_companion, sample_ai_companion, sample_conversation):
+    class _FailingRuntime(_StreamingRuntimeStub):
+        async def stream_text(self, request):
+            self.requests.append(request)
+            raise RuntimeError("runtime failed")
+            yield  # pragma: no cover
+
+    snapshot = ConversationSnapshot(sample_conversation, [])
+    history_service = _HistoryServiceStub(snapshot)
+    service = ChatService(
+        chat_config=SimpleNamespace(history_message_limit=2, system_prompt="Base chat prompt."),
+        runtime=_FailingRuntime(tokens=[]),
+        history_service=history_service,
+    )
+
+    with pytest.raises(RuntimeError, match="runtime failed"):
+        async for _ in service.stream_response(
+            ChatSocketRequest(user_id="user@example.com", ai_companion_id=2, user_message="hello"),
+            1,
+            None,
+            sample_user_companion,
+            sample_ai_companion,
+            snapshot,
+        ):
+            pass
+
+    assert history_service.saved_messages == [(sample_conversation.id, "user", "hello")]
