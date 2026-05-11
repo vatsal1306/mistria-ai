@@ -111,10 +111,16 @@ class ChatService:
                     )
                     # Detailed logging of retrieved memories as requested in Issue #40
                     for mem in memories:
-                        logger.debug(
-                            "Memory retrieved: id=%s, score=%.4f, type=%s, content=%r",
-                            mem.memory_id, mem.score, mem.memory_type, mem.content
-                        )
+                        if self.memory_service.config.raw_content_logging_enabled:
+                            logger.debug(
+                                "Memory retrieved: id=%s, score=%.4f, type=%s, content=%r",
+                                mem.memory_id, mem.score, mem.memory_type, mem.content
+                            )
+                        else:
+                            logger.debug(
+                                "Memory retrieved: id=%s, score=%.4f, type=%s",
+                                mem.memory_id, mem.score, mem.memory_type
+                            )
             except Exception as e:
                 # Log the error and continue with normal chat as per AC
                 logger.error("Memory retrieval failed (falling back to normal chat): %s", e)

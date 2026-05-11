@@ -34,8 +34,9 @@ from src.storage.repositories import (
     SQLiteUserCompanionRepository,
     SQLiteUserRepository,
 )
-from src.memory.embeddings import SentenceTransformerEmbeddingProvider
-from src.memory.repository import SQLiteMemoryRepository
+from src.memory.embeddings import LocalEmbeddingProvider
+from src.memory.repository import MemoryRepository  # type: ignore[attr-defined]
+from src.storage.memory_repository import SQLiteMemoryRepository
 from src.memory.service import MemoryService
 from src.memory.vector_store import QdrantVectorStore
 from src.storage.conversation_store import SQLiteConversationStore
@@ -56,8 +57,12 @@ memory_service = None
 if settings.memory.enabled:
     logger.info("Memory system is enabled. Initializing components.")
     memory_repository = SQLiteMemoryRepository(database)
-    memory_vector_store = QdrantVectorStore(settings.memory)
-    memory_embedding_provider = SentenceTransformerEmbeddingProvider(settings.memory)
+    memory_vector_store = QdrantVectorStore(
+        url=settings.memory.qdrant_url,
+        collection_name=settings.memory.qdrant_collection,
+        enabled=settings.memory.enabled
+    )
+    memory_embedding_provider = LocalEmbeddingProvider(settings.memory.embedding_model_name)
     memory_service = MemoryService(
         settings.memory,
         memory_repository,
