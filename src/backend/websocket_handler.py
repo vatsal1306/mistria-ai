@@ -42,6 +42,7 @@ class WebSocketChatHandler:
         """Own the full lifecycle of a websocket chat session."""
         await websocket.accept()
         client_label = self._client_label(websocket)
+        history_task = None
         logger.info("Accepted websocket connection client=%s", client_label)
 
         try:
@@ -51,7 +52,6 @@ class WebSocketChatHandler:
             user_id = websocket.query_params.get("user_id")
             ai_companion_id_str = websocket.query_params.get("ai_companion_id")
             
-            history_task = None
             if user_id and ai_companion_id_str:
                 try:
                     ai_companion_id = int(ai_companion_id_str)
@@ -203,7 +203,7 @@ class WebSocketChatHandler:
                 websocket,
                 ChatSocketEvent(type="error", backend=self.service.runtime.backend_name, detail=str(exc)),
             )
-        except Exception:
+        except Exception as exc:
             logger.exception("Unhandled request failure on websocket client=%s", client_label)
             await self._send_event(
                 websocket,
