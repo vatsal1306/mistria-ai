@@ -303,8 +303,7 @@ async def debug_memory_retrieve(payload: DebugMemoryRetrieveRequest) -> DebugMem
     memories = await memory_service.retrieve_memories(
         user_id=user.id,
         ai_companion_id=companion.id,
-        query_text=payload.user_message,
-        limit=settings.memory.retrieval_top_k,
+        query=payload.user_message,
     )
 
     return DebugMemoryRetrieveResponse(

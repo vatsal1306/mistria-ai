@@ -315,5 +315,5 @@ async def test_debug_memory_retrieve_success(monkeypatch, sample_user):
     assert len(response.memories) == 1
     assert response.memories[0].memory_id == 1
     memory_service.retrieve_memories.assert_awaited_once_with(
-        user_id=sample_user.id, ai_companion_id=mock_companion.id, query_text="hello", limit=5
+        user_id=sample_user.id, ai_companion_id=mock_companion.id, query="hello"
     )
