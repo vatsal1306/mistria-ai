@@ -33,15 +33,16 @@ def test_qdrant_disabled_acts_like_noop():
 
 
 @mock.patch("src.memory.vector_store.logger")
-def test_qdrant_client_import_failure_disables_store(mock_logger):
-    """Test that missing qdrant_client safely disables the store."""
+def test_qdrant_client_import_failure_raises_configuration_error(mock_logger):
+    """Test that missing qdrant_client raises ConfigurationError."""
+    from src.backend.exceptions import ConfigurationError
     store = QdrantVectorStore(url="http://fake", collection_name="test", enabled=True)
     
     # Simulate ImportError
     with mock.patch.dict("sys.modules", {"qdrant_client": None}):
-        client = store._get_client()
-        assert client is None
-        assert store.enabled is False
+        with pytest.raises(ConfigurationError, match="qdrant-client is not installed"):
+            store._get_client()
+            
         mock_logger.error.assert_called_with("qdrant-client is not installed. Vector search will be disabled.")
 
 

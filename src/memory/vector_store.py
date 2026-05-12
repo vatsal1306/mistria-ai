@@ -70,15 +70,16 @@ class QdrantVectorStore(BaseVectorStore):
             return None
             
         if self._client is None:
+            from src.backend.exceptions import ConfigurationError
             try:
                 from qdrant_client import QdrantClient
                 self._client = QdrantClient(url=self.url)
-            except ImportError:
+            except ImportError as e:
                 logger.error("qdrant-client is not installed. Vector search will be disabled.")
-                self.enabled = False
+                raise ConfigurationError("qdrant-client is not installed. Please install it to use QdrantVectorStore.") from e
             except Exception as e:
                 logger.error("Failed to initialize QdrantClient: %s", e)
-                self.enabled = False
+                raise ConfigurationError(f"Failed to initialize QdrantClient: {e}") from e
                 
         return self._client
 
