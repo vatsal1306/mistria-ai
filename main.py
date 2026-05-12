@@ -3,7 +3,7 @@
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI, Query, WebSocket, status
+from fastapi import FastAPI, Query, WebSocket, status, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -30,6 +30,7 @@ from src.config import settings
 from src.memory.background import MemoryExtractionWorker
 from src.memory.embeddings import LocalEmbeddingProvider
 from src.memory.extraction import MemoryExtractionService
+from src.memory.schemas import DebugMemoryRetrieveRequest, DebugMemoryRetrieveResponse
 from src.memory.service import MemoryService
 from src.memory.vector_store import QdrantVectorStore
 from src.storage.database import SQLiteDatabase
@@ -280,6 +281,37 @@ def get_ai_companion(ai_companion_id: int) -> AICompanionResponse:
     """Fetch one AI companion persona by its internal identifier."""
     logger.debug("Fetching AI companion via API ai_companion_id=%s", ai_companion_id)
     return companion_service.get_ai_companion(ai_companion_id)
+
+
+@app.post("/debug/memory/retrieve", response_model=DebugMemoryRetrieveResponse)
+async def debug_memory_retrieve(payload: DebugMemoryRetrieveRequest) -> DebugMemoryRetrieveResponse:
+    """Internal debug endpoint for memory retrieval."""
+    if not settings.memory.debug_endpoint_enabled or not memory_service:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Endpoint disabled or memory system not configured"
+        )
+
+    user = user_repository.find_by_email(payload.user_mail_id)
+    if not user:
+        raise CompanionNotFoundError("User not found.")
+
+    companion = ai_companion_repository.get_latest_ai_companion(user.id, payload.ai_companion_id)
+    if not companion:
+        raise CompanionNotFoundError(f"Companion {payload.ai_companion_id} not found or not owned by user.")
+
+    memories = await memory_service.retrieve_memories(
+        user_id=user.id,
+        ai_companion_id=companion.id,
+        query_text=payload.user_message,
+        limit=settings.memory.retrieval_top_k,
+    )
+
+    return DebugMemoryRetrieveResponse(
+        user_mail_id=payload.user_mail_id,
+        ai_companion_id=payload.ai_companion_id,
+        memories=memories,
+    )
 
 
 if __name__ == "__main__":
