@@ -45,6 +45,19 @@ class _HistoryServiceStub:
         )
 
 
+class _MemoryServiceStub:
+    def __init__(self, memories: list[MemorySearchResult], should_fail: bool = False):
+        self.memories = memories
+        self.should_fail = should_fail
+        self.calls = []
+
+    async def retrieve_memories(self, user_id, ai_companion_id, query):
+        self.calls.append((user_id, ai_companion_id, query))
+        if self.should_fail:
+            raise Exception("Retrieval failed")
+        return self.memories
+
+
 @pytest.mark.anyio
 async def test_stream_response_builds_companion_contract_prompt_and_trims_history():
     runtime = _StreamingRuntimeStub(tokens=["You", " lead."])
@@ -165,6 +178,76 @@ async def test_stream_response_builds_companion_contract_prompt_and_trims_histor
         (10, "user", "so what now?"),
         (10, "assistant", "You lead."),
     ]
+
+
+@pytest.mark.anyio
+@pytest.mark.anyio
+async def test_stream_response_injects_memories_when_enabled():
+    runtime = _StreamingRuntimeStub(tokens=["Hi."])
+    snapshot = ConversationSnapshot(
+        conversation=ConversationRecord(id=1, user_id=1, ai_companion_id=2, created_at="", updated_at=""),
+        messages=[],
+    )
+    history_service = _HistoryServiceStub(snapshot)
+    
+    memories = [
+        MemorySearchResult(
+            memory_id=1, memory_type="fact", content="User loves cats", canonical_key="cats", score=0.9, source="semantic"
+        )
+    ]
+    memory_service = _MemoryServiceStub(memories)
+    
+    service = ChatService(
+        chat_config=SimpleNamespace(history_message_limit=10, system_prompt="Base."),
+        runtime=runtime,
+        history_service=history_service,
+        memory_service=memory_service,
+    )
+    
+    user_companion = UserCompanionRecord(id=1, user_id=1, title="T", description="D", intent_type="alive", dominance_mode="ai_leads", intensity_level="break_glass", silence_response="come_looking", secret_desire="both", created_at="", updated_at="")
+    ai_companion = AICompanionRecord(id=2, user_id=1, title="Luna", description="D", gender="F", style="S", ethnicity="E", eye_color="G", hair_style="L", hair_color="P", personality="P", voice="V", connection="C", created_at="", updated_at="")
+    
+    request = ChatSocketRequest(action="chat", user_id="u", ai_companion_id=2, system_prompt=None, user_message="hello")
+    
+    async for _ in service.stream_response(request, internal_user_id=1, user_name="V", user_companion=user_companion, ai_companion=ai_companion, snapshot=snapshot):
+        pass
+
+    system_prompt = runtime.requests[0].system_prompt
+    assert "LONG-TERM MEMORY (CURATED)" in system_prompt
+    assert "'User loves cats'" in system_prompt
+    assert "Use the provided long-term memory and the visible conversation history" in system_prompt
+    assert len(memory_service.calls) == 1
+
+
+@pytest.mark.anyio
+async def test_stream_response_graceful_fallback_on_memory_failure():
+    runtime = _StreamingRuntimeStub(tokens=["Hi."])
+    snapshot = ConversationSnapshot(
+        conversation=ConversationRecord(id=1, user_id=1, ai_companion_id=2, created_at="", updated_at=""),
+        messages=[],
+    )
+    history_service = _HistoryServiceStub(snapshot)
+    memory_service = _MemoryServiceStub([], should_fail=True)
+    
+    service = ChatService(
+        chat_config=SimpleNamespace(history_message_limit=10, system_prompt="Base."),
+        runtime=runtime,
+        history_service=history_service,
+        memory_service=memory_service,
+    )
+    
+    user_companion = UserCompanionRecord(id=1, user_id=1, title="T", description="D", intent_type="alive", dominance_mode="ai_leads", intensity_level="break_glass", silence_response="come_looking", secret_desire="both", created_at="", updated_at="")
+    ai_companion = AICompanionRecord(id=2, user_id=1, title="Luna", description="D", gender="F", style="S", ethnicity="E", eye_color="G", hair_style="L", hair_color="P", personality="P", voice="V", connection="C", created_at="", updated_at="")
+    
+    request = ChatSocketRequest(action="chat", user_id="u", ai_companion_id=2, system_prompt=None, user_message="hello")
+    
+    # Should not raise exception
+    async for _ in service.stream_response(request, internal_user_id=1, user_name="V", user_companion=user_companion, ai_companion=ai_companion, snapshot=snapshot):
+        pass
+
+    system_prompt = runtime.requests[0].system_prompt
+    assert "LONG-TERM MEMORY" not in system_prompt
+    assert "Use only the visible conversation history as memory." in system_prompt
 
 
 @pytest.mark.anyio
@@ -289,20 +372,6 @@ async def test_stream_response_propagates_runtime_failure(sample_user_companion,
     assert history_service.saved_messages == [(sample_conversation.id, "user", "hello")]
 
 
-class _MemoryServiceStub:
-    def __init__(self, memories: list[MemorySearchResult], should_fail: bool = False):
-        self.memories = memories
-        self.should_fail = should_fail
-        self.calls = []
-        self.config = SimpleNamespace(raw_content_logging_enabled=False)
-
-    async def retrieve_memories(self, user_id, ai_companion_id, query):
-        self.calls.append((user_id, ai_companion_id, query))
-        if self.should_fail:
-            raise Exception("Retrieval failed")
-        return self.memories
-
-
 class _ExtractionWorkerStub:
     def __init__(self):
         self.scheduled: list[dict] = []
@@ -411,3 +480,4 @@ async def test_stream_response_does_not_block_when_no_extraction_worker(
         chunks.append(chunk)
 
     assert chunks == ["ok"]
+

@@ -54,7 +54,6 @@ class ChatService:
         )
         
         # Load snapshot if not provided (fallback)
-        # Issue A: Ensure pre-fetched snapshot identity matches the actual request
         if snapshot:
             is_match = (
                 snapshot.conversation.user_id == internal_user_id and
@@ -78,7 +77,6 @@ class ChatService:
                 request.ai_companion_id
             )
             
-        # Issue C: If no history exists, start a fresh conversation lazily
         if snapshot is None:
             logger.info("No existing conversation found. Starting fresh lazily.")
             snapshot = await asyncio.to_thread(
@@ -129,7 +127,6 @@ class ChatService:
                 logger.error("Memory retrieval failed (falling back to normal chat): %s", e)
 
         # 3. Prepare inference history context
-        # Include past messages from snapshot and the current message
         history_records = list(snapshot.messages)
         trimmed_records = history_records[-self.chat_config.history_message_limit:]
         
@@ -145,7 +142,6 @@ class ChatService:
         for record in trimmed_records:
             mapped_messages.append(ChatMessage(role=record.role, content=record.content))  # type: ignore[arg-type]
             
-        # Add the current user message to the context
         mapped_messages.append(ChatMessage(role="user", content=request.user_message))
 
         inference_request = InferencePromptRequest(
@@ -218,4 +214,3 @@ class ChatService:
             ai_companion=ai_companion,
             memory_block=memory_block,
         )
-

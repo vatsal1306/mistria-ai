@@ -89,6 +89,7 @@ websocket_handler = WebSocketChatHandler(
     user_companion_repository,
     ai_companion_repository,
 )
+
 logger.debug(
     "Initialized application services backend=%s model=%s sqlite_path=%s websocket_path=%s log_level=%s",
     runtime.backend_name,
