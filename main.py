@@ -296,8 +296,8 @@ async def debug_memory_retrieve(payload: DebugMemoryRetrieveRequest) -> DebugMem
     if not user:
         raise CompanionNotFoundError("User not found.")
 
-    companion = ai_companion_repository.get_latest_ai_companion(user.id, payload.ai_companion_id)
-    if not companion:
+    companion = ai_companion_repository.find_by_id(payload.ai_companion_id)
+    if not companion or companion.user_id != user.id:
         raise CompanionNotFoundError(f"Companion {payload.ai_companion_id} not found or not owned by user.")
 
     memories = await memory_service.retrieve_memories(

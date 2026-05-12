@@ -272,7 +272,7 @@ async def test_debug_memory_retrieve_returns_404_when_companion_not_found(monkey
     monkeypatch.setattr(main, "user_repository", user_repo)
 
     companion_repo = mock.Mock()
-    companion_repo.get_latest_ai_companion.return_value = None
+    companion_repo.find_by_id.return_value = None
     monkeypatch.setattr(main, "ai_companion_repository", companion_repo)
 
     from src.memory.schemas import DebugMemoryRetrieveRequest
@@ -294,8 +294,8 @@ async def test_debug_memory_retrieve_success(monkeypatch, sample_user):
     monkeypatch.setattr(main, "user_repository", user_repo)
 
     companion_repo = mock.Mock()
-    mock_companion = mock.Mock(id=99)
-    companion_repo.get_latest_ai_companion.return_value = mock_companion
+    mock_companion = mock.Mock(id=99, user_id=sample_user.id)
+    companion_repo.find_by_id.return_value = mock_companion
     monkeypatch.setattr(main, "ai_companion_repository", companion_repo)
 
     memory_service = mock.Mock()
