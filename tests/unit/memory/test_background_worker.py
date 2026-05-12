@@ -113,8 +113,8 @@ async def test_worker_respects_concurrency_limit():
     memory_service = _MemoryServiceStub()
     worker = MemoryExtractionWorker(extraction_service, memory_service, max_concurrent_jobs=1)
 
-    # Acquire the semaphore manually to simulate a running job
-    await worker._semaphore.acquire()
+    # Simulate a running job by setting the pending counter
+    worker._pending = 1
 
     worker.schedule(
         user_id=1, ai_companion_id=2, conversation_id=10,
@@ -123,8 +123,30 @@ async def test_worker_respects_concurrency_limit():
 
     await asyncio.sleep(0.1)
 
-    # The job should have been skipped because the semaphore was full
+    # The job should have been skipped because the limit was reached
     assert len(extraction_service.calls) == 0
 
-    # Release the semaphore
-    worker._semaphore.release()
+
+@pytest.mark.anyio
+async def test_worker_skips_all_burst_calls_beyond_limit():
+    """Verify multiple synchronous schedule() calls are properly bounded."""
+    extraction_service = _ExtractionServiceStub(candidates=[])
+    memory_service = _MemoryServiceStub()
+    worker = MemoryExtractionWorker(extraction_service, memory_service, max_concurrent_jobs=1)
+
+    # Schedule 3 jobs synchronously before the event loop runs any task
+    for i in range(3):
+        worker.schedule(
+            user_id=1, ai_companion_id=2, conversation_id=10,
+            message_id=i, message_content=f"msg-{i}",
+        )
+
+    # Only the first call should have been accepted
+    assert worker._pending == 1
+
+    await asyncio.sleep(0.1)
+
+    # Only 1 extraction should have run
+    assert len(extraction_service.calls) == 1
+    # Counter should be back to 0 after completion
+    assert worker._pending == 0

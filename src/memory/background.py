@@ -35,7 +35,8 @@ class MemoryExtractionWorker:
         """
         self.extraction_service = extraction_service
         self.memory_service = memory_service
-        self._semaphore = asyncio.Semaphore(max_concurrent_jobs)
+        self._max_concurrent_jobs = max_concurrent_jobs
+        self._pending = 0
         self._tasks: set[asyncio.Task] = set()  # type: ignore[type-arg]
 
     def schedule(
@@ -57,13 +58,14 @@ class MemoryExtractionWorker:
             message_content: The raw user message text.
             recent_messages: Optional recent conversation context.
         """
-        if self._semaphore.locked():
+        if self._pending >= self._max_concurrent_jobs:
             logger.warning(
                 "Extraction job skipped (concurrency limit reached) user_id=%d conversation_id=%d message_id=%d",
                 user_id, conversation_id, message_id,
             )
             return
 
+        self._pending += 1
         task = asyncio.create_task(
             self._run(
                 user_id, ai_companion_id, conversation_id, message_id,
@@ -82,42 +84,43 @@ class MemoryExtractionWorker:
         message_content: str,
         recent_messages: list[ChatMessage] | None,
     ) -> None:
-        """Execute a single extraction-and-store cycle under the semaphore."""
-        async with self._semaphore:
+        """Execute a single extraction-and-store cycle."""
+        try:
             logger.info(
                 "Extraction job started user_id=%d conversation_id=%d message_id=%d",
                 user_id, conversation_id, message_id,
             )
-            try:
-                candidates = await self.extraction_service.extract_memories(
-                    user_id=user_id,
-                    ai_companion_id=ai_companion_id,
-                    conversation_id=conversation_id,
-                    message_id=message_id,
-                    message_content=message_content,
-                    recent_messages=recent_messages,
-                )
+            candidates = await self.extraction_service.extract_memories(
+                user_id=user_id,
+                ai_companion_id=ai_companion_id,
+                conversation_id=conversation_id,
+                message_id=message_id,
+                message_content=message_content,
+                recent_messages=recent_messages,
+            )
 
-                if not candidates:
-                    logger.info(
-                        "Extraction job completed with no candidates user_id=%d message_id=%d",
-                        user_id, message_id,
-                    )
-                    return
-
-                stored_ids = await self.memory_service.store_memories(
-                    user_id=user_id,
-                    ai_companion_id=ai_companion_id,
-                    conversation_id=conversation_id,
-                    message_id=message_id,
-                    extracted_memories=candidates,
-                )
+            if not candidates:
                 logger.info(
-                    "Extraction job succeeded user_id=%d message_id=%d candidates=%d stored=%d",
-                    user_id, message_id, len(candidates), len(stored_ids),
+                    "Extraction job completed with no candidates user_id=%d message_id=%d",
+                    user_id, message_id,
                 )
-            except Exception:
-                logger.exception(
-                    "Extraction job failed user_id=%d conversation_id=%d message_id=%d",
-                    user_id, conversation_id, message_id,
-                )
+                return
+
+            stored_ids = await self.memory_service.store_memories(
+                user_id=user_id,
+                ai_companion_id=ai_companion_id,
+                conversation_id=conversation_id,
+                message_id=message_id,
+                extracted_memories=candidates,
+            )
+            logger.info(
+                "Extraction job succeeded user_id=%d message_id=%d candidates=%d stored=%d",
+                user_id, message_id, len(candidates), len(stored_ids),
+            )
+        except Exception:
+            logger.exception(
+                "Extraction job failed user_id=%d conversation_id=%d message_id=%d",
+                user_id, conversation_id, message_id,
+            )
+        finally:
+            self._pending -= 1
