@@ -6,7 +6,6 @@ dependencies = [
     "cryptography>=45.0.0",
     "fastapi>=0.115.12",
     "ollama==0.4.0",
-    "pytest>=9.0.3",
     "python-dotenv>=1.2.2",
     "qdrant-client>=1.7.0",
     "sentence-transformers>=3.0.0",
@@ -21,3 +20,45 @@ inference = [
     "transformers>=4.51.1,<4.53.0",
     "vllm>=0.9.0; sys_platform == 'linux'",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-cov>=7.0.0",
+]
+
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = [
+    "--strict-config",
+    "--strict-markers",
+    "--tb=short",
+    "--cov=src",
+    "--cov=main",
+    "--cov=streamlit_app",
+    "--cov=scripts",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=xml",
+    "--cov-fail-under=85",
+]
+markers = [
+    "anyio: run async tests with the AnyIO pytest plugin",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["src", "main", "streamlit_app", "scripts"]
+omit = [
+    "tests/*",
+]
+
+[tool.coverage.report]
+exclude_also = [
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "@abstractmethod",
+]
+show_missing = true
+skip_covered = true

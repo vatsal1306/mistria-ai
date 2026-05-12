@@ -1,12 +1,8 @@
 """Tests for the memory embedding providers."""
 
-from pathlib import Path
-import sys
 from unittest import mock
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.memory.embeddings import DeterministicEmbeddingProvider, LocalEmbeddingProvider
 

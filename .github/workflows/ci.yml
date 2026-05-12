@@ -41,7 +41,13 @@ jobs:
                 run: uv sync --frozen --no-dev --no-install-project
 
             -   name: Validate Python bytecode compilation
-                run: uv run python -m compileall main.py streamlit_app.py src scripts
+                run: uv run --no-dev python -m compileall main.py streamlit_app.py src scripts
+
+            -   name: Install test dependencies
+                run: uv sync --frozen --no-install-project
+
+            -   name: Run pytest with coverage
+                run: uv run pytest
 
     security:
         name: Security Checks
