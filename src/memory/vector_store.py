@@ -70,15 +70,16 @@ class QdrantVectorStore(BaseVectorStore):
             return None
             
         if self._client is None:
+            from src.backend.exceptions import ConfigurationError
             try:
                 from qdrant_client import QdrantClient
                 self._client = QdrantClient(url=self.url)
-            except ImportError:
+            except ImportError as e:
                 logger.error("qdrant-client is not installed. Vector search will be disabled.")
-                self.enabled = False
+                raise ConfigurationError("qdrant-client is not installed. Please install it to use QdrantVectorStore.") from e
             except Exception as e:
                 logger.error("Failed to initialize QdrantClient: %s", e)
-                self.enabled = False
+                raise ConfigurationError(f"Failed to initialize QdrantClient: {e}") from e
                 
         return self._client
 
@@ -90,6 +91,8 @@ class QdrantVectorStore(BaseVectorStore):
         from qdrant_client.models import Distance, VectorParams
         from qdrant_client.http.exceptions import UnexpectedResponse
         
+        from src.backend.exceptions import ConfigurationError
+
         try:
             # Check if collection exists
             client.get_collection(collection_name=self.collection_name)
@@ -105,6 +108,10 @@ class QdrantVectorStore(BaseVectorStore):
                 )
             except Exception as create_err:
                 logger.error("Failed to create Qdrant collection: %s", create_err)
+                raise ConfigurationError(f"Failed to create Qdrant collection '{self.collection_name}': {create_err}") from create_err
+        except Exception as e:
+            logger.error("Failed to connect to Qdrant: %s", e)
+            raise ConfigurationError(f"Failed to connect to Qdrant at {self.url}: {e}") from e
 
     def upsert_memory(
         self,
