@@ -150,3 +150,65 @@ async def test_worker_skips_all_burst_calls_beyond_limit():
     assert len(extraction_service.calls) == 1
     # Counter should be back to 0 after completion
     assert worker._pending == 0
+
+
+@pytest.mark.anyio
+async def test_worker_shutdown_awaits_pending_jobs():
+    """Verify shutdown awaits jobs that complete quickly."""
+    
+    class _SlowExtractionStub(_ExtractionServiceStub):
+        async def extract_memories(self, **kwargs):
+            self.calls.append(kwargs)
+            await asyncio.sleep(0.05)
+            return self.candidates
+            
+    extraction_service = _SlowExtractionStub(candidates=[])
+    memory_service = _MemoryServiceStub()
+    worker = MemoryExtractionWorker(extraction_service, memory_service)
+
+    worker.schedule(user_id=1, ai_companion_id=2, conversation_id=10, message_id=1, message_content="test")
+    
+    # Task is scheduled but not finished
+    assert len(worker._tasks) == 1
+    
+    # Shutdown should wait for the task
+    await worker.shutdown()
+    
+    # Task should be complete
+    assert len(worker._tasks) == 0
+    assert len(extraction_service.calls) == 1
+
+
+@pytest.mark.anyio
+async def test_worker_shutdown_cancels_long_running_jobs(monkeypatch):
+    """Verify shutdown cancels jobs that exceed timeout."""
+    
+    class _VerySlowExtractionStub(_ExtractionServiceStub):
+        async def extract_memories(self, **kwargs):
+            self.calls.append(kwargs)
+            await asyncio.sleep(10.0) # Much longer than timeout
+            return self.candidates
+            
+    # Mock asyncio.wait to simulate a timeout quickly for the first call
+    original_wait = asyncio.wait
+    async def mock_wait(tasks, timeout=None):
+        if timeout == 5.0:
+            # First wait: return nothing done, all pending to simulate timeout
+            return set(), tasks
+        # Second wait (1.0s): let the real wait handle the cancellation
+        return await original_wait(tasks, timeout=timeout)
+        
+    monkeypatch.setattr(asyncio, "wait", mock_wait)
+            
+    extraction_service = _VerySlowExtractionStub(candidates=[])
+    memory_service = _MemoryServiceStub()
+    worker = MemoryExtractionWorker(extraction_service, memory_service)
+
+    worker.schedule(user_id=1, ai_companion_id=2, conversation_id=10, message_id=1, message_content="test")
+    
+    task = list(worker._tasks)[0]
+    
+    await worker.shutdown()
+    
+    # Task should have been cancelled
+    assert task.cancelled()

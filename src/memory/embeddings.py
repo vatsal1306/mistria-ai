@@ -25,6 +25,11 @@ class BaseEmbeddingProvider(ABC):
         pass
 
     @abstractmethod
+    def get_dimension(self) -> int:
+        """Get the vector dimension produced by this provider."""
+        pass
+
+    @abstractmethod
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
         """Embed multiple text strings into vectors.
         
@@ -85,6 +90,12 @@ class LocalEmbeddingProvider(BaseEmbeddingProvider):
         embedding = model.encode(text)
         return embedding.tolist()
 
+    def get_dimension(self) -> int:
+        """Get the dimension of the embedding vectors."""
+        if self._dimension is None:
+            self._get_model()
+        return self._dimension or 0
+
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
         """Embed multiple text strings into vectors."""
         if not texts:
@@ -138,6 +149,10 @@ class DeterministicEmbeddingProvider(BaseEmbeddingProvider):
         base_val = (base_int % 1000) / 1000.0
         
         return [base_val + (i * 0.001) for i in range(self.dimension)]
+
+    def get_dimension(self) -> int:
+        """Get the fixed dimension of the mock vectors."""
+        return self.dimension
 
     def embed_text(self, text: str) -> list[float]:
         """Return a deterministic vector for the text."""

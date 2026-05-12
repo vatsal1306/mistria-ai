@@ -75,6 +75,26 @@ class MemoryExtractionWorker:
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 
+    async def shutdown(self) -> None:
+        """Gracefully shut down the worker, waiting for pending jobs to finish."""
+        if not self._tasks:
+            return
+
+        logger.info("MemoryExtractionWorker shutting down. Waiting for %d pending jobs.", len(self._tasks))
+        
+        # Give pending tasks up to 5 seconds to finish cleanly
+        done, pending = await asyncio.wait(self._tasks, timeout=5.0)
+        
+        if pending:
+            logger.warning("MemoryExtractionWorker shutdown timeout. Cancelling %d tasks.", len(pending))
+            for task in pending:
+                task.cancel()
+            
+            # Wait briefly for cancellation to process
+            await asyncio.wait(pending, timeout=1.0)
+            
+        logger.info("MemoryExtractionWorker shutdown complete.")
+
     async def _run(
         self,
         user_id: int,

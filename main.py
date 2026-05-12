@@ -59,6 +59,8 @@ companion_service = CompanionService(user_repository, user_companion_repository,
 # Initialize memory sub-system if enabled
 memory_service = None
 extraction_worker = None
+memory_vector_store = None
+memory_embedding_provider = None
 if settings.memory.enabled:
     logger.info("Memory system is enabled. Initializing components.")
     memory_repository = SQLiteMemoryRepository(database)
@@ -113,6 +115,11 @@ async def lifespan(_: FastAPI):
     )
     database.initialize()
     await runtime.startup()
+    
+    if settings.memory.enabled and memory_vector_store and memory_embedding_provider:
+        dimension = memory_embedding_provider.get_dimension()
+        memory_vector_store.bootstrap_collection(dimension)
+
     logger.info(
         "Application startup complete backend=%s ready=%s startup_stage=%s",
         runtime.backend_name,
@@ -124,6 +131,8 @@ async def lifespan(_: FastAPI):
     finally:
         logger.info("Application shutdown initiated backend=%s", runtime.backend_name)
         await runtime.shutdown()
+        if extraction_worker:
+            await extraction_worker.shutdown()
         logger.info("Application shutdown complete backend=%s", runtime.backend_name)
 
 

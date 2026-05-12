@@ -90,6 +90,8 @@ class QdrantVectorStore(BaseVectorStore):
         from qdrant_client.models import Distance, VectorParams
         from qdrant_client.http.exceptions import UnexpectedResponse
         
+        from src.backend.exceptions import ConfigurationError
+
         try:
             # Check if collection exists
             client.get_collection(collection_name=self.collection_name)
@@ -105,6 +107,10 @@ class QdrantVectorStore(BaseVectorStore):
                 )
             except Exception as create_err:
                 logger.error("Failed to create Qdrant collection: %s", create_err)
+                raise ConfigurationError(f"Failed to create Qdrant collection '{self.collection_name}': {create_err}") from create_err
+        except Exception as e:
+            logger.error("Failed to connect to Qdrant: %s", e)
+            raise ConfigurationError(f"Failed to connect to Qdrant at {self.url}: {e}") from e
 
     def upsert_memory(
         self,

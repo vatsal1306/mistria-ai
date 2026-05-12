@@ -96,7 +96,7 @@ def test_create_user_rejects_duplicates(monkeypatch, sample_user):
 
 
 @pytest.mark.anyio
-async def test_lifespan_initializes_and_shutdowns_shared_resources(monkeypatch):
+async def test_lifespan_initializes_and_shutdowns_shared_resources_memory_disabled(monkeypatch):
     database = mock.Mock()
     runtime = mock.Mock()
     runtime.backend_name = "mock"
@@ -104,14 +104,56 @@ async def test_lifespan_initializes_and_shutdowns_shared_resources(monkeypatch):
     runtime.startup_stage = "ready"
     runtime.startup = mock.AsyncMock()
     runtime.shutdown = mock.AsyncMock()
+    
+    mock_settings = mock.Mock()
+    mock_settings.memory.enabled = False
+    
     monkeypatch.setattr(main, "database", database)
     monkeypatch.setattr(main, "runtime", runtime)
+    monkeypatch.setattr(main, "settings", mock_settings)
+    monkeypatch.setattr(main, "extraction_worker", None)
 
     async with main.lifespan(main.app):
         database.initialize.assert_called_once()
         runtime.startup.assert_awaited_once()
 
     runtime.shutdown.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_lifespan_initializes_memory_components_when_enabled(monkeypatch):
+    database = mock.Mock()
+    runtime = mock.Mock()
+    runtime.backend_name = "mock"
+    runtime.is_ready = True
+    runtime.startup_stage = "ready"
+    runtime.startup = mock.AsyncMock()
+    runtime.shutdown = mock.AsyncMock()
+    
+    vector_store = mock.Mock()
+    embedding_provider = mock.Mock()
+    embedding_provider.get_dimension.return_value = 384
+    worker = mock.Mock()
+    worker.shutdown = mock.AsyncMock()
+    
+    mock_settings = mock.Mock()
+    mock_settings.memory.enabled = True
+    
+    monkeypatch.setattr(main, "database", database)
+    monkeypatch.setattr(main, "runtime", runtime)
+    monkeypatch.setattr(main, "settings", mock_settings)
+    monkeypatch.setattr(main, "memory_vector_store", vector_store)
+    monkeypatch.setattr(main, "memory_embedding_provider", embedding_provider)
+    monkeypatch.setattr(main, "extraction_worker", worker)
+
+    async with main.lifespan(main.app):
+        database.initialize.assert_called_once()
+        runtime.startup.assert_awaited_once()
+        embedding_provider.get_dimension.assert_called_once()
+        vector_store.bootstrap_collection.assert_called_once_with(384)
+
+    runtime.shutdown.assert_awaited_once()
+    worker.shutdown.assert_awaited_once()
 
 
 @pytest.mark.anyio
