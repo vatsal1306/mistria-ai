@@ -27,17 +27,19 @@ from src.companion.schemas import (
 )
 from src.companion.service import CompanionService
 from src.config import settings
+from src.memory.background import MemoryExtractionWorker
+from src.memory.embeddings import LocalEmbeddingProvider
+from src.memory.extraction import MemoryExtractionService
+from src.memory.service import MemoryService
+from src.memory.vector_store import QdrantVectorStore
 from src.storage.database import SQLiteDatabase
+from src.storage.memory_repository import SQLiteMemoryRepository
 from src.storage.repositories import (
     SQLiteAICompanionRepository,
     SQLiteConversationRepository,
     SQLiteUserCompanionRepository,
     SQLiteUserRepository,
 )
-from src.memory.embeddings import LocalEmbeddingProvider
-from src.storage.memory_repository import SQLiteMemoryRepository, MemoryRepository
-from src.memory.service import MemoryService
-from src.memory.vector_store import QdrantVectorStore
 from src.storage.conversation_store import SQLiteConversationStore
 from src.storage.service import ChatHistoryService
 
@@ -51,29 +53,33 @@ conversation_repository = SQLiteConversationRepository(database)
 conversation_store = SQLiteConversationStore(conversation_repository)
 chat_history_service = ChatHistoryService(conversation_store)
 
+runtime = InferenceRuntimeFactory.create(settings.chat, settings.inference, settings.secrets)
+companion_service = CompanionService(user_repository, user_companion_repository, ai_companion_repository, runtime)
+
 # Initialize memory sub-system if enabled
 memory_service = None
+extraction_worker = None
 if settings.memory.enabled:
     logger.info("Memory system is enabled. Initializing components.")
     memory_repository = SQLiteMemoryRepository(database)
     memory_vector_store = QdrantVectorStore(
         url=settings.memory.qdrant_url,
         collection_name=settings.memory.qdrant_collection,
-        enabled=settings.memory.enabled
+        enabled=settings.memory.enabled,
     )
     memory_embedding_provider = LocalEmbeddingProvider(settings.memory.embedding_model_name)
     memory_service = MemoryService(
-        settings.memory,
-        memory_repository,
-        memory_vector_store,
-        memory_embedding_provider
+        settings.memory, memory_repository, memory_vector_store, memory_embedding_provider
     )
+    extraction_service = MemoryExtractionService(runtime)
+    extraction_worker = MemoryExtractionWorker(extraction_service, memory_service)
 else:
     logger.info("Memory system is disabled via configuration.")
 
-runtime = InferenceRuntimeFactory.create(settings.chat, settings.inference, settings.secrets)
-companion_service = CompanionService(user_repository, user_companion_repository, ai_companion_repository, runtime)
-chat_service = ChatService(settings.chat, runtime, chat_history_service, memory_service)
+chat_service = ChatService(
+    settings.chat, runtime, chat_history_service, memory_service, extraction_worker
+)
+
 websocket_handler = WebSocketChatHandler(
     settings.api,
     settings.secrets,

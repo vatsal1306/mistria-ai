@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.backend.schemas import ChatSocketRequest
+from src.backend.schemas import ChatMessage, ChatSocketRequest
 from src.backend.service import ChatService
 from src.memory.schemas import MemorySearchResult
 from src.storage.conversation_store import ConversationSnapshot
@@ -36,9 +36,13 @@ class _HistoryServiceStub:
         self.started.append((user_id, ai_companion_id))
         return self.snapshot
 
-    def save_message(self, conversation_id: int, role: str, content: str):
+    def save_message(self, conversation_id: int, role: str, content: str) -> MessageRecord:
         self.saved_messages.append((conversation_id, role, content))
-        return None
+        msg_id = len(self.saved_messages)
+        return MessageRecord(
+            id=msg_id, conversation_id=conversation_id, role=role, content=content,
+            created_at="2026-01-01 00:00:00", updated_at="2026-01-01 00:00:00",
+        )
 
 
 class _MemoryServiceStub:
@@ -366,4 +370,116 @@ async def test_stream_response_propagates_runtime_failure(sample_user_companion,
             pass
 
     assert history_service.saved_messages == [(sample_conversation.id, "user", "hello")]
+
+
+class _ExtractionWorkerStub:
+    def __init__(self):
+        self.scheduled: list[dict] = []
+
+    def schedule(self, **kwargs) -> None:
+        self.scheduled.append(kwargs)
+
+
+@pytest.mark.anyio
+async def test_stream_response_schedules_extraction_after_assistant_save(
+    sample_user_companion, sample_ai_companion,
+):
+    """Verify extraction is scheduled after the assistant message is persisted."""
+    runtime = _StreamingRuntimeStub(tokens=["Hi."])
+    snapshot = ConversationSnapshot(
+        conversation=ConversationRecord(id=1, user_id=1, ai_companion_id=2, created_at="", updated_at=""),
+        messages=[],
+    )
+    history_service = _HistoryServiceStub(snapshot)
+    extraction_worker = _ExtractionWorkerStub()
+
+    service = ChatService(
+        chat_config=SimpleNamespace(history_message_limit=10, system_prompt="Base."),
+        runtime=runtime,
+        history_service=history_service,
+        extraction_worker=extraction_worker,
+    )
+
+    request = ChatSocketRequest(user_id="u", ai_companion_id=2, user_message="I love hiking")
+
+    async for _ in service.stream_response(
+        request, internal_user_id=1, user_name="V",
+        user_companion=sample_user_companion, ai_companion=sample_ai_companion, snapshot=snapshot,
+    ):
+        pass
+
+    # Extraction should have been scheduled exactly once
+    assert len(extraction_worker.scheduled) == 1
+    job = extraction_worker.scheduled[0]
+    assert job["user_id"] == 1
+    assert job["ai_companion_id"] == 2
+    assert job["conversation_id"] == 1
+    assert job["message_content"] == "I love hiking"
+    assert isinstance(job["recent_messages"], list)
+    # recent_messages should be prior history only, NOT include the current user message
+    assert all(m.content != "I love hiking" for m in job["recent_messages"])
+
+    # Assistant response must have been saved before extraction was scheduled
+    assert history_service.saved_messages[-1] == (1, "assistant", "Hi.")
+
+
+@pytest.mark.anyio
+async def test_stream_response_does_not_schedule_extraction_on_empty_output(
+    sample_user_companion, sample_ai_companion,
+):
+    """Verify extraction is skipped when the assistant produces empty output."""
+    runtime = _StreamingRuntimeStub(tokens=[])
+    snapshot = ConversationSnapshot(
+        conversation=ConversationRecord(id=1, user_id=1, ai_companion_id=2, created_at="", updated_at=""),
+        messages=[],
+    )
+    history_service = _HistoryServiceStub(snapshot)
+    extraction_worker = _ExtractionWorkerStub()
+
+    service = ChatService(
+        chat_config=SimpleNamespace(history_message_limit=10, system_prompt="Base."),
+        runtime=runtime,
+        history_service=history_service,
+        extraction_worker=extraction_worker,
+    )
+
+    request = ChatSocketRequest(user_id="u", ai_companion_id=2, user_message="hello")
+
+    async for _ in service.stream_response(
+        request, internal_user_id=1, user_name="V",
+        user_companion=sample_user_companion, ai_companion=sample_ai_companion, snapshot=snapshot,
+    ):
+        pass
+
+    assert extraction_worker.scheduled == []
+
+
+@pytest.mark.anyio
+async def test_stream_response_does_not_block_when_no_extraction_worker(
+    sample_user_companion, sample_ai_companion,
+):
+    """Verify ChatService works normally without an extraction worker."""
+    runtime = _StreamingRuntimeStub(tokens=["ok"])
+    snapshot = ConversationSnapshot(
+        conversation=ConversationRecord(id=1, user_id=1, ai_companion_id=2, created_at="", updated_at=""),
+        messages=[],
+    )
+    history_service = _HistoryServiceStub(snapshot)
+
+    service = ChatService(
+        chat_config=SimpleNamespace(history_message_limit=10, system_prompt="Base."),
+        runtime=runtime,
+        history_service=history_service,
+    )
+
+    request = ChatSocketRequest(user_id="u", ai_companion_id=2, user_message="hey")
+
+    chunks = []
+    async for chunk in service.stream_response(
+        request, internal_user_id=1, user_name="V",
+        user_companion=sample_user_companion, ai_companion=sample_ai_companion, snapshot=snapshot,
+    ):
+        chunks.append(chunk)
+
+    assert chunks == ["ok"]
 

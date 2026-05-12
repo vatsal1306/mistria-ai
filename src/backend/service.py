@@ -9,8 +9,9 @@ import asyncio
 from src.backend.runtime import BaseInferenceRuntime
 from src.backend.schemas import ChatMessage, ChatSocketRequest, InferencePromptRequest
 from src.config import Chat
-from src.memory.service import MemoryService
+from src.memory.background import MemoryExtractionWorker
 from src.memory.prompts import render_memory_prompt
+from src.memory.service import MemoryService
 from src.prompts import build_chat_system_prompt
 from src.storage.conversation_store import ConversationSnapshot
 from src.storage.models import AICompanionRecord, UserCompanionRecord
@@ -23,16 +24,18 @@ class ChatService:
     """Application service for chat."""
 
     def __init__(
-        self, 
-        chat_config: Chat, 
-        runtime: BaseInferenceRuntime, 
+        self,
+        chat_config: Chat,
+        runtime: BaseInferenceRuntime,
         history_service: ChatHistoryService,
         memory_service: MemoryService | None = None,
+        extraction_worker: MemoryExtractionWorker | None = None,
     ):
         self.chat_config = chat_config
         self.runtime = runtime
         self.history_service = history_service
         self.memory_service = memory_service
+        self.extraction_worker = extraction_worker
 
     async def stream_response(
         self, 
@@ -85,7 +88,7 @@ class ChatService:
         conversation = snapshot.conversation
         
         # 1. Save the incoming user message asynchronously
-        await asyncio.to_thread(
+        user_message_record = await asyncio.to_thread(
             self.history_service.save_message,
             conversation_id=conversation.id,
             role="user",
@@ -101,7 +104,7 @@ class ChatService:
                     ai_companion_id=request.ai_companion_id,
                     query=request.user_message
                 )
-                
+
                 if memories:
                     memory_block = render_memory_prompt(memories)
                     logger.debug(
@@ -109,7 +112,6 @@ class ChatService:
                         len(memories),
                         conversation.id
                     )
-                    # Detailed logging of retrieved memories as requested in Issue #40
                     for mem in memories:
                         if self.memory_service.config.raw_content_logging_enabled:
                             logger.debug(
@@ -122,7 +124,6 @@ class ChatService:
                                 mem.memory_id, mem.score, mem.memory_type
                             )
             except Exception as e:
-                # Log the error and continue with normal chat as per AC
                 logger.error("Memory retrieval failed (falling back to normal chat): %s", e)
 
         # 3. Prepare inference history context
@@ -140,7 +141,10 @@ class ChatService:
         mapped_messages = []
         for record in trimmed_records:
             mapped_messages.append(ChatMessage(role=record.role, content=record.content))  # type: ignore[arg-type]
-            
+
+        # Snapshot of prior history only (before the current user message) for extraction context
+        prior_history = list(mapped_messages)
+
         mapped_messages.append(ChatMessage(role="user", content=request.user_message))
 
         inference_request = InferencePromptRequest(
@@ -180,6 +184,17 @@ class ChatService:
                 chunk_count,
                 len(assistant_content),
             )
+
+            # 5. Schedule non-blocking memory extraction
+            if self.extraction_worker and user_message_record:
+                self.extraction_worker.schedule(
+                    user_id=internal_user_id,
+                    ai_companion_id=request.ai_companion_id,
+                    conversation_id=conversation.id,
+                    message_id=user_message_record.id,
+                    message_content=request.user_message,
+                    recent_messages=prior_history,
+                )
         else:
             logger.warning(
                 "Completed streamed chat response with empty assistant output conversation_id=%s",
@@ -202,4 +217,3 @@ class ChatService:
             ai_companion=ai_companion,
             memory_block=memory_block,
         )
-
