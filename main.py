@@ -130,9 +130,9 @@ async def lifespan(_: FastAPI):
         yield
     finally:
         logger.info("Application shutdown initiated backend=%s", runtime.backend_name)
-        await runtime.shutdown()
         if extraction_worker:
             await extraction_worker.shutdown()
+        await runtime.shutdown()
         logger.info("Application shutdown complete backend=%s", runtime.backend_name)
 
 
