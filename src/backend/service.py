@@ -107,22 +107,10 @@ class ChatService:
 
                 if memories:
                     memory_block = render_memory_prompt(memories)
-                    logger.debug(
-                        "Retrieved %d memories for conversation_id=%s",
-                        len(memories),
-                        conversation.id
+                    logger.info(
+                        "Prompt injection: injecting %d memories into system prompt conversation_id=%s",
+                        len(memories), conversation.id,
                     )
-                    for mem in memories:
-                        if self.memory_service.config.raw_content_logging_enabled:
-                            logger.debug(
-                                "Memory retrieved: id=%s, score=%.4f, type=%s, content=%r",
-                                mem.memory_id, mem.score, mem.memory_type, mem.content
-                            )
-                        else:
-                            logger.debug(
-                                "Memory retrieved: id=%s, score=%.4f, type=%s",
-                                mem.memory_id, mem.score, mem.memory_type
-                            )
             except Exception as e:
                 logger.error("Memory retrieval failed (falling back to normal chat): %s", e)
 

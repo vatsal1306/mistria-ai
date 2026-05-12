@@ -308,3 +308,130 @@ async def test_retrieve_memories_vector_failure_fallback(memory_service, mock_re
     assert results[0].memory_id == 10
     assert results[0].source == "keyword"
 
+
+@pytest.mark.anyio
+async def test_store_memories_logs_raw_content_when_enabled(
+    mock_repo, mock_vector_store, mock_embeddings, caplog,
+):
+    """Test that raw memory content appears in logs when flag is enabled."""
+    config = Memory(enabled=True, raw_content_logging_enabled=True)
+    service = MemoryService(
+        config=config, repository=mock_repo,
+        vector_store=mock_vector_store, embedding_provider=mock_embeddings,
+    )
+    candidate = MemoryExtraction(
+        should_remember=True, memory_type="fact", canonical_key="user_job",
+        content="User is a developer.", importance=3, confidence=0.9,
+        reason="Stated.",
+    )
+    mock_repo.find_active_by_canonical_key.return_value = None
+    mock_repo.create_memory.return_value = mock.Mock(id=10)
+
+    import logging
+    mistria_logger = logging.getLogger("mistria")
+    mistria_logger.propagate = True
+    try:
+        with caplog.at_level(logging.DEBUG, logger="mistria"):
+            await service.store_memories(
+                user_id=1, ai_companion_id=2, conversation_id=10,
+                message_id=202, extracted_memories=[candidate],
+            )
+
+        assert any("User is a developer." in rec.message for rec in caplog.records)
+    finally:
+        mistria_logger.propagate = False
+
+
+@pytest.mark.anyio
+async def test_store_memories_suppresses_raw_content_when_disabled(
+    mock_repo, mock_vector_store, mock_embeddings, caplog,
+):
+    """Test that raw memory content does NOT appear in logs when flag is disabled."""
+    config = Memory(enabled=True, raw_content_logging_enabled=False)
+    service = MemoryService(
+        config=config, repository=mock_repo,
+        vector_store=mock_vector_store, embedding_provider=mock_embeddings,
+    )
+    candidate = MemoryExtraction(
+        should_remember=True, memory_type="fact", canonical_key="user_job",
+        content="User is a developer.", importance=3, confidence=0.9,
+        reason="Stated.",
+    )
+    mock_repo.find_active_by_canonical_key.return_value = None
+    mock_repo.create_memory.return_value = mock.Mock(id=10)
+
+    import logging
+    mistria_logger = logging.getLogger("mistria")
+    mistria_logger.propagate = True
+    try:
+        with caplog.at_level(logging.DEBUG, logger="mistria"):
+            await service.store_memories(
+                user_id=1, ai_companion_id=2, conversation_id=10,
+                message_id=202, extracted_memories=[candidate],
+            )
+
+        assert not any("User is a developer." in rec.message for rec in caplog.records)
+    finally:
+        mistria_logger.propagate = False
+
+
+@pytest.mark.anyio
+async def test_retrieve_memories_logs_raw_content_when_enabled(
+    mock_repo, mock_vector_store, mock_embeddings, caplog,
+):
+    """Test that retrieved memory content appears in logs when flag is enabled."""
+    config = Memory(enabled=True, raw_content_logging_enabled=True)
+    service = MemoryService(
+        config=config, repository=mock_repo,
+        vector_store=mock_vector_store, embedding_provider=mock_embeddings,
+    )
+    record = mock.Mock(
+        spec=MemoryRecord, id=10, user_id=1, ai_companion_id=2, status="active",
+        importance=3, confidence=1.0, updated_at=datetime.now(timezone.utc).isoformat(),
+        memory_type="fact", content="Secret info", canonical_key="secret",
+    )
+    mock_vector_store.search.return_value = []
+    mock_repo.keyword_search.return_value = [record]
+
+    import logging
+    mistria_logger = logging.getLogger("mistria")
+    mistria_logger.propagate = True
+    try:
+        with caplog.at_level(logging.DEBUG, logger="mistria"):
+            await service.retrieve_memories(user_id=1, ai_companion_id=2, query="test")
+
+        assert any("Secret info" in rec.message for rec in caplog.records)
+    finally:
+        mistria_logger.propagate = False
+
+
+@pytest.mark.anyio
+async def test_retrieve_memories_suppresses_raw_content_when_disabled(
+    mock_repo, mock_vector_store, mock_embeddings, caplog,
+):
+    """Test that retrieved memory content does NOT appear in logs when flag is disabled."""
+    config = Memory(enabled=True, raw_content_logging_enabled=False)
+    service = MemoryService(
+        config=config, repository=mock_repo,
+        vector_store=mock_vector_store, embedding_provider=mock_embeddings,
+    )
+    record = mock.Mock(
+        spec=MemoryRecord, id=10, user_id=1, ai_companion_id=2, status="active",
+        importance=3, confidence=1.0, updated_at=datetime.now(timezone.utc).isoformat(),
+        memory_type="fact", content="Secret info", canonical_key="secret",
+    )
+    mock_vector_store.search.return_value = []
+    mock_repo.keyword_search.return_value = [record]
+
+    import logging
+    mistria_logger = logging.getLogger("mistria")
+    mistria_logger.propagate = True
+    try:
+        with caplog.at_level(logging.DEBUG, logger="mistria"):
+            await service.retrieve_memories(user_id=1, ai_companion_id=2, query="test")
+
+        assert not any("Secret info" in rec.message for rec in caplog.records)
+    finally:
+        mistria_logger.propagate = False
+
+
