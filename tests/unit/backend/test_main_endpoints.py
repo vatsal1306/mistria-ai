@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 import pytest
+from fastapi.testclient import TestClient
 
 import main
 from src.auth.exceptions import UserAlreadyExistsError
@@ -222,3 +223,130 @@ async def test_companion_endpoints_delegate_to_service(monkeypatch):
     assert await main.generate_ai_companion(generate_payload) is generate_response
     assert main.list_ai_companions("user@example.com") == ["one"]
     assert main.get_ai_companion(3) == "ai-companion"
+
+
+from src.storage.repositories import SQLiteUserRepository, SQLiteAICompanionRepository
+from src.memory.service import MemoryService
+
+
+@pytest.mark.anyio
+async def test_debug_memory_retrieve_returns_404_when_disabled(monkeypatch):
+    mock_settings = mock.Mock()
+    mock_settings.memory.debug_endpoint_enabled = False
+    monkeypatch.setattr(main, "settings", mock_settings)
+    monkeypatch.setattr(main, "memory_service", mock.create_autospec(MemoryService, instance=True))
+
+    from src.memory.schemas import DebugMemoryRetrieveRequest
+    payload = DebugMemoryRetrieveRequest(user_mail_id="user@example.com", ai_companion_id=1, user_message="hello")
+
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as exc:
+        await main.debug_memory_retrieve(payload)
+    
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_debug_memory_retrieve_returns_404_when_user_not_found(monkeypatch):
+    mock_settings = mock.Mock()
+    mock_settings.memory.debug_endpoint_enabled = True
+    monkeypatch.setattr(main, "settings", mock_settings)
+    monkeypatch.setattr(main, "memory_service", mock.create_autospec(MemoryService, instance=True))
+
+    user_repo = mock.create_autospec(SQLiteUserRepository, instance=True)
+    user_repo.find_by_email.return_value = None
+    monkeypatch.setattr(main, "user_repository", user_repo)
+
+    from src.memory.schemas import DebugMemoryRetrieveRequest
+    payload = DebugMemoryRetrieveRequest(user_mail_id="user@example.com", ai_companion_id=1, user_message="hello")
+
+    with pytest.raises(CompanionNotFoundError, match="User not found"):
+        await main.debug_memory_retrieve(payload)
+
+
+@pytest.mark.anyio
+async def test_debug_memory_retrieve_returns_404_when_companion_not_found(monkeypatch, sample_user):
+    mock_settings = mock.Mock()
+    mock_settings.memory.debug_endpoint_enabled = True
+    monkeypatch.setattr(main, "settings", mock_settings)
+    monkeypatch.setattr(main, "memory_service", mock.create_autospec(MemoryService, instance=True))
+
+    user_repo = mock.create_autospec(SQLiteUserRepository, instance=True)
+    user_repo.find_by_email.return_value = sample_user
+    monkeypatch.setattr(main, "user_repository", user_repo)
+
+    companion_repo = mock.create_autospec(SQLiteAICompanionRepository, instance=True)
+    companion_repo.find_by_id.return_value = None
+    monkeypatch.setattr(main, "ai_companion_repository", companion_repo)
+
+    from src.memory.schemas import DebugMemoryRetrieveRequest
+    payload = DebugMemoryRetrieveRequest(user_mail_id=sample_user.email, ai_companion_id=99, user_message="hello")
+
+    with pytest.raises(CompanionNotFoundError, match="Companion 99 not found"):
+        await main.debug_memory_retrieve(payload)
+
+
+@pytest.mark.anyio
+async def test_debug_memory_retrieve_success(monkeypatch, sample_user):
+    mock_settings = mock.Mock()
+    mock_settings.memory.debug_endpoint_enabled = True
+    monkeypatch.setattr(main, "settings", mock_settings)
+
+    user_repo = mock.create_autospec(SQLiteUserRepository, instance=True)
+    user_repo.find_by_email.return_value = sample_user
+    monkeypatch.setattr(main, "user_repository", user_repo)
+
+    companion_repo = mock.create_autospec(SQLiteAICompanionRepository, instance=True)
+    mock_companion = mock.Mock(id=99, user_id=sample_user.id)
+    companion_repo.find_by_id.return_value = mock_companion
+    monkeypatch.setattr(main, "ai_companion_repository", companion_repo)
+
+    memory_service = mock.create_autospec(MemoryService, instance=True)
+    from src.memory.schemas import MemorySearchResult
+    mock_result = MemorySearchResult(
+        memory_id=1, memory_type="fact", content="test", canonical_key="key", score=0.9, source="semantic"
+    )
+    memory_service.retrieve_memories.return_value = [mock_result]
+    monkeypatch.setattr(main, "memory_service", memory_service)
+
+    from src.memory.schemas import DebugMemoryRetrieveRequest
+    payload = DebugMemoryRetrieveRequest(user_mail_id=sample_user.email, ai_companion_id=99, user_message="hello")
+    response = await main.debug_memory_retrieve(payload)
+
+    assert response.user_mail_id == sample_user.email
+    assert response.ai_companion_id == 99
+    assert len(response.memories) == 1
+    assert response.memories[0].memory_id == 1
+    memory_service.retrieve_memories.assert_awaited_once_with(
+        user_id=sample_user.id, ai_companion_id=mock_companion.id, query="hello"
+    )
+
+@pytest.mark.anyio
+async def test_debug_memory_retrieve_success_empty_memories(monkeypatch, sample_user):
+    mock_settings = mock.Mock()
+    mock_settings.memory.debug_endpoint_enabled = True
+    monkeypatch.setattr(main, "settings", mock_settings)
+
+    user_repo = mock.create_autospec(SQLiteUserRepository, instance=True)
+    user_repo.find_by_email.return_value = sample_user
+    monkeypatch.setattr(main, "user_repository", user_repo)
+
+    companion_repo = mock.create_autospec(SQLiteAICompanionRepository, instance=True)
+    mock_companion = mock.Mock(id=99, user_id=sample_user.id)
+    companion_repo.find_by_id.return_value = mock_companion
+    monkeypatch.setattr(main, "ai_companion_repository", companion_repo)
+
+    memory_service = mock.create_autospec(MemoryService, instance=True)
+    memory_service.retrieve_memories.return_value = []
+    monkeypatch.setattr(main, "memory_service", memory_service)
+
+    from src.memory.schemas import DebugMemoryRetrieveRequest
+    payload = DebugMemoryRetrieveRequest(user_mail_id=sample_user.email, ai_companion_id=99, user_message="hello")
+    response = await main.debug_memory_retrieve(payload)
+
+    assert response.user_mail_id == sample_user.email
+    assert response.ai_companion_id == 99
+    assert len(response.memories) == 0
+    memory_service.retrieve_memories.assert_awaited_once_with(
+        user_id=sample_user.id, ai_companion_id=mock_companion.id, query="hello"
+    )

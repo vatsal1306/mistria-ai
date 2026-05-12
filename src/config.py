@@ -170,6 +170,7 @@ class Memory:
     retrieval_min_score: float = _get_float("MISTRIA_MEMORY_RETRIEVAL_MIN_SCORE", 0.35)
     raw_content_logging_enabled: bool = _get_bool("MISTRIA_MEMORY_RAW_CONTENT_LOGGING_ENABLED", True)
     extraction_enabled: bool = _get_bool("MISTRIA_MEMORY_EXTRACTION_ENABLED", False)
+    debug_endpoint_enabled: bool = _get_bool("MISTRIA_MEMORY_DEBUG_ENDPOINT_ENABLED", False)
 
 
 @dataclass(frozen=True, slots=True)

@@ -62,3 +62,23 @@ class MemorySearchResult(BaseModel):
     )
 
 
+class DebugMemoryRetrieveRequest(BaseModel):
+    """Request schema for internal memory retrieval debugging."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    user_mail_id: str = Field(description="The email address of the user.")
+    ai_companion_id: int = Field(description="The ID of the AI companion.")
+    user_message: str = Field(description="The hypothetical query or user message.")
+
+
+class DebugMemoryRetrieveResponse(BaseModel):
+    """Response schema for internal memory retrieval debugging."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    user_mail_id: str = Field(description="The email address of the user.")
+    ai_companion_id: int = Field(description="The ID of the AI companion.")
+    memories: list[MemorySearchResult] = Field(description="The memory results that would be retrieved.")
+
+
