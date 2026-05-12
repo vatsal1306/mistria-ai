@@ -35,8 +35,7 @@ from src.storage.repositories import (
     SQLiteUserRepository,
 )
 from src.memory.embeddings import LocalEmbeddingProvider
-from src.memory.repository import MemoryRepository  # type: ignore[attr-defined]
-from src.storage.memory_repository import SQLiteMemoryRepository
+from src.storage.memory_repository import SQLiteMemoryRepository, MemoryRepository
 from src.memory.service import MemoryService
 from src.memory.vector_store import QdrantVectorStore
 from src.storage.conversation_store import SQLiteConversationStore
