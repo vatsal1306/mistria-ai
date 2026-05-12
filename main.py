@@ -116,17 +116,17 @@ async def lifespan(_: FastAPI):
     database.initialize()
     await runtime.startup()
     
-    if settings.memory.enabled and memory_vector_store and memory_embedding_provider:
-        dimension = memory_embedding_provider.get_dimension()
-        memory_vector_store.bootstrap_collection(dimension)
-
-    logger.info(
-        "Application startup complete backend=%s ready=%s startup_stage=%s",
-        runtime.backend_name,
-        runtime.is_ready,
-        runtime.startup_stage,
-    )
     try:
+        if settings.memory.enabled and memory_vector_store and memory_embedding_provider:
+            dimension = memory_embedding_provider.get_dimension()
+            memory_vector_store.bootstrap_collection(dimension)
+
+        logger.info(
+            "Application startup complete backend=%s ready=%s startup_stage=%s",
+            runtime.backend_name,
+            runtime.is_ready,
+            runtime.startup_stage,
+        )
         yield
     finally:
         logger.info("Application shutdown initiated backend=%s", runtime.backend_name)
