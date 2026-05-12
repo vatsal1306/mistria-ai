@@ -141,7 +141,10 @@ class ChatService:
         mapped_messages = []
         for record in trimmed_records:
             mapped_messages.append(ChatMessage(role=record.role, content=record.content))  # type: ignore[arg-type]
-            
+
+        # Snapshot of prior history only (before the current user message) for extraction context
+        prior_history = list(mapped_messages)
+
         mapped_messages.append(ChatMessage(role="user", content=request.user_message))
 
         inference_request = InferencePromptRequest(
@@ -190,7 +193,7 @@ class ChatService:
                     conversation_id=conversation.id,
                     message_id=user_message_record.id,
                     message_content=request.user_message,
-                    recent_messages=mapped_messages,
+                    recent_messages=prior_history,
                 )
         else:
             logger.warning(

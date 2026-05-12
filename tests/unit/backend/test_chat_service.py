@@ -416,6 +416,8 @@ async def test_stream_response_schedules_extraction_after_assistant_save(
     assert job["conversation_id"] == 1
     assert job["message_content"] == "I love hiking"
     assert isinstance(job["recent_messages"], list)
+    # recent_messages should be prior history only, NOT include the current user message
+    assert all(m.content != "I love hiking" for m in job["recent_messages"])
 
     # Assistant response must have been saved before extraction was scheduled
     assert history_service.saved_messages[-1] == (1, "assistant", "Hi.")
