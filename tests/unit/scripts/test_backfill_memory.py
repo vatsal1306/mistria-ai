@@ -189,7 +189,7 @@ async def test_dry_run_does_not_write_memories(tmp_database, monkeypatch):
     stats = await run_backfill(args)
 
     assert stats.scanned == 3
-    assert stats.stored == 0
+    assert stats.created == 0
 
     # Verify no memories were written
     with tmp_database.connection() as conn:
@@ -366,9 +366,9 @@ async def test_storage_failure_increments_stats(tmp_database, monkeypatch):
     stats = await run_backfill(args)
 
     assert stats.scanned == 3
-    assert stats.failed == 3  # All 3 messages failed at the storage step
+    assert stats.failed_storage == 3  # All 3 messages failed at the storage step
     assert stats.extracted == 3
-    assert stats.stored == 0
+    assert stats.created == 0
 
 
 @pytest.mark.anyio

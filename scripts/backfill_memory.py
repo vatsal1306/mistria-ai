@@ -63,7 +63,9 @@ class BackfillStats:
     scanned: int = 0
     skipped: int = 0
     extracted: int = 0
-    stored: int = 0
+    created: int = 0
+    superseded: int = 0
+    failed_storage: int = 0
     failed: int = 0
 
 
@@ -217,15 +219,22 @@ async def run_backfill(args: argparse.Namespace) -> BackfillStats:
                 stats.extracted += len(candidates)
 
                 if candidates and memory_service and not args.dry_run:
-                    stored_ids = await memory_service.store_memories(
-                        user_id=msg["user_id"],
-                        ai_companion_id=msg["ai_companion_id"],
-                        conversation_id=msg["conversation_id"],
-                        message_id=message_id,
-                        extracted_memories=candidates,
-                        raise_on_error=True,
-                    )
-                    stats.stored += len(stored_ids)
+                    try:
+                        outcome = await memory_service.store_memories(
+                            user_id=msg["user_id"],
+                            ai_companion_id=msg["ai_companion_id"],
+                            conversation_id=msg["conversation_id"],
+                            message_id=message_id,
+                            extracted_memories=candidates,
+                            raise_on_error=True,
+                        )
+                        stats.created += outcome.created_count
+                        stats.superseded += outcome.superseded_count
+                        stats.failed_storage += outcome.failed_count
+                    except Exception:
+                        # If storage fails under raise_on_error=True, count all candidates as failed storage
+                        stats.failed_storage += len(candidates)
+                        raise
 
                 if args.dry_run and candidates:
                     logger.info(
@@ -264,11 +273,13 @@ def main(argv: list[str] | None = None) -> None:
         f"\n{'=' * 50}\n"
         f"  Memory Backfill Summary ({mode})\n"
         f"{'=' * 50}\n"
-        f"  Messages scanned:  {stats.scanned}\n"
-        f"  Messages skipped:  {stats.skipped}\n"
-        f"  Candidates found:  {stats.extracted}\n"
-        f"  Memories stored:   {stats.stored}\n"
-        f"  Failures:          {stats.failed}\n"
+        f"  Messages scanned:    {stats.scanned}\n"
+        f"  Messages skipped:    {stats.skipped}\n"
+        f"  Candidates found:    {stats.extracted}\n"
+        f"  Memories created:    {stats.created}\n"
+        f"  Memories superseded: {stats.superseded}\n"
+        f"  Storage failures:    {stats.failed_storage}\n"
+        f"  Runtime failures:    {stats.failed}\n"
         f"{'=' * 50}\n"
     )
     print(summary)

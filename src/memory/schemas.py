@@ -82,3 +82,13 @@ class DebugMemoryRetrieveResponse(BaseModel):
     memories: list[MemorySearchResult] = Field(description="The memory results that would be retrieved.")
 
 
+class MemoryStoreOutcome(BaseModel):
+    """The result of storing a batch of memory candidates."""
+    model_config = ConfigDict(extra="forbid")
+
+    stored_ids: list[int] = Field(default_factory=list, description="IDs of the newly created memory records.")
+    created_count: int = Field(default=0, description="Number of memories that were brand new.")
+    superseded_count: int = Field(default=0, description="Number of old memories that were superseded.")
+    failed_count: int = Field(default=0, description="Number of candidates that failed to store.")
+
+

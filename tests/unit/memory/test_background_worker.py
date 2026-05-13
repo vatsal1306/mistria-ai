@@ -32,9 +32,10 @@ class _MemoryServiceStub:
     def __init__(self):
         self.stored: list[dict] = []
 
-    async def store_memories(self, **kwargs) -> list[int]:
+    async def store_memories(self, **kwargs) -> MemoryStoreOutcome:
+        from src.memory.schemas import MemoryStoreOutcome
         self.stored.append(kwargs)
-        return [100]
+        return MemoryStoreOutcome(stored_ids=[100], created_count=1, superseded_count=0, failed_count=0)
 
 
 @pytest.mark.anyio

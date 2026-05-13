@@ -60,7 +60,7 @@ async def test_store_memories_basic_storage(memory_service, mock_repo, mock_vect
     mock_repo.find_active_by_canonical_key.return_value = None
     mock_repo.create_memory.return_value = mock_record
     
-    ids = await memory_service.store_memories(
+    outcome = await memory_service.store_memories(
         user_id=1,
         ai_companion_id=2,
         conversation_id=10,
@@ -68,7 +68,9 @@ async def test_store_memories_basic_storage(memory_service, mock_repo, mock_vect
         extracted_memories=[candidate]
     )
     
-    assert ids == [123]
+    assert outcome.stored_ids == [123]
+    assert outcome.created_count == 1
+    assert outcome.failed_count == 0
     mock_repo.create_memory.assert_called_once()
     mock_repo.find_active_by_canonical_key.assert_called_with(
         user_id=1, ai_companion_id=2, canonical_key="user_job"
@@ -100,13 +102,18 @@ async def test_store_memories_conflict_resolution(memory_service, mock_repo, moc
     new_record.id = 100
     mock_repo.create_memory.return_value = new_record
     
-    await memory_service.store_memories(
+    outcome = await memory_service.store_memories(
         user_id=1,
         ai_companion_id=2,
         conversation_id=10,
         message_id=202,
         extracted_memories=[candidate]
     )
+    
+    assert outcome.superseded_count == 1
+    assert outcome.created_count == 0
+    assert outcome.failed_count == 0
+    assert outcome.stored_ids == [100]
     
     # Verify superseding in SQLite
     mock_repo.supersede.assert_called_with(memory_id=50, superseded_by_id=100)
@@ -140,13 +147,18 @@ async def test_store_memories_isolation(memory_service, mock_repo):
     mock_repo.find_active_by_canonical_key.return_value = None
     mock_repo.create_memory.return_value = mock.Mock(id=99)
     
-    await memory_service.store_memories(
+    outcome = await memory_service.store_memories(
         user_id=1,
         ai_companion_id=2, # Companion 2
         conversation_id=10,
         message_id=202,
         extracted_memories=[candidate]
     )
+    
+    assert outcome.stored_ids == [99]
+    assert outcome.created_count == 1
+    assert outcome.superseded_count == 0
+    assert outcome.failed_count == 0
     
     # Check that search was scoped to Companion 2
     mock_repo.find_active_by_canonical_key.assert_called_with(
@@ -195,7 +207,7 @@ async def test_store_memories_resilience_to_vector_failure(memory_service, mock_
     # Simulate vector store crash
     mock_vector_store.upsert_memory.side_effect = Exception("Vector store down")
     
-    ids = await memory_service.store_memories(
+    outcome = await memory_service.store_memories(
         user_id=1,
         ai_companion_id=2,
         conversation_id=10,
@@ -204,7 +216,10 @@ async def test_store_memories_resilience_to_vector_failure(memory_service, mock_
     )
     
     # Result should still include the ID because it was saved to SQLite
-    assert ids == [1]
+    assert outcome.stored_ids == [1]
+    assert outcome.superseded_count == 1
+    assert outcome.failed_count == 1 # Failed at vector step
+
     mock_repo.create_memory.assert_called_once()
 
 

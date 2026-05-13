@@ -126,7 +126,7 @@ class MemoryExtractionWorker:
                 )
                 return
 
-            stored_ids = await self.memory_service.store_memories(
+            outcome = await self.memory_service.store_memories(
                 user_id=user_id,
                 ai_companion_id=ai_companion_id,
                 conversation_id=conversation_id,
@@ -134,8 +134,8 @@ class MemoryExtractionWorker:
                 extracted_memories=candidates,
             )
             logger.info(
-                "Extraction job succeeded user_id=%d message_id=%d candidates=%d stored=%d",
-                user_id, message_id, len(candidates), len(stored_ids),
+                "Extraction job succeeded user_id=%d message_id=%d candidates=%d created=%d superseded=%d failed=%d",
+                user_id, message_id, len(candidates), outcome.created_count, outcome.superseded_count, outcome.failed_count,
             )
         except Exception:
             logger.exception(
