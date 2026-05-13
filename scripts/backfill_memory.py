@@ -105,7 +105,7 @@ def scan_messages(
         JOIN conversations c ON c.id = m.conversation_id
         WHERE {where}
         ORDER BY m.created_at ASC, m.id ASC
-    """
+    """  # nosec B608
 
     if limit is not None:
         query += " LIMIT ?"
