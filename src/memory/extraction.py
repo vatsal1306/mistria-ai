@@ -101,7 +101,9 @@ class MemoryExtractionService:
 
         except ValidationError as e:
             logger.error(
-                "Extraction failed (validation) user_id=%d companion_id=%d conversation_id=%d message_id=%d: %s",
-                user_id, ai_companion_id, conversation_id, message_id, e,
+                "Extraction failed (validation) user_id=%d companion_id=%d conversation_id=%d message_id=%d errors=%d",
+                user_id, ai_companion_id, conversation_id, message_id, e.error_count(),
             )
+            if settings.memory.raw_content_logging_enabled:
+                logger.debug("Validation error details: %s", e)
             return []
