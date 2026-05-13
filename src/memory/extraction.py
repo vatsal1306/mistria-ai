@@ -50,6 +50,10 @@ class MemoryExtractionService:
             return []
 
         if not message_content or not message_content.strip():
+            logger.debug(
+                "Extraction skipped (empty message) user_id=%d companion_id=%d conversation_id=%d message_id=%d",
+                user_id, ai_companion_id, conversation_id, message_id,
+            )
             return []
 
         logger.info(
@@ -81,16 +85,25 @@ class MemoryExtractionService:
             result = MemoryExtractionResult.model_validate_json(output_text.strip())
             
             valid_memories = [memory for memory in result.memories if memory.should_remember]
-            
+
+            logger.info(
+                "Extraction completed user_id=%d companion_id=%d conversation_id=%d message_id=%d candidates=%d",
+                user_id, ai_companion_id, conversation_id, message_id, len(valid_memories),
+            )
             if settings.memory.raw_content_logging_enabled:
                 for idx, memory in enumerate(valid_memories):
                     logger.debug(
-                        "Extracted candidate %d: type=%s key=%s content='%s' reason='%s'", 
-                        idx, memory.memory_type, memory.canonical_key, memory.content, memory.reason
+                        "Extracted candidate %d: type=%s key=%s content=%r reason=%r",
+                        idx, memory.memory_type, memory.canonical_key, memory.content, memory.reason,
                     )
-            
+
             return valid_memories
 
         except ValidationError as e:
-            logger.error("Malformed JSON or schema validation error during memory extraction: %s", e)
+            logger.error(
+                "Extraction failed (validation) user_id=%d companion_id=%d conversation_id=%d message_id=%d errors=%d",
+                user_id, ai_companion_id, conversation_id, message_id, e.error_count(),
+            )
+            if settings.memory.raw_content_logging_enabled:
+                logger.debug("Validation error details: %s", e)
             return []

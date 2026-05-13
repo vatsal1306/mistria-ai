@@ -100,11 +100,31 @@ class MemoryService:
                 new_id = new_record.id
                 stored_ids.append(new_id)
 
-                if existing:
+                if self.config.raw_content_logging_enabled:
                     logger.info(
-                        "Conflict detected for key '%s'. Superseding memory %d with %d",
-                        candidate.canonical_key, existing.id, new_id
+                        "Memory created id=%d user_id=%d companion_id=%d type=%s key=%s content=%r",
+                        new_id, user_id, ai_companion_id, candidate.memory_type,
+                        candidate.canonical_key, candidate.content,
                     )
+                else:
+                    logger.info(
+                        "Memory created id=%d user_id=%d companion_id=%d type=%s key=%s",
+                        new_id, user_id, ai_companion_id, candidate.memory_type,
+                        candidate.canonical_key,
+                    )
+
+                if existing:
+                    if self.config.raw_content_logging_enabled:
+                        logger.info(
+                            "Memory superseded old_id=%d new_id=%d key=%s old_content=%r new_content=%r",
+                            existing.id, new_id, candidate.canonical_key,
+                            existing.content, candidate.content,
+                        )
+                    else:
+                        logger.info(
+                            "Memory superseded old_id=%d new_id=%d key=%s",
+                            existing.id, new_id, candidate.canonical_key,
+                        )
                     # Mark old as superseded in SQLite
                     await asyncio.to_thread(
                         self.repository.supersede,
@@ -163,6 +183,13 @@ class MemoryService:
         """
         if not self.config.enabled:
             return []
+
+        logger.info(
+            "Retrieval started user_id=%d companion_id=%d",
+            user_id, ai_companion_id,
+        )
+        if self.config.raw_content_logging_enabled:
+            logger.debug("Retrieval query content=%r", query)
 
         # 1. Semantic Search (Qdrant)
         semantic_results = []
@@ -268,6 +295,17 @@ class MemoryService:
                 await asyncio.to_thread(self.repository.mark_retrieved, res.memory_id)
             except Exception as e:
                 logger.warning("Failed to mark memory %d as retrieved: %s", res.memory_id, e)
+
+        logger.info(
+            "Retrieval completed user_id=%d companion_id=%d results=%d",
+            user_id, ai_companion_id, len(top_results),
+        )
+        if self.config.raw_content_logging_enabled:
+            for res in top_results:
+                logger.debug(
+                    "Retrieved memory id=%d score=%.4f source=%s type=%s content=%r",
+                    res.memory_id, res.score, res.source, res.memory_type, res.content,
+                )
 
         return top_results
 
