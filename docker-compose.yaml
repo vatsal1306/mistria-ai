@@ -17,6 +17,9 @@ services:
             MISTRIA_INFERENCE_MODEL_NAME: ${MISTRIA_INFERENCE_MODEL_NAME:-dphn/Dolphin3.0-Llama3.1-8B}
             MISTRIA_LOG_LEVEL: ${MISTRIA_LOG_LEVEL:-INFO}
             MISTRIA_STORAGE_SQLITE_PATH: /app/data/db/app.db
+            MISTRIA_MEMORY_ENABLED: ${MISTRIA_MEMORY_ENABLED:-False}
+            MISTRIA_MEMORY_QDRANT_URL: ${MISTRIA_MEMORY_QDRANT_URL:-http://qdrant:6333}
+            MISTRIA_MEMORY_QDRANT_COLLECTION: ${MISTRIA_MEMORY_QDRANT_COLLECTION:-mistria_memories}
         ports:
             - "${MISTRIA_BACKEND_PORT:-8080}:8080"
         volumes:
@@ -27,6 +30,10 @@ services:
         restart: unless-stopped
         networks:
             - mistria
+        depends_on:
+            qdrant:
+                condition: service_healthy
+                required: false
         healthcheck:
             test:
                 [
@@ -91,6 +98,23 @@ services:
                 max-size: "10m"
                 max-file: "5"
 
+    qdrant:
+        image: qdrant/qdrant:latest
+        profiles: ["memory"]
+        ports:
+            - "6333:6333"
+        volumes:
+            - mistria_qdrant_data:/qdrant/storage
+        restart: unless-stopped
+        networks:
+            - mistria
+        healthcheck:
+            test: ["CMD-SHELL", "wget -qO- http://localhost:6333/readyz || exit 1"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 10s
+
 networks:
     mistria:
         driver: bridge
@@ -99,3 +123,4 @@ volumes:
     mistria_data:
     mistria_logs:
     mistria_hf_cache:
+    mistria_qdrant_data:

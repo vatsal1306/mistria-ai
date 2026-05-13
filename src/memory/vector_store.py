@@ -90,28 +90,38 @@ class QdrantVectorStore(BaseVectorStore):
 
         from qdrant_client.models import Distance, VectorParams
         from qdrant_client.http.exceptions import UnexpectedResponse
-        
         from src.backend.exceptions import ConfigurationError
+        import time
 
-        try:
-            # Check if collection exists
-            client.get_collection(collection_name=self.collection_name)
-            logger.debug("Qdrant collection '%s' already exists.", self.collection_name)
-        except (UnexpectedResponse, ValueError) as e:
-            # If it doesn't exist, create it. ValueError is raised by newer qdrant-client versions
-            # UnexpectedResponse by older ones.
-            logger.info("Creating Qdrant collection '%s' with dimension %d.", self.collection_name, dimension)
+        max_retries = 5
+        retry_delay = 2.0
+
+        for attempt in range(1, max_retries + 1):
             try:
-                client.create_collection(
-                    collection_name=self.collection_name,
-                    vectors_config=VectorParams(size=dimension, distance=Distance.COSINE),
-                )
-            except Exception as create_err:
-                logger.error("Failed to create Qdrant collection: %s", create_err)
-                raise ConfigurationError(f"Failed to create Qdrant collection '{self.collection_name}': {create_err}") from create_err
-        except Exception as e:
-            logger.error("Failed to connect to Qdrant: %s", e)
-            raise ConfigurationError(f"Failed to connect to Qdrant at {self.url}: {e}") from e
+                # Check if collection exists
+                client.get_collection(collection_name=self.collection_name)
+                logger.debug("Qdrant collection '%s' already exists.", self.collection_name)
+                return
+            except (UnexpectedResponse, ValueError) as e:
+                # If it doesn't exist, create it. ValueError is raised by newer qdrant-client versions
+                # UnexpectedResponse by older ones.
+                logger.info("Creating Qdrant collection '%s' with dimension %d.", self.collection_name, dimension)
+                try:
+                    client.create_collection(
+                        collection_name=self.collection_name,
+                        vectors_config=VectorParams(size=dimension, distance=Distance.COSINE),
+                    )
+                    return
+                except Exception as create_err:
+                    logger.error("Failed to create Qdrant collection: %s", create_err)
+                    raise ConfigurationError(f"Failed to create Qdrant collection '{self.collection_name}': {create_err}") from create_err
+            except Exception as e:
+                if attempt < max_retries:
+                    logger.warning("Failed to connect to Qdrant (attempt %d/%d). Retrying in %.1fs...", attempt, max_retries, retry_delay)
+                    time.sleep(retry_delay)
+                else:
+                    logger.error("Failed to connect to Qdrant after %d attempts: %s", max_retries, e)
+                    raise ConfigurationError(f"Failed to connect to Qdrant at {self.url} after {max_retries} attempts: {e}") from e
 
     def upsert_memory(
         self,
