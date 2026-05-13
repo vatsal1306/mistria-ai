@@ -127,6 +127,18 @@ async def run_backfill(args: argparse.Namespace) -> BackfillStats:
     """Execute the backfill run with the given CLI arguments."""
     stats = BackfillStats()
 
+    # 0. Validate configuration
+    if not settings.memory.extraction_enabled:
+        if args.dry_run:
+            logger.warning("Memory extraction is disabled (MISTRIA_MEMORY_EXTRACTION_ENABLED=False). Dry run will not produce any candidates.")
+        else:
+            logger.error("Memory extraction is disabled (MISTRIA_MEMORY_EXTRACTION_ENABLED=False). Cannot run live backfill.")
+            return stats
+            
+    if not args.dry_run and not settings.memory.enabled:
+        logger.error("Memory system is disabled (MISTRIA_MEMORY_ENABLED=False). Cannot run live backfill.")
+        return stats
+
     # 1. Initialize infrastructure
     database = SQLiteDatabase(settings.storage.sqlite_path)
     database.initialize()

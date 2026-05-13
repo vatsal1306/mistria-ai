@@ -372,6 +372,44 @@ async def test_storage_failure_increments_stats(tmp_database, monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_run_backfill_fails_if_extraction_disabled_in_live_mode(tmp_database, monkeypatch):
+    """Test that live backfill fails if extraction is disabled in settings."""
+    args = argparse.Namespace(
+        user_email=None, ai_companion_id=None, limit=None,
+        dry_run=False, fail_fast=False,
+    )
+
+    mock_settings = mock.Mock()
+    mock_settings.memory.extraction_enabled = False
+    mock_settings.memory.enabled = True
+    monkeypatch.setattr("scripts.backfill_memory.settings", mock_settings)
+
+    stats = await run_backfill(args)
+
+    # Should exit early without scanning or processing
+    assert stats.scanned == 0
+
+
+@pytest.mark.anyio
+async def test_run_backfill_fails_if_memory_disabled_in_live_mode(tmp_database, monkeypatch):
+    """Test that live backfill fails if memory system is disabled in settings."""
+    args = argparse.Namespace(
+        user_email=None, ai_companion_id=None, limit=None,
+        dry_run=False, fail_fast=False,
+    )
+
+    mock_settings = mock.Mock()
+    mock_settings.memory.extraction_enabled = True
+    mock_settings.memory.enabled = False
+    monkeypatch.setattr("scripts.backfill_memory.settings", mock_settings)
+
+    stats = await run_backfill(args)
+
+    # Should exit early
+    assert stats.scanned == 0
+
+
+@pytest.mark.anyio
 async def test_user_email_filter(tmp_database, monkeypatch):
     """Test that --user-email filters correctly."""
     args = argparse.Namespace(
