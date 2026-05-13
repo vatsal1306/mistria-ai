@@ -9,7 +9,7 @@ from typing import Literal
 from src.Logging import get_logger
 from src.config import Memory
 from src.memory.embeddings import BaseEmbeddingProvider
-from src.memory.schemas import MemoryExtraction, MemorySearchResult
+from src.memory.schemas import MemoryExtraction, MemorySearchResult, MemoryStoreOutcome
 from src.memory.vector_store import BaseVectorStore
 from src.storage.memory_repository import MemoryRepository
 
@@ -47,7 +47,8 @@ class MemoryService:
         conversation_id: int,
         message_id: int,
         extracted_memories: list[MemoryExtraction],
-    ) -> list[int]:
+        raise_on_error: bool = False,
+    ) -> MemoryStoreOutcome:
         """Persist extracted memory candidates and sync with vector store.
         
         Blocking operations are offloaded to worker threads to prevent stalling
@@ -65,64 +66,66 @@ class MemoryService:
         """
         if not self.config.enabled:
             logger.debug("Memory service is disabled. Skipping storage.")
-            return []
+            return MemoryStoreOutcome(stored_ids=[], created_count=0, superseded_count=0, failed_count=0)
 
         stored_ids = []
+        created_count = 0
+        superseded_count = 0
+        failed_count = 0
 
         for candidate in extracted_memories:
             if not candidate.should_remember:
                 continue
 
             try:
-                # 1. Handle Conflict Resolution (Superseding)
-                # Check for existing active memory with the same canonical key in this scope
+                # 1. Check for existing active memory with same canonical key
                 existing = await asyncio.to_thread(
                     self.repository.find_active_by_canonical_key,
                     user_id=user_id,
                     ai_companion_id=ai_companion_id,
-                    canonical_key=candidate.canonical_key,
+                    canonical_key=candidate.canonical_key
                 )
 
-                # 2. Persist to SQLite
+                # 2. Persist to SQLite (this always creates a NEW record)
                 new_record = await asyncio.to_thread(
                     self.repository.create_memory,
                     user_id=user_id,
                     ai_companion_id=ai_companion_id,
+                    source_conversation_id=conversation_id,
+                    source_message_id=message_id,
                     memory_type=candidate.memory_type,
                     canonical_key=candidate.canonical_key,
                     content=candidate.content,
                     importance=candidate.importance,
                     confidence=candidate.confidence,
-                    source_conversation_id=conversation_id,
-                    source_message_id=message_id,
                 )
-                
                 new_id = new_record.id
                 stored_ids.append(new_id)
 
                 if self.config.raw_content_logging_enabled:
                     logger.info(
-                        "Memory created id=%d user_id=%d companion_id=%d type=%s key=%s content=%r",
+                        "Memory created id=%s user_id=%s companion_id=%s type=%s key=%s content=%r",
                         new_id, user_id, ai_companion_id, candidate.memory_type,
                         candidate.canonical_key, candidate.content,
                     )
                 else:
                     logger.info(
-                        "Memory created id=%d user_id=%d companion_id=%d type=%s key=%s",
+                        "Memory created id=%s user_id=%s companion_id=%s type=%s key=%s",
                         new_id, user_id, ai_companion_id, candidate.memory_type,
                         candidate.canonical_key,
                     )
 
                 if existing:
+                    superseded_count += 1
                     if self.config.raw_content_logging_enabled:
                         logger.info(
-                            "Memory superseded old_id=%d new_id=%d key=%s old_content=%r new_content=%r",
+                            "Memory superseded old_id=%s new_id=%s key=%s old_content=%r new_content=%r",
                             existing.id, new_id, candidate.canonical_key,
                             existing.content, candidate.content,
                         )
                     else:
                         logger.info(
-                            "Memory superseded old_id=%d new_id=%d key=%s",
+                            "Memory superseded old_id=%s new_id=%s key=%s",
                             existing.id, new_id, candidate.canonical_key,
                         )
                     # Mark old as superseded in SQLite
@@ -136,6 +139,8 @@ class MemoryService:
                         self.vector_store.delete_memory,
                         memory_id=existing.id
                     )
+                else:
+                    created_count += 1
 
                 # 3. Sync to Vector Store
                 # Generate embedding for the new memory content
@@ -157,13 +162,21 @@ class MemoryService:
                 )
 
             except Exception as e:
+                failed_count += 1
                 logger.error(
                     "Failed to store memory candidate '%s' for user %d: %s",
                     candidate.canonical_key, user_id, e
                 )
+                if raise_on_error:
+                    raise
                 # Continue to next candidate instead of failing the whole batch
 
-        return stored_ids
+        return MemoryStoreOutcome(
+            stored_ids=stored_ids,
+            created_count=created_count,
+            superseded_count=superseded_count,
+            failed_count=failed_count
+        )
 
     async def retrieve_memories(
         self,

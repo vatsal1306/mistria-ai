@@ -31,6 +31,7 @@ class MemoryExtractionService:
         message_id: int,
         message_content: str,
         recent_messages: list[ChatMessage] | None = None,
+        raise_on_error: bool = False,
     ) -> list[MemoryExtraction]:
         """Extract memory candidates from a user message.
         
@@ -79,6 +80,8 @@ class MemoryExtractionService:
             output_text = await self.runtime.generate_text(req)
         except Exception as e:
             logger.error("Inference runtime failed during memory extraction: %s", e)
+            if raise_on_error:
+                raise
             return []
 
         try:
@@ -106,4 +109,7 @@ class MemoryExtractionService:
             )
             if settings.memory.raw_content_logging_enabled:
                 logger.debug("Validation error details: %s", e)
+            
+            if raise_on_error:
+                raise
             return []
