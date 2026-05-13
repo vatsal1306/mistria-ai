@@ -71,7 +71,17 @@ async def test_store_memories_basic_storage(memory_service, mock_repo, mock_vect
     assert outcome.stored_ids == [123]
     assert outcome.created_count == 1
     assert outcome.failed_count == 0
-    mock_repo.create_memory.assert_called_once()
+    mock_repo.create_memory.assert_called_once_with(
+        user_id=1,
+        ai_companion_id=2,
+        source_conversation_id=10,
+        source_message_id=202,
+        memory_type="fact",
+        canonical_key="user_job",
+        content="User is a developer.",
+        importance=3,
+        confidence=0.9,
+    )
     mock_repo.find_active_by_canonical_key.assert_called_with(
         user_id=1, ai_companion_id=2, canonical_key="user_job"
     )

@@ -91,6 +91,7 @@ class MemoryService:
                     self.repository.create_memory,
                     user_id=user_id,
                     ai_companion_id=ai_companion_id,
+                    source_conversation_id=conversation_id,
                     source_message_id=message_id,
                     memory_type=candidate.memory_type,
                     canonical_key=candidate.canonical_key,
