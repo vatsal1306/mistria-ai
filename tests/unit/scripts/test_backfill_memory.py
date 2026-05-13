@@ -10,6 +10,7 @@ import pytest
 from scripts.backfill_memory import (
     BackfillStats,
     load_processed_message_ids,
+    load_recent_messages,
     parse_args,
     run_backfill,
     scan_messages,
@@ -126,6 +127,26 @@ def test_scan_messages_limit(tmp_database):
     """Test that --limit caps the result count."""
     messages = scan_messages(tmp_database, limit=2)
     assert len(messages) == 2
+
+
+def test_load_recent_messages(tmp_database):
+    """Test that recent context messages are loaded in chronological order."""
+    messages = load_recent_messages(tmp_database, conversation_id=100, before_message_id=3)
+    assert len(messages) == 2
+    assert messages[0].role == "user"
+    assert messages[0].content == "I love dogs."
+    assert messages[1].role == "assistant"
+    assert messages[1].content == "Dogs are great!"
+
+    # Test limit
+    limited_messages = load_recent_messages(tmp_database, conversation_id=100, before_message_id=3, limit=1)
+    assert len(limited_messages) == 1
+    assert limited_messages[0].role == "assistant"
+    assert limited_messages[0].content == "Dogs are great!"
+
+    # Test across conversations (message 4 is conversation 200, should only find earlier if any)
+    empty_messages = load_recent_messages(tmp_database, conversation_id=200, before_message_id=4)
+    assert len(empty_messages) == 0
 
 
 def test_load_processed_message_ids_empty(tmp_database):

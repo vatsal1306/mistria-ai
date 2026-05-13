@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from src.Logging import get_logger
 from src.backend.runtime import InferenceRuntimeFactory
+from src.backend.schemas import ChatMessage
 from src.config import settings
 from src.memory.embeddings import LocalEmbeddingProvider
 from src.memory.extraction import MemoryExtractionService
@@ -116,6 +117,27 @@ def scan_messages(
     return [dict(row) for row in rows]
 
 
+def load_recent_messages(
+    database: SQLiteDatabase,
+    conversation_id: int,
+    before_message_id: int,
+    limit: int = 5,
+) -> list[ChatMessage]:
+    """Load recent conversational context before a given message."""
+    query = """
+        SELECT role, content
+        FROM messages
+        WHERE conversation_id = ? AND id < ?
+        ORDER BY id DESC
+        LIMIT ?
+    """
+    with database.connection() as connection:
+        rows = connection.execute(query, (conversation_id, before_message_id, limit)).fetchall()
+    
+    # Reverse to restore chronological order
+    return [ChatMessage(role=row["role"], content=row["content"]) for row in reversed(rows)]
+
+
 def load_processed_message_ids(database: SQLiteDatabase) -> set[int]:
     """Return the set of message IDs that already have memory candidates."""
     with database.connection() as connection:
@@ -207,12 +229,20 @@ async def run_backfill(args: argparse.Namespace) -> BackfillStats:
                 continue
 
             try:
+                # Load context (e.g., previous 5 messages)
+                recent_messages = load_recent_messages(
+                    database,
+                    conversation_id=msg["conversation_id"],
+                    before_message_id=message_id,
+                )
+
                 candidates = await extraction_service.extract_memories(
                     user_id=msg["user_id"],
                     ai_companion_id=msg["ai_companion_id"],
                     conversation_id=msg["conversation_id"],
                     message_id=message_id,
                     message_content=msg["content"],
+                    recent_messages=recent_messages,
                     raise_on_error=True,
                 )
 
