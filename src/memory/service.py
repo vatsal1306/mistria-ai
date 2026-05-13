@@ -47,6 +47,7 @@ class MemoryService:
         conversation_id: int,
         message_id: int,
         extracted_memories: list[MemoryExtraction],
+        raise_on_error: bool = False,
     ) -> list[int]:
         """Persist extracted memory candidates and sync with vector store.
         
@@ -161,6 +162,8 @@ class MemoryService:
                     "Failed to store memory candidate '%s' for user %d: %s",
                     candidate.canonical_key, user_id, e
                 )
+                if raise_on_error:
+                    raise
                 # Continue to next candidate instead of failing the whole batch
 
         return stored_ids

@@ -136,3 +136,32 @@ async def test_extract_memories_runtime_exception_returns_empty_list(extraction_
         )
     
     assert result == []
+
+
+@pytest.mark.anyio
+async def test_extract_memories_strict_mode_raises_on_validation_error(extraction_service, mock_runtime):
+    """Test that if raise_on_error is True, a ValidationError is propagated."""
+    invalid_json = '{"memories": [{"should_remember": "yes"}]}'  # Invalid types
+    mock_runtime.generate_text.return_value = invalid_json
+    
+    with mock.patch("src.memory.extraction.settings") as mock_settings:
+        mock_settings.memory.extraction_enabled = True
+        with pytest.raises(Exception): # ValidationError inherits from Exception
+            await extraction_service.extract_memories(
+                user_id=1, ai_companion_id=2, conversation_id=101, message_id=202,
+                message_content="Hello", raise_on_error=True
+            )
+
+
+@pytest.mark.anyio
+async def test_extract_memories_strict_mode_raises_on_runtime_error(extraction_service, mock_runtime):
+    """Test that if raise_on_error is True, a runtime Exception is propagated."""
+    mock_runtime.generate_text.side_effect = RuntimeError("LLM offline")
+    
+    with mock.patch("src.memory.extraction.settings") as mock_settings:
+        mock_settings.memory.extraction_enabled = True
+        with pytest.raises(RuntimeError, match="LLM offline"):
+            await extraction_service.extract_memories(
+                user_id=1, ai_companion_id=2, conversation_id=101, message_id=202,
+                message_content="Hello", raise_on_error=True
+            )

@@ -14,6 +14,7 @@ from scripts.backfill_memory import (
     run_backfill,
     scan_messages,
 )
+from src.memory.schemas import MemoryExtraction
 from src.storage.database import SQLiteDatabase
 
 
@@ -311,6 +312,63 @@ async def test_failure_without_fail_fast_continues(tmp_database, monkeypatch):
     assert stats.scanned == 3
     assert stats.failed == 3
     assert stats.extracted == 0
+
+
+@pytest.mark.anyio
+async def test_storage_failure_increments_stats(tmp_database, monkeypatch):
+    """Test that if storage fails (raises), stats.failed is incremented."""
+    args = argparse.Namespace(
+        user_email=None, ai_companion_id=None, limit=None,
+        dry_run=False, fail_fast=False,
+    )
+
+    mock_settings = mock.Mock()
+    mock_settings.storage.sqlite_path = tmp_database.database_path
+    mock_settings.memory.extraction_enabled = True
+    mock_settings.memory.raw_content_logging_enabled = False
+    mock_settings.memory.embedding_model_name = "test"
+    mock_settings.memory.qdrant_url = "http://localhost"
+    mock_settings.memory.qdrant_collection = "test"
+    mock_settings.memory.enabled = True
+    monkeypatch.setattr("scripts.backfill_memory.settings", mock_settings)
+
+    mock_runtime = mock.AsyncMock()
+    monkeypatch.setattr(
+        "scripts.backfill_memory.InferenceRuntimeFactory.create",
+        mock.Mock(return_value=mock_runtime),
+    )
+
+    # Extraction succeeds
+    candidate = mock.Mock(spec=MemoryExtraction, canonical_key="test")
+    mock_extract = mock.AsyncMock(return_value=[candidate])
+    monkeypatch.setattr(
+        "scripts.backfill_memory.MemoryExtractionService",
+        lambda runtime: mock.Mock(extract_memories=mock_extract),
+    )
+
+    # Storage fails
+    mock_store = mock.AsyncMock(side_effect=RuntimeError("Storage failed"))
+    monkeypatch.setattr(
+        "scripts.backfill_memory.MemoryService",
+        lambda **kwargs: mock.Mock(store_memories=mock_store),
+    )
+    
+    # Mock vector store bootstrap
+    monkeypatch.setattr(
+        "scripts.backfill_memory.QdrantVectorStore",
+        mock.Mock(),
+    )
+    monkeypatch.setattr(
+        "scripts.backfill_memory.LocalEmbeddingProvider",
+        mock.Mock(return_value=mock.Mock(get_dimension=mock.Mock(return_value=128))),
+    )
+
+    stats = await run_backfill(args)
+
+    assert stats.scanned == 3
+    assert stats.failed == 3  # All 3 messages failed at the storage step
+    assert stats.extracted == 3
+    assert stats.stored == 0
 
 
 @pytest.mark.anyio

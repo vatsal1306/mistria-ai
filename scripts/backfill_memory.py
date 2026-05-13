@@ -199,6 +199,7 @@ async def run_backfill(args: argparse.Namespace) -> BackfillStats:
                     conversation_id=msg["conversation_id"],
                     message_id=message_id,
                     message_content=msg["content"],
+                    raise_on_error=True,
                 )
 
                 stats.extracted += len(candidates)
@@ -210,6 +211,7 @@ async def run_backfill(args: argparse.Namespace) -> BackfillStats:
                         conversation_id=msg["conversation_id"],
                         message_id=message_id,
                         extracted_memories=candidates,
+                        raise_on_error=True,
                     )
                     stats.stored += len(stored_ids)
 

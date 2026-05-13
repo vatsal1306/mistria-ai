@@ -209,6 +209,26 @@ async def test_store_memories_resilience_to_vector_failure(memory_service, mock_
 
 
 @pytest.mark.anyio
+async def test_store_memories_strict_mode_raises_on_vector_failure(memory_service, mock_repo, mock_vector_store):
+    """Test that if raise_on_error is True, a vector store Exception is propagated."""
+    candidate = MemoryExtraction(
+        should_remember=True, memory_type="fact", canonical_key="user_job",
+        content="User is a developer.", importance=3, confidence=0.9, reason="Stated."
+    )
+    mock_repo.find_active_by_canonical_key.return_value = None
+    mock_repo.create_memory.return_value = mock.Mock(id=10)
+    
+    # Mock vector store failure
+    mock_vector_store.upsert_memory.side_effect = RuntimeError("Qdrant down")
+    
+    with pytest.raises(RuntimeError, match="Qdrant down"):
+        await memory_service.store_memories(
+            user_id=1, ai_companion_id=2, conversation_id=10, message_id=202,
+            extracted_memories=[candidate], raise_on_error=True
+        )
+
+
+@pytest.mark.anyio
 async def test_retrieve_memories_hybrid_merge(memory_service, mock_repo, mock_vector_store):
     """Test that results from semantic and keyword search are merged and deduplicated."""
     from src.memory.vector_store import VectorStoreResult
