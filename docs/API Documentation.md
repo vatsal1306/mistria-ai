@@ -546,7 +546,7 @@ Send a JSON text frame with the following structure:
 **Validation Rules:**
 - The backend strictly validates identity: the user, user companion preferences, and AI companion must exist in the database and be correctly owned.
 - **Short-Term History**: The server automatically fetches recent conversation history from the database and trims it to the last 24 messages.
-- **Long-Term Memory (LTM)**: If enabled, the server concurrently retrieves relevant facts, preferences, and emotional context from the vector store (Qdrant) using a hybrid search of the latest `user_message`.
+- **Long-Term Memory (LTM)**: If enabled, the server retrieves relevant facts, preferences, and emotional context from the vector store (Qdrant) before starting inference, using a hybrid search of the latest `user_message`.
 - **Injection**: Both short-term history and long-term memories are injected into the system prompt before inference. This happens entirely server-side; the frontend does not need to manage or send the memory context.
 - Unknown fields are rejected (`extra: "forbid"`).
 
