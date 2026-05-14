@@ -99,7 +99,7 @@ services:
                 max-file: "5"
 
     qdrant:
-        image: qdrant/qdrant:v1.9.0
+        image: qdrant/qdrant:v1.17.1
         profiles: ["memory"]
         ports:
             - "6333:6333"
