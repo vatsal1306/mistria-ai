@@ -460,7 +460,13 @@ GET /ai-companion/1
 ### POST /debug/memory/retrieve
 
 **[INTERNAL / DEVELOPMENT ONLY]**  
-Directly query the long-term memory system to see what results would be injected into the prompt for a given user message. This endpoint is only active if the memory system is enabled.
+Directly query the long-term memory system to see what results would be injected into the prompt for a given user message.
+
+**Enablement Requirements:**
+- `MISTRIA_MEMORY_ENABLED=True`
+- `MISTRIA_MEMORY_DEBUG_ENDPOINT_ENABLED=True`
+
+If either flag is disabled, the endpoint returns `404 Not Found`. This endpoint should remain disabled in production environments.
 
 **Request:**
 ```
