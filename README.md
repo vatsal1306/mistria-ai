@@ -8,6 +8,7 @@ Mistria AI ships a FastAPI backend, an embedded vLLM inference runtime, and a St
 - Exposes REST endpoints for user registration, companion preferences, and AI persona management.
 - Persists users, companion data, conversations, and messages in SQLite.
 - **Long-Term Memory System**: Asynchronously extracts facts/preferences and retrieves them using hybrid vector search (Qdrant).
+    - *Note: Curated memories focus on user facts and preferences; fictional roleplay state is currently ignored.*
 - Starts vLLM from the Python backend process instead of a separate `vllm serve` process.
 - Keeps Streamlit as the user-facing chat UI.
 - Centralizes configuration in environment variables and `src/config.py`.
