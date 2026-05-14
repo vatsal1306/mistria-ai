@@ -30,7 +30,9 @@ class _MemoryServiceStub:
     """Stub that records stored memory batches."""
 
     def __init__(self):
+        from src.memory.events import NoOpMemoryEventSink
         self.stored: list[dict] = []
+        self.event_sink = NoOpMemoryEventSink()
 
     async def store_memories(self, **kwargs) -> MemoryStoreOutcome:
         from src.memory.schemas import MemoryStoreOutcome
