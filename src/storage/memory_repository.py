@@ -55,6 +55,16 @@ class MemoryRepository(ABC):
     def keyword_search(self, user_id: int, ai_companion_id: int, query: str, limit: int) -> list[MemoryRecord]:
         """Perform a simple substring search on active memory content."""
 
+    @abstractmethod
+    def list_all_active(
+        self,
+        user_id: int | None = None,
+        ai_companion_id: int | None = None,
+        memory_type: str | None = None,
+        limit: int | None = None,
+    ) -> list[MemoryRecord]:
+        """List all active memories across the entire system with optional filtering."""
+
 
 class SQLiteMemoryRepository(MemoryRepository):
     """SQLite-backed implementation of the memory repository."""
@@ -201,5 +211,36 @@ class SQLiteMemoryRepository(MemoryRepository):
                 """,
                 (user_id, ai_companion_id, search_pattern, limit),
             ).fetchall()
+
+        return [self._row_to_record(dict(row)) for row in rows]
+    def list_all_active(
+        self,
+        user_id: int | None = None,
+        ai_companion_id: int | None = None,
+        memory_type: str | None = None,
+        limit: int | None = None,
+    ) -> list[MemoryRecord]:
+        """List all active memories across the entire system with optional filtering."""
+        query = "SELECT * FROM memories WHERE status = 'active'"
+        params = []
+
+        if user_id is not None:
+            query += " AND user_id = ?"
+            params.append(user_id)
+        if ai_companion_id is not None:
+            query += " AND ai_companion_id = ?"
+            params.append(ai_companion_id)
+        if memory_type is not None:
+            query += " AND memory_type = ?"
+            params.append(memory_type)
+
+        query += " ORDER BY id ASC"
+
+        if limit is not None:
+            query += " LIMIT ?"
+            params.append(limit)
+
+        with self.database.connection() as connection:
+            rows = connection.execute(query, tuple(params)).fetchall()
 
         return [self._row_to_record(dict(row)) for row in rows]
