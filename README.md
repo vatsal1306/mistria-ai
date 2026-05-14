@@ -71,13 +71,13 @@ MISTRIA_MEMORY_QDRANT_URL=http://qdrant:6333
 MISTRIA_MEMORY_QDRANT_COLLECTION=mistria_memories
 # Embedding model name (used by SentenceTransformers if provider is local)
 MISTRIA_MEMORY_EMBEDDING_MODEL_NAME=all-MiniLM-L6-v2
-# Enable the POST /debug/memory/retrieve endpoint
-MISTRIA_MEMORY_DEBUG_ENDPOINT_ENABLED=True
 # Required: activate the memory profile to start the Qdrant container
 COMPOSE_PROFILES=memory
 ```
 
-> **Note on Development:** When running the backend directly on your host machine (without Docker), set `MISTRIA_MEMORY_QDRANT_URL=http://localhost:6333` so the backend can reach the Qdrant container published on your host port.
+> **Development Tips:**
+> - **External Access:** When running the backend directly on your host machine (without Docker), set `MISTRIA_MEMORY_QDRANT_URL=http://localhost:6333` to reach the Qdrant container.
+> - **Debug Tooling:** To enable the internal `POST /debug/memory/retrieve` endpoint for inspecting memory retrieval results, set `MISTRIA_MEMORY_DEBUG_ENDPOINT_ENABLED=True`. This should be kept disabled in production.
 
 If a value contains `$`, escape it as `$$` because Docker Compose performs variable interpolation.
 
