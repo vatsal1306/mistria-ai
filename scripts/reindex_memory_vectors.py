@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from dataclasses import dataclass
+
+# Path bootstrap to allow running from repository root
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.Logging import get_logger
 from src.config import settings
