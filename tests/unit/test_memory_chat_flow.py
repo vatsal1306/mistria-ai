@@ -25,6 +25,9 @@ class MockVectorStore(BaseVectorStore):
     def bootstrap_collection(self, dimension: int) -> None:
         pass
 
+    def recreate_collection(self, dimension: int) -> None:
+        self.vectors = {}
+
     def upsert_memory(
         self,
         memory_id: int,
