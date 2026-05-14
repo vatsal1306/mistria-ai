@@ -66,8 +66,8 @@ To enable the long-term memory system (using Qdrant), update your `.env` with:
 MISTRIA_MEMORY_ENABLED=True
 # Enable asynchronous background extraction of memories from chat
 MISTRIA_MEMORY_EXTRACTION_ENABLED=True
-# Qdrant connection settings
-MISTRIA_MEMORY_QDRANT_URL=http://localhost:6333
+# Qdrant connection settings (use http://localhost:6333 if running outside Docker)
+MISTRIA_MEMORY_QDRANT_URL=http://qdrant:6333
 MISTRIA_MEMORY_QDRANT_COLLECTION=mistria_memories
 # Embedding model name (used by SentenceTransformers if provider is local)
 MISTRIA_MEMORY_EMBEDDING_MODEL_NAME=all-MiniLM-L6-v2
@@ -76,6 +76,8 @@ MISTRIA_MEMORY_DEBUG_ENDPOINT_ENABLED=True
 # Required: activate the memory profile to start the Qdrant container
 COMPOSE_PROFILES=memory
 ```
+
+> **Note on Development:** When running the backend directly on your host machine (without Docker), set `MISTRIA_MEMORY_QDRANT_URL=http://localhost:6333` so the backend can reach the Qdrant container published on your host port.
 
 If a value contains `$`, escape it as `$$` because Docker Compose performs variable interpolation.
 
