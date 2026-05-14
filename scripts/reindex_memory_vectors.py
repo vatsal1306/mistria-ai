@@ -71,6 +71,12 @@ def main(argv: list[str] | None = None) -> int:
         logger.error("Memory system is disabled in configuration. Cannot reindex.")
         return 1
 
+    # Safety check: --recreate should only be used for a full reindex to avoid data loss
+    if args.recreate and (args.user_email or args.ai_companion_id or args.memory_type or args.limit):
+        logger.error("Safety Error: --recreate cannot be used with filters or limits.")
+        logger.error("Recreating a collection wipes all data; it must be followed by a full reindex.")
+        return 1
+
     database = SQLiteDatabase(settings.storage.sqlite_path)
     user_repo = SQLiteUserRepository(database)
     memory_repo = SQLiteMemoryRepository(database)

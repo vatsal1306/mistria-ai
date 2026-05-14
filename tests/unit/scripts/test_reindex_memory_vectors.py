@@ -154,3 +154,15 @@ def test_reindex_user_not_found(mock_components):
     
     assert exit_code == 1
     components["memory_repo"].list_all_active.assert_not_called()
+
+
+def test_reindex_safety_recreate_with_filter(mock_components):
+    """Verify that --recreate is rejected when used with filters to prevent data loss."""
+    components = mock_components
+    
+    # Try with user-email
+    assert main(["--recreate", "--user-email", "test@example.com"]) == 1
+    # Try with limit
+    assert main(["--recreate", "--limit", "10"]) == 1
+    
+    components["vector_store"].recreate_collection.assert_not_called()
