@@ -172,34 +172,28 @@ class QdrantVectorStore(BaseVectorStore):
             "status": status,
         }
 
-        try:
-            client.upsert(
-                collection_name=self.collection_name,
-                points=[
-                    PointStruct(
-                        id=memory_id,
-                        vector=vector,
-                        payload=payload,
-                    )
-                ],
-            )
-            logger.debug("Upserted memory %d to Qdrant.", memory_id)
-        except Exception as e:
-            logger.error("Failed to upsert memory %d to Qdrant: %s", memory_id, e)
+        client.upsert(
+            collection_name=self.collection_name,
+            points=[
+                PointStruct(
+                    id=memory_id,
+                    vector=vector,
+                    payload=payload,
+                )
+            ],
+        )
+        logger.debug("Upserted memory %d to Qdrant.", memory_id)
 
     def delete_memory(self, memory_id: int) -> None:
         client = self._get_client()
         if not client:
             return
 
-        try:
-            client.delete(
-                collection_name=self.collection_name,
-                points_selector=[memory_id],
-            )
-            logger.debug("Deleted memory %d from Qdrant.", memory_id)
-        except Exception as e:
-            logger.error("Failed to delete memory %d from Qdrant: %s", memory_id, e)
+        client.delete(
+            collection_name=self.collection_name,
+            points_selector=[memory_id],
+        )
+        logger.debug("Deleted memory %d from Qdrant.", memory_id)
 
     def search(
         self,
