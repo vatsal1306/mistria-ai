@@ -205,9 +205,20 @@ def api_client(sqlite_db, monkeypatch):
         yield client
 
 
-@pytest.mark.anyio
-async def test_memory_chat_flow_persistence_and_isolation(api_client, mock_memory_infrastructure, monkeypatch):
+def test_memory_chat_flow_persistence_and_isolation(api_client, mock_memory_infrastructure, monkeypatch):
     """Test that memories survive sessions and are isolated by companion."""
+    import anyio
+    
+    # Capture extraction tasks manually to avoid loop issues
+    extraction_args = []
+    original_schedule = mock_memory_infrastructure.schedule
+    
+    def mock_schedule(*args, **kwargs):
+        extraction_args.append((args, kwargs))
+        # Don't actually run it in the background
+    
+    monkeypatch.setattr(mock_memory_infrastructure, "schedule", mock_schedule)
+
     # 1. Create User John
     user_res = api_client.post("/users", json={"email": "john@example.com", "name": "John Doe"})
     assert user_res.status_code in (200, 201)
@@ -286,10 +297,14 @@ async def test_memory_chat_flow_persistence_and_isolation(api_client, mock_memor
             if resp["type"] == "done":
                 break
                 
-    # 5. Wait for extraction to complete
-    # The worker uses asyncio.create_task, so we just wait for its tasks
-    if mock_memory_infrastructure._tasks:
-        await asyncio.wait(mock_memory_infrastructure._tasks, timeout=5.0)
+    # 5. Run extraction manually in a controlled loop
+    assert len(extraction_args) == 1
+    args, kwargs = extraction_args[0]
+    
+    async def run_extraction():
+        await mock_memory_infrastructure._run(*args, **kwargs)
+    
+    anyio.run(run_extraction)
     
     # 6. Reconnect to Sara and verify memory injection
     stream_calls.clear()
