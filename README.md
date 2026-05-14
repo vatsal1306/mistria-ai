@@ -7,6 +7,8 @@ Mistria AI ships a FastAPI backend, an embedded vLLM inference runtime, and a St
 - Streams assistant responses over a FastAPI WebSocket endpoint.
 - Exposes REST endpoints for user registration, companion preferences, and AI persona management.
 - Persists users, companion data, conversations, and messages in SQLite.
+- **Long-Term Memory System**: Asynchronously extracts facts/preferences and retrieves them using hybrid vector search (Qdrant).
+    - *Note: Curated memories focus on user facts and preferences; fictional roleplay state is currently ignored.*
 - Starts vLLM from the Python backend process instead of a separate `vllm serve` process.
 - Keeps Streamlit as the user-facing chat UI.
 - Centralizes configuration in environment variables and `src/config.py`.
@@ -49,13 +51,34 @@ MISTRIA_INFERENCE_MODEL_NAME=dphn/Dolphin3.0-Llama3.1-8B
 HF_TOKEN=optional-hugging-face-token
 ```
 
-To enable the long-term memory system (using Qdrant), add the following:
+### Memory-Disabled Mode (Default)
+
+To run the stack with only short-term conversation history (last 24 messages) and no vector storage, keep the default settings:
+- `MISTRIA_MEMORY_ENABLED=False` (or unset)
+- `MISTRIA_MEMORY_EXTRACTION_ENABLED=False` (or unset)
+- `COMPOSE_PROFILES=` (do **not** include `memory`)
+
+### Memory-Enabled Mode
+
+To enable the long-term memory system (using Qdrant), update your `.env` with:
 
 ```bash
+# Enable the core memory system and vector storage
 MISTRIA_MEMORY_ENABLED=True
+# Enable asynchronous background extraction of memories from chat
 MISTRIA_MEMORY_EXTRACTION_ENABLED=True
+# Qdrant connection settings (use http://localhost:6333 if running outside Docker)
+MISTRIA_MEMORY_QDRANT_URL=http://qdrant:6333
+MISTRIA_MEMORY_QDRANT_COLLECTION=mistria_memories
+# Embedding model name (used by SentenceTransformers if provider is local)
+MISTRIA_MEMORY_EMBEDDING_MODEL_NAME=all-MiniLM-L6-v2
+# Required: activate the memory profile to start the Qdrant container
 COMPOSE_PROFILES=memory
 ```
+
+> **Development Tips:**
+> - **External Access:** When running the backend directly on your host machine (without Docker), set `MISTRIA_MEMORY_QDRANT_URL=http://localhost:6333` to reach the Qdrant container.
+> - **Debug Tooling:** To enable the internal `POST /debug/memory/retrieve` endpoint for inspecting memory retrieval results, set `MISTRIA_MEMORY_DEBUG_ENDPOINT_ENABLED=True`. This should be kept disabled in production.
 
 If a value contains `$`, escape it as `$$` because Docker Compose performs variable interpolation.
 
@@ -158,7 +181,8 @@ Compose uses named volumes:
 - `mistria_data`: SQLite database at `/app/data/db/app.db`.
 - `mistria_logs`: application logs at `/app/Logs`.
 - `mistria_hf_cache`: Hugging Face model cache at `/app/.cache/huggingface`.
-- `mistria_qdrant_data`: Qdrant vector storage (only used when `COMPOSE_PROFILES=memory` is set).
+- `mistria_qdrant_data`: Qdrant vector storage at `/qdrant/storage` (only used when `COMPOSE_PROFILES=memory` is set).
+- `mistria_embeddings_cache`: Local embedding model cache (used when `MISTRIA_MEMORY_ENABLED=True`).
 
 Container stdout/stderr is handled by Docker's `json-file` logging driver with rotation enabled.
 

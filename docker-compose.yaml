@@ -20,12 +20,15 @@ services:
             MISTRIA_MEMORY_ENABLED: ${MISTRIA_MEMORY_ENABLED:-False}
             MISTRIA_MEMORY_QDRANT_URL: ${MISTRIA_MEMORY_QDRANT_URL:-http://qdrant:6333}
             MISTRIA_MEMORY_QDRANT_COLLECTION: ${MISTRIA_MEMORY_QDRANT_COLLECTION:-mistria_memories}
+            MISTRIA_MEMORY_EMBEDDING_MODEL_NAME: ${MISTRIA_MEMORY_EMBEDDING_MODEL_NAME:-all-MiniLM-L6-v2}
+            SENTENCE_TRANSFORMERS_HOME: /app/.cache/embeddings
         ports:
             - "${MISTRIA_BACKEND_PORT:-8080}:8080"
         volumes:
             - mistria_data:/app/data
             - mistria_logs:/app/Logs
             - mistria_hf_cache:/app/.cache/huggingface
+            - mistria_embeddings_cache:/app/.cache/embeddings
         gpus: all
         restart: unless-stopped
         networks:
@@ -99,7 +102,7 @@ services:
                 max-file: "5"
 
     qdrant:
-        image: qdrant/qdrant:v1.9.0
+        image: qdrant/qdrant:v1.17.1
         profiles: ["memory"]
         ports:
             - "6333:6333"
@@ -118,3 +121,4 @@ volumes:
     mistria_logs:
     mistria_hf_cache:
     mistria_qdrant_data:
+    mistria_embeddings_cache:
