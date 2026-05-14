@@ -207,6 +207,7 @@ class MemoryService:
         user_id: int,
         ai_companion_id: int,
         query: str,
+        conversation_id: int | None = None,
     ) -> list[MemorySearchResult]:
         """Retrieve relevant memories using a hybrid of semantic and keyword search.
         
@@ -320,6 +321,7 @@ class MemoryService:
                     content=record.content,
                     canonical_key=record.canonical_key,
                     score=min(final_score, 1.0),
+                    importance=record.importance,
                     source=source
                 ))
 
@@ -337,8 +339,10 @@ class MemoryService:
                 event_type="memory_retrieved",
                 user_id=user_id,
                 ai_companion_id=ai_companion_id,
+                conversation_id=conversation_id,
                 memory_id=res.memory_id,
                 memory_type=res.memory_type,
+                importance=res.importance,
                 confidence=res.score,  # Using score as confidence for retrieval
             ))
 

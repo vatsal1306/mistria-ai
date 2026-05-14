@@ -95,6 +95,31 @@ def test_memory_service_emits_events(monkeypatch):
     assert call_args.memory_id == 123
     assert call_args.user_id == 1
 
+    # 2. Test retrieve_memories
+    mock_sink.emit.reset_mock()
+    mock_embed.embed_text.return_value = [0.1] * 384
+    mock_vector.search.return_value = [MagicMock(memory_id=123, score=0.9)]
+    mock_repo.find_by_id.return_value = MagicMock(
+        id=123, user_id=1, ai_companion_id=2, status="active",
+        memory_type="fact", content="content", canonical_key="key",
+        importance=4, confidence=0.9, updated_at=datetime.now(timezone.utc).isoformat()
+    )
+    mock_config.retrieval_top_k = 1
+    mock_config.retrieval_min_score = 0.1
+
+    asyncio.run(service.retrieve_memories(
+        user_id=1,
+        ai_companion_id=2,
+        query="test query",
+        conversation_id=555
+    ))
+
+    mock_sink.emit.assert_called()
+    retrieval_call = mock_sink.emit.call_args[0][0]
+    assert retrieval_call.event_type == "memory_retrieved"
+    assert retrieval_call.importance == 4
+    assert retrieval_call.conversation_id == 555
+
 def test_worker_emits_events():
     """Verify MemoryExtractionWorker emits memory_candidate_extracted."""
     from src.memory.background import MemoryExtractionWorker
