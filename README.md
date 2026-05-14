@@ -49,6 +49,14 @@ MISTRIA_INFERENCE_MODEL_NAME=dphn/Dolphin3.0-Llama3.1-8B
 HF_TOKEN=optional-hugging-face-token
 ```
 
+To enable the long-term memory system (using Qdrant), add the following:
+
+```bash
+MISTRIA_MEMORY_ENABLED=True
+MISTRIA_MEMORY_EXTRACTION_ENABLED=True
+COMPOSE_PROFILES=memory
+```
+
 If a value contains `$`, escape it as `$$` because Docker Compose performs variable interpolation.
 
 ## Run With Docker
@@ -150,6 +158,7 @@ Compose uses named volumes:
 - `mistria_data`: SQLite database at `/app/data/db/app.db`.
 - `mistria_logs`: application logs at `/app/Logs`.
 - `mistria_hf_cache`: Hugging Face model cache at `/app/.cache/huggingface`.
+- `mistria_qdrant_data`: Qdrant vector storage (only used when `COMPOSE_PROFILES=memory` is set).
 
 Container stdout/stderr is handled by Docker's `json-file` logging driver with rotation enabled.
 

@@ -17,6 +17,7 @@ OVERWRITE_ENV="${OVERWRITE_ENV:-0}"
 SKIP_DOCKER_INSTALL="${SKIP_DOCKER_INSTALL:-0}"
 SKIP_GPU_CHECK="${SKIP_GPU_CHECK:-0}"
 RUN_SMOKE="${RUN_SMOKE:-0}"
+MISTRIA_MEMORY_ENABLED="${MISTRIA_MEMORY_ENABLED:-}"
 
 if [[ -t 1 ]]; then
   COLOR_RED=$'\033[0;31m'
@@ -202,6 +203,14 @@ write_env_file() {
   prompt_env "MISTRIA_AUTH_ENCRYPTION_KEY" "Enter MISTRIA_AUTH_ENCRYPTION_KEY" 1
   prompt_env "MISTRIA_API_KEY" "Enter MISTRIA_API_KEY" 1
 
+  if [[ -z "${MISTRIA_MEMORY_ENABLED:-}" ]]; then
+    read -r -p "Enable memory subsystem and Qdrant? (y/N): " mem_input
+    case "${mem_input,,}" in
+      y|yes) MISTRIA_MEMORY_ENABLED="1" ;;
+      *) MISTRIA_MEMORY_ENABLED="0" ;;
+    esac
+  fi
+
   mkdir -p "$(dirname "$ENV_FILE")"
   {
     printf 'MISTRIA_AUTH_ENCRYPTION_KEY=%s\n' "$MISTRIA_AUTH_ENCRYPTION_KEY"
@@ -213,6 +222,12 @@ write_env_file() {
     printf 'MISTRIA_FRONTEND_PORT=%s\n' "$FRONTEND_PORT"
     printf 'COMPOSE_PROJECT_NAME=%s\n' "$COMPOSE_PROJECT_NAME"
     printf 'IMAGE_TAG=%s\n' "$IMAGE_TAG"
+    if [[ "$MISTRIA_MEMORY_ENABLED" == "1" || "${MISTRIA_MEMORY_ENABLED,,}" == "true" ]]; then
+      printf 'MISTRIA_MEMORY_ENABLED=True\n'
+      printf 'MISTRIA_MEMORY_EXTRACTION_ENABLED=True\n'
+      printf 'COMPOSE_PROFILES=memory\n'
+      printf 'MISTRIA_MEMORY_QDRANT_URL=http://qdrant:6333\n'
+    fi
     if [[ -n "${HF_TOKEN:-}" ]]; then
       printf 'HF_TOKEN=%s\n' "$HF_TOKEN"
     fi
