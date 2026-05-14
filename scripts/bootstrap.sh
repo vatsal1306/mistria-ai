@@ -222,7 +222,7 @@ write_env_file() {
     printf 'MISTRIA_FRONTEND_PORT=%s\n' "$FRONTEND_PORT"
     printf 'COMPOSE_PROJECT_NAME=%s\n' "$COMPOSE_PROJECT_NAME"
     printf 'IMAGE_TAG=%s\n' "$IMAGE_TAG"
-    if [[ "$MISTRIA_MEMORY_ENABLED" == "1" || "$MISTRIA_MEMORY_ENABLED" == "true" ]]; then
+    if [[ "$MISTRIA_MEMORY_ENABLED" == "1" || "${MISTRIA_MEMORY_ENABLED,,}" == "true" ]]; then
       printf 'MISTRIA_MEMORY_ENABLED=True\n'
       printf 'COMPOSE_PROFILES=memory\n'
       printf 'MISTRIA_MEMORY_QDRANT_URL=http://qdrant:6333\n'
