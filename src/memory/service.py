@@ -8,6 +8,7 @@ from typing import Literal
 
 from src.Logging import get_logger
 from src.config import Memory
+from src.memory.events import MemoryEvent, MemoryEventSink, NoOpMemoryEventSink
 from src.memory.embeddings import BaseEmbeddingProvider
 from src.memory.schemas import MemoryExtraction, MemorySearchResult, MemoryStoreOutcome
 from src.memory.vector_store import BaseVectorStore
@@ -25,6 +26,7 @@ class MemoryService:
         repository: MemoryRepository,
         vector_store: BaseVectorStore,
         embedding_provider: BaseEmbeddingProvider,
+        event_sink: MemoryEventSink | None = None,
     ):
         """Initialize the memory service.
         
@@ -33,11 +35,13 @@ class MemoryService:
             repository: SQLite repository for memory persistence.
             vector_store: Vector store for semantic search.
             embedding_provider: Provider for generating text embeddings.
+            event_sink: Optional sink for internal memory events.
         """
         self.config = config
         self.repository = repository
         self.vector_store = vector_store
         self.embedding_provider = embedding_provider
+        self.event_sink = event_sink or NoOpMemoryEventSink()
         logger.info("Memory service initialized enabled=%s", config.enabled)
 
     async def store_memories(
@@ -161,6 +165,19 @@ class MemoryService:
                     vector=vector,
                 )
 
+                # 4. Emit events after full persistence (SQLite + Vector Store)
+                event_type = "memory_superseded" if existing else "memory_created"
+                self.event_sink.emit(MemoryEvent(
+                    event_type=event_type,
+                    user_id=user_id,
+                    ai_companion_id=ai_companion_id,
+                    conversation_id=conversation_id,
+                    memory_id=new_id,
+                    memory_type=candidate.memory_type,
+                    importance=candidate.importance,
+                    confidence=candidate.confidence,
+                ))
+
             except Exception as e:
                 failed_count += 1
                 logger.error(
@@ -183,6 +200,7 @@ class MemoryService:
         user_id: int,
         ai_companion_id: int,
         query: str,
+        conversation_id: int | None = None,
     ) -> list[MemorySearchResult]:
         """Retrieve relevant memories using a hybrid of semantic and keyword search.
         
@@ -296,6 +314,7 @@ class MemoryService:
                     content=record.content,
                     canonical_key=record.canonical_key,
                     score=min(final_score, 1.0),
+                    importance=record.importance,
                     source=source
                 ))
 
@@ -308,6 +327,17 @@ class MemoryService:
                 await asyncio.to_thread(self.repository.mark_retrieved, res.memory_id)
             except Exception as e:
                 logger.warning("Failed to mark memory %d as retrieved: %s", res.memory_id, e)
+
+            self.event_sink.emit(MemoryEvent(
+                event_type="memory_retrieved",
+                user_id=user_id,
+                ai_companion_id=ai_companion_id,
+                conversation_id=conversation_id,
+                memory_id=res.memory_id,
+                memory_type=res.memory_type,
+                importance=res.importance,
+                confidence=res.score,  # Using score as confidence for retrieval
+            ))
 
         logger.info(
             "Retrieval completed user_id=%d companion_id=%d results=%d",

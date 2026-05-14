@@ -11,6 +11,8 @@ if TYPE_CHECKING:
     from src.backend.schemas import ChatMessage
     from src.memory.extraction import MemoryExtractionService
     from src.memory.service import MemoryService
+    
+from src.memory.events import MemoryEvent
 
 logger = get_logger(__name__)
 
@@ -125,6 +127,17 @@ class MemoryExtractionWorker:
                     user_id, message_id,
                 )
                 return
+
+            for candidate in candidates:
+                self.memory_service.event_sink.emit(MemoryEvent(
+                    event_type="memory_candidate_extracted",
+                    user_id=user_id,
+                    ai_companion_id=ai_companion_id,
+                    conversation_id=conversation_id,
+                    memory_type=candidate.memory_type,
+                    importance=candidate.importance,
+                    confidence=candidate.confidence,
+                ))
 
             outcome = await self.memory_service.store_memories(
                 user_id=user_id,

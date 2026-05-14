@@ -51,8 +51,8 @@ class _MemoryServiceStub:
         self.should_fail = should_fail
         self.calls = []
 
-    async def retrieve_memories(self, user_id, ai_companion_id, query):
-        self.calls.append((user_id, ai_companion_id, query))
+    async def retrieve_memories(self, user_id, ai_companion_id, query, conversation_id=None):
+        self.calls.append((user_id, ai_companion_id, query, conversation_id))
         if self.should_fail:
             raise Exception("Retrieval failed")
         return self.memories
@@ -192,7 +192,7 @@ async def test_stream_response_injects_memories_when_enabled():
     
     memories = [
         MemorySearchResult(
-            memory_id=1, memory_type="fact", content="User loves cats", canonical_key="cats", score=0.9, source="semantic"
+            memory_id=1, memory_type="fact", content="User loves cats", canonical_key="cats", score=0.9, importance=3, source="semantic"
         )
     ]
     memory_service = _MemoryServiceStub(memories)

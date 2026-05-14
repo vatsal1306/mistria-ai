@@ -102,7 +102,8 @@ class ChatService:
                 memories = await self.memory_service.retrieve_memories(
                     user_id=internal_user_id,
                     ai_companion_id=request.ai_companion_id,
-                    query=request.user_message
+                    query=request.user_message,
+                    conversation_id=conversation.id
                 )
 
                 if memories:

@@ -57,6 +57,7 @@ class MemorySearchResult(BaseModel):
     content: str = Field(description="The actual text content of the memory.")
     canonical_key: str = Field(description="The normalized key for the memory.")
     score: float = Field(description="The calculated relevance score (0.0 to 1.0).")
+    importance: int = Field(description="The importance of the memory (1-5).")
     source: Literal["semantic", "keyword", "hybrid"] = Field(
         description="The method used to retrieve this memory."
     )

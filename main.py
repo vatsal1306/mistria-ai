@@ -29,6 +29,7 @@ from src.companion.service import CompanionService
 from src.config import settings
 from src.memory.background import MemoryExtractionWorker
 from src.memory.embeddings import LocalEmbeddingProvider
+from src.memory.events import LoggingMemoryEventSink
 from src.memory.extraction import MemoryExtractionService
 from src.memory.schemas import DebugMemoryRetrieveRequest, DebugMemoryRetrieveResponse
 from src.memory.service import MemoryService
@@ -72,7 +73,11 @@ if settings.memory.enabled:
     )
     memory_embedding_provider = LocalEmbeddingProvider(settings.memory.embedding_model_name)
     memory_service = MemoryService(
-        settings.memory, memory_repository, memory_vector_store, memory_embedding_provider
+        settings.memory,
+        memory_repository,
+        memory_vector_store,
+        memory_embedding_provider,
+        event_sink=LoggingMemoryEventSink(),
     )
     extraction_service = MemoryExtractionService(runtime)
     extraction_worker = MemoryExtractionWorker(extraction_service, memory_service)

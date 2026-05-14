@@ -304,7 +304,7 @@ async def test_debug_memory_retrieve_success(monkeypatch, sample_user):
     memory_service = mock.create_autospec(MemoryService, instance=True)
     from src.memory.schemas import MemorySearchResult
     mock_result = MemorySearchResult(
-        memory_id=1, memory_type="fact", content="test", canonical_key="key", score=0.9, source="semantic"
+        memory_id=1, memory_type="fact", content="test", canonical_key="key", score=0.9, importance=3, source="semantic"
     )
     memory_service.retrieve_memories.return_value = [mock_result]
     monkeypatch.setattr(main, "memory_service", memory_service)
