@@ -7,6 +7,7 @@ Mistria AI ships a FastAPI backend, an embedded vLLM inference runtime, and a St
 - Streams assistant responses over a FastAPI WebSocket endpoint.
 - Exposes REST endpoints for user registration, companion preferences, and AI persona management.
 - Persists users, companion data, conversations, and messages in SQLite.
+- **Long-Term Memory System**: Asynchronously extracts facts/preferences and retrieves them using hybrid vector search (Qdrant).
 - Starts vLLM from the Python backend process instead of a separate `vllm serve` process.
 - Keeps Streamlit as the user-facing chat UI.
 - Centralizes configuration in environment variables and `src/config.py`.
@@ -52,8 +53,13 @@ HF_TOKEN=optional-hugging-face-token
 To enable the long-term memory system (using Qdrant), add the following:
 
 ```bash
+# Enable the core memory system and vector storage
 MISTRIA_MEMORY_ENABLED=True
+# Enable asynchronous background extraction of memories from chat
 MISTRIA_MEMORY_EXTRACTION_ENABLED=True
+# Optional: Use a local embedding model instead of deterministic stubs
+MISTRIA_MEMORY_EMBEDDING_PROVIDER=local
+# Required: activate the memory profile to start the Qdrant container
 COMPOSE_PROFILES=memory
 ```
 
@@ -158,7 +164,8 @@ Compose uses named volumes:
 - `mistria_data`: SQLite database at `/app/data/db/app.db`.
 - `mistria_logs`: application logs at `/app/Logs`.
 - `mistria_hf_cache`: Hugging Face model cache at `/app/.cache/huggingface`.
-- `mistria_qdrant_data`: Qdrant vector storage (only used when `COMPOSE_PROFILES=memory` is set).
+- `mistria_qdrant_data`: Qdrant vector storage at `/qdrant/storage` (only used when `COMPOSE_PROFILES=memory` is set).
+- `mistria_embeddings_cache`: Local embedding model cache (if using `MISTRIA_MEMORY_EMBEDDING_PROVIDER=local`).
 
 Container stdout/stderr is handled by Docker's `json-file` logging driver with rotation enabled.
 
