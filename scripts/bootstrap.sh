@@ -224,6 +224,7 @@ write_env_file() {
     printf 'IMAGE_TAG=%s\n' "$IMAGE_TAG"
     if [[ "$MISTRIA_MEMORY_ENABLED" == "1" || "${MISTRIA_MEMORY_ENABLED,,}" == "true" ]]; then
       printf 'MISTRIA_MEMORY_ENABLED=True\n'
+      printf 'MISTRIA_MEMORY_EXTRACTION_ENABLED=True\n'
       printf 'COMPOSE_PROFILES=memory\n'
       printf 'MISTRIA_MEMORY_QDRANT_URL=http://qdrant:6333\n'
     fi

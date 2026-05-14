@@ -53,6 +53,7 @@ To enable the long-term memory system (using Qdrant), add the following:
 
 ```bash
 MISTRIA_MEMORY_ENABLED=True
+MISTRIA_MEMORY_EXTRACTION_ENABLED=True
 COMPOSE_PROFILES=memory
 ```
 
