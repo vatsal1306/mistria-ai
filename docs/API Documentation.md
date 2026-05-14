@@ -457,6 +457,50 @@ GET /ai-companion/1
 
 ---
 
+### POST /debug/memory/retrieve
+
+**[INTERNAL / DEVELOPMENT ONLY]**  
+Directly query the long-term memory system to see what results would be injected into the prompt for a given user message. This endpoint is only active if the memory system is enabled.
+
+**Request:**
+```
+POST /debug/memory/retrieve
+Content-Type: application/json
+
+{
+  "user_mail_id": "user@example.com",
+  "ai_companion_id": 1,
+  "user_message": "What did I say about my favorite coffee?"
+}
+```
+
+| Field | Type | Description | Required |
+|---|---|---|---|
+| `user_mail_id` | `string` | User email address | ✅ |
+| `ai_companion_id` | `integer` | Companion persona ID | ✅ |
+| `user_message` | `string` | The query to search memory with | ✅ |
+
+**Response:** `200 OK`
+```json
+{
+  "user_mail_id": "user@example.com",
+  "ai_companion_id": 1,
+  "memories": [
+    {
+      "memory_id": 105,
+      "memory_type": "preference",
+      "content": "User prefers black coffee over latte.",
+      "canonical_key": "coffee_pref",
+      "score": 0.89,
+      "importance": 4,
+      "source": "hybrid"
+    }
+  ]
+}
+```
+
+---
+
 ## WebSocket Endpoint
 
 ### Connection
@@ -495,7 +539,9 @@ Send a JSON text frame with the following structure:
 
 **Validation Rules:**
 - The backend strictly validates identity: the user, user companion preferences, and AI companion must exist in the database and be correctly owned.
-- The server automatically fetches conversation history from the database and trims it to the last 24 messages before sending it to the model.
+- **Short-Term History**: The server automatically fetches recent conversation history from the database and trims it to the last 24 messages.
+- **Long-Term Memory (LTM)**: If enabled, the server concurrently retrieves relevant facts, preferences, and emotional context from the vector store (Qdrant) using a hybrid search of the latest `user_message`.
+- **Injection**: Both short-term history and long-term memories are injected into the system prompt before inference. This happens entirely server-side; the frontend does not need to manage or send the memory context.
 - Unknown fields are rejected (`extra: "forbid"`).
 
 ### Response Event Types
@@ -734,7 +780,10 @@ For `422` validation errors, FastAPI returns:
    - Wait for `done` before sending the next user message.
    - On `error`, display the `detail` to the user and allow retry.
 
-6. **Conversation History:** The backend automatically manages and stores the conversation history in the database. The client only needs to send the latest `user_message`. The server retrieves the history, trims it to the last 24 messages, and appends the new message before processing.
+6. **Conversation History & Memory:** The backend automatically manages both short-term history and long-term memory (LTM).
+   - **Short-Term**: The last 24 messages are retrieved from SQLite.
+   - **Long-Term**: Relevant facts and preferences are retrieved from the vector store based on semantic similarity to the `user_message`.
+   - **Frontend Payload**: The client only needs to send the latest `user_message`. LTM is transparent to the frontend and does not require any additional UI logic.
 
 7. **camelCase Fields:** AI companion fields `eyeColor`, `hairStyle`, and `hairColor` use camelCase in the API. All other fields use snake_case.
 

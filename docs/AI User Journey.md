@@ -85,21 +85,22 @@ User continues chatting over time
 
 ## **AI Responsibilities**
 
-* Store important user information:  
-  * Preferences  
-  * Emotional patterns  
-  * Key facts (names, likes, dislikes)  
-* Retrieve memory during future conversations
+* Store important user information:
+  * Preferences
+  * Emotional patterns
+  * Key facts (names, likes, dislikes)
+* **Asynchronous Extraction**: Messages are processed in the background to identify new memories without blocking the chat.
+* **Automatic Retrieval**: During each chat turn, relevant memories are retrieved and injected into the companion's context.
 
 ## **AI Inputs**
 
-* Conversation logs  
-* Extracted key-value data
+* Conversation logs
+* **Scope**: User Email + Companion ID
 
 ## **AI Outputs**
 
-* Memory updates (structured)  
-* Context injection into prompts
+* Memory updates (structured)
+* Context injection into prompts (transparent to user)
 
 ## **Frontend Implications**
 
