@@ -166,3 +166,16 @@ def test_reindex_safety_recreate_with_filter(mock_components):
     assert main(["--recreate", "--limit", "10"]) == 1
     
     components["vector_store"].recreate_collection.assert_not_called()
+
+
+def test_reindex_skips_empty_content(mock_components):
+    """Verify that memories with empty content are skipped."""
+    components = mock_components
+    mem = MagicMock(id=1, user_id=1, ai_companion_id=1, memory_type="fact", canonical_key="key1", content="", status="active")
+    components["memory_repo"].list_all_active.return_value = [mem]
+    
+    exit_code = main([])
+    
+    assert exit_code == 0
+    components["embed"].embed_text.assert_not_called()
+    components["vector_store"].upsert_memory.assert_not_called()

@@ -27,6 +27,7 @@ class ReindexStats:
 
     total: int = 0
     indexed: int = 0
+    would_index: int = 0
     skipped: int = 0
     failed: int = 0
 
@@ -128,9 +129,14 @@ def main(argv: list[str] | None = None) -> int:
 
     for memory in memories:
         try:
+            if not memory.content or not memory.content.strip():
+                logger.warning("Skipping memory id=%d: empty content.", memory.id)
+                stats.skipped += 1
+                continue
+
             if args.dry_run:
                 logger.info("[DRY-RUN] Would reindex memory id=%d (key=%s)", memory.id, memory.canonical_key)
-                stats.indexed += 1
+                stats.would_index += 1
                 continue
 
             # Generate new embedding
@@ -157,9 +163,11 @@ def main(argv: list[str] | None = None) -> int:
 
     logger.info("Reindexing complete.")
     logger.info(
-        "Results - Total: %d, Indexed: %d, Failed: %d",
+        "Results - Total: %d, Indexed: %d, Would Index (Dry-Run): %d, Skipped: %d, Failed: %d",
         stats.total,
         stats.indexed,
+        stats.would_index,
+        stats.skipped,
         stats.failed,
     )
 
