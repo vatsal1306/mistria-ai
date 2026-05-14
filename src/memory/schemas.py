@@ -93,3 +93,32 @@ class MemoryStoreOutcome(BaseModel):
     failed_count: int = Field(default=0, description="Number of candidates that failed to store.")
 
 
+class MemoryDebugRecord(BaseModel):
+    """Detailed memory record for debug inspection."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    memory_type: str
+    canonical_key: str
+    content: str
+    status: str
+    importance: int
+    confidence: float
+    created_at: str
+    updated_at: str
+    source_conversation_id: int | None
+    source_message_id: int | None
+    retrieval_count: int
+    last_retrieved_at: str | None
+    supersedes_memory_id: int | None
+
+
+class DebugMemoryListResponse(BaseModel):
+    """Response schema for listing stored memories in debug mode."""
+    model_config = ConfigDict(extra="forbid")
+
+    user_mail_id: str
+    ai_companion_id: int
+    memories: list[MemoryDebugRecord]
+
+
