@@ -98,3 +98,30 @@ async def test_debug_memory_list_wrong_owner(api_client, mock_user):
         response = api_client.get("/debug/memory/debug@example.com/10")
         assert response.status_code == status.HTTP_404_NOT_FOUND
         assert "not owned by user" in response.json()["detail"]
+
+
+@pytest.mark.anyio
+async def test_debug_memory_list_filters(api_client, mock_user, mock_companion):
+    """Verify filters are passed correctly to the service."""
+    mock_s = mock.Mock()
+    mock_s.memory.debug_endpoint_enabled = True
+    mock_s.memory.enabled = True
+    with mock.patch("main.settings", new=mock_s), \
+         mock.patch("main.memory_service") as mock_mem_service, \
+         mock.patch("main.user_repository") as mock_user_repo, \
+         mock.patch("main.ai_companion_repository") as mock_comp_repo:
+        
+        mock_user_repo.find_by_email.return_value = mock_user
+        mock_comp_repo.find_by_id.return_value = mock_companion
+        mock_mem_service.list_memories = mock.AsyncMock(return_value=[])
+        
+        response = api_client.get("/debug/memory/debug@example.com/10?status=all&memory_type=fact&limit=10")
+        
+        assert response.status_code == status.HTTP_200_OK
+        mock_mem_service.list_memories.assert_called_once_with(
+            user_id=1,
+            ai_companion_id=10,
+            status="all",
+            memory_type="fact",
+            limit=10
+        )
