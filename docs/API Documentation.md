@@ -1,8 +1,8 @@
 # Mistria AI — API Integration Guide
 
-> **Version:** 2.0  
-> **Last Updated:** 2026-04-27  
-> **Milestone:** M2  
+> **Version:** 3.0  
+> **Last Updated:** 2026-05-15  
+> **Milestone:** M3  
 > **Audience:** Frontend / Web App Engineers  
 > **ServerLink:** http://45.248.33.161:8080/docs
 
@@ -23,6 +23,7 @@
    - [POST /ai-companion/generate](#post-ai-companiongenerate)
    - [GET /ai-companion](#get-ai-companion)
    - [GET /ai-companion/{ai_companion_id}](#get-ai-companionai_companion_id)
+   - [POST /debug/memory/retrieve](#post-debugmemoryretrieve) [Internal]
 5. [WebSocket Endpoint](#websocket-endpoint)
    - [Connection](#connection)
    - [Request Payload](#request-payload)
@@ -39,8 +40,8 @@
 
 Mistria AI exposes a FastAPI backend with:
 
-- **9 HTTP endpoints** for user management, companion preferences, and AI persona generation/CRUD.
-- **1 WebSocket endpoint** for real-time streamed chat with the AI companion.
+- **10 HTTP endpoints** for user management, companion preferences, AI persona generation, and memory debugging.
+- **1 WebSocket endpoint** for real-time streamed chat with long-term memory retrieval.
 
 All HTTP endpoints accept and return `application/json`. The WebSocket endpoint exchanges JSON text frames.
 
