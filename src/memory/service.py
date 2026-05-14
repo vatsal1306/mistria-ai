@@ -143,28 +143,8 @@ class MemoryService:
                         self.vector_store.delete_memory,
                         memory_id=existing.id
                     )
-                    self.event_sink.emit(MemoryEvent(
-                        event_type="memory_superseded",
-                        user_id=user_id,
-                        ai_companion_id=ai_companion_id,
-                        conversation_id=conversation_id,
-                        memory_id=new_id,
-                        memory_type=candidate.memory_type,
-                        importance=candidate.importance,
-                        confidence=candidate.confidence,
-                    ))
                 else:
                     created_count += 1
-                    self.event_sink.emit(MemoryEvent(
-                        event_type="memory_created",
-                        user_id=user_id,
-                        ai_companion_id=ai_companion_id,
-                        conversation_id=conversation_id,
-                        memory_id=new_id,
-                        memory_type=candidate.memory_type,
-                        importance=candidate.importance,
-                        confidence=candidate.confidence,
-                    ))
 
                 # 3. Sync to Vector Store
                 # Generate embedding for the new memory content
@@ -184,6 +164,19 @@ class MemoryService:
                     status="active",
                     vector=vector,
                 )
+
+                # 4. Emit events after full persistence (SQLite + Vector Store)
+                event_type = "memory_superseded" if existing else "memory_created"
+                self.event_sink.emit(MemoryEvent(
+                    event_type=event_type,
+                    user_id=user_id,
+                    ai_companion_id=ai_companion_id,
+                    conversation_id=conversation_id,
+                    memory_id=new_id,
+                    memory_type=candidate.memory_type,
+                    importance=candidate.importance,
+                    confidence=candidate.confidence,
+                ))
 
             except Exception as e:
                 failed_count += 1
