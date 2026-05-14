@@ -31,7 +31,11 @@ from src.memory.background import MemoryExtractionWorker
 from src.memory.embeddings import LocalEmbeddingProvider
 from src.memory.events import LoggingMemoryEventSink
 from src.memory.extraction import MemoryExtractionService
-from src.memory.schemas import DebugMemoryRetrieveRequest, DebugMemoryRetrieveResponse
+from src.memory.schemas import (
+    DebugMemoryRetrieveRequest,
+    DebugMemoryRetrieveResponse,
+    DebugMemoryListResponse,
+)
 from src.memory.service import MemoryService
 from src.memory.vector_store import QdrantVectorStore
 from src.storage.database import SQLiteDatabase
@@ -314,6 +318,44 @@ async def debug_memory_retrieve(payload: DebugMemoryRetrieveRequest) -> DebugMem
     return DebugMemoryRetrieveResponse(
         user_mail_id=payload.user_mail_id,
         ai_companion_id=payload.ai_companion_id,
+        memories=memories,
+    )
+
+
+@app.get("/debug/memory/{user_mail_id}/{ai_companion_id}", response_model=DebugMemoryListResponse)
+async def debug_memory_list(
+    user_mail_id: str,
+    ai_companion_id: int,
+    status_filter: str | None = Query("active", alias="status"),
+    memory_type: str | None = Query(None, alias="memory_type"),
+    limit: int = Query(50, ge=1, le=100),
+) -> DebugMemoryListResponse:
+    """Internal debug endpoint to list stored memories for a specific user and companion."""
+    if not settings.memory.debug_endpoint_enabled or not memory_service:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Endpoint disabled or memory system not configured"
+        )
+
+    user = user_repository.find_by_email(user_mail_id)
+    if not user:
+        raise CompanionNotFoundError("User not found.")
+
+    companion = ai_companion_repository.find_by_id(ai_companion_id)
+    if not companion or companion.user_id != user.id:
+        raise CompanionNotFoundError(f"Companion {ai_companion_id} not found or not owned by user.")
+
+    memories = await memory_service.list_memories(
+        user_id=user.id,
+        ai_companion_id=companion.id,
+        status=status_filter,
+        memory_type=memory_type,
+        limit=limit,
+    )
+
+    return DebugMemoryListResponse(
+        user_mail_id=user_mail_id,
+        ai_companion_id=ai_companion_id,
         memories=memories,
     )
 
