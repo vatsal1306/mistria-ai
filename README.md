@@ -50,7 +50,16 @@ MISTRIA_INFERENCE_MODEL_NAME=dphn/Dolphin3.0-Llama3.1-8B
 HF_TOKEN=optional-hugging-face-token
 ```
 
-To enable the long-term memory system (using Qdrant), add the following:
+### Memory-Disabled Mode (Default)
+
+To run the stack with only short-term conversation history (last 24 messages) and no vector storage, keep the default settings:
+- `MISTRIA_MEMORY_ENABLED=False` (or unset)
+- `MISTRIA_MEMORY_EXTRACTION_ENABLED=False` (or unset)
+- `COMPOSE_PROFILES=` (do **not** include `memory`)
+
+### Memory-Enabled Mode
+
+To enable the long-term memory system (using Qdrant), update your `.env` with:
 
 ```bash
 # Enable the core memory system and vector storage
