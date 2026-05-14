@@ -25,6 +25,11 @@ class BaseVectorStore(ABC):
         pass
 
     @abstractmethod
+    def recreate_collection(self, dimension: int) -> None:
+        """Delete and recreate the vector collection."""
+        pass
+
+    @abstractmethod
     def upsert_memory(
         self,
         memory_id: int,
@@ -122,6 +127,25 @@ class QdrantVectorStore(BaseVectorStore):
                 else:
                     logger.error("Failed to connect to Qdrant after %d attempts: %s", max_retries, e)
                     raise ConfigurationError(f"Failed to connect to Qdrant at {self.url} after {max_retries} attempts: {e}") from e
+
+    def recreate_collection(self, dimension: int) -> None:
+        client = self._get_client()
+        if not client:
+            return
+
+        from qdrant_client.models import Distance, VectorParams
+        from src.backend.exceptions import ConfigurationError
+
+        logger.warning("Recreating Qdrant collection '%s' with dimension %d.", self.collection_name, dimension)
+        try:
+            client.delete_collection(collection_name=self.collection_name)
+            client.create_collection(
+                collection_name=self.collection_name,
+                vectors_config=VectorParams(size=dimension, distance=Distance.COSINE),
+            )
+        except Exception as e:
+            logger.error("Failed to recreate Qdrant collection: %s", e)
+            raise ConfigurationError(f"Failed to recreate Qdrant collection '{self.collection_name}': {e}") from e
 
     def upsert_memory(
         self,
@@ -227,6 +251,10 @@ class NoOpVectorStore(BaseVectorStore):
     """A disabled vector store that does nothing safely."""
 
     def bootstrap_collection(self, dimension: int) -> None:
+        """Do nothing since this is a no-op store."""
+        pass
+
+    def recreate_collection(self, dimension: int) -> None:
         """Do nothing since this is a no-op store."""
         pass
 
