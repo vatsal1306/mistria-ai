@@ -57,8 +57,13 @@ To enable the long-term memory system (using Qdrant), add the following:
 MISTRIA_MEMORY_ENABLED=True
 # Enable asynchronous background extraction of memories from chat
 MISTRIA_MEMORY_EXTRACTION_ENABLED=True
-# Optional: Use a local embedding model instead of deterministic stubs
-MISTRIA_MEMORY_EMBEDDING_PROVIDER=local
+# Qdrant connection settings
+MISTRIA_MEMORY_QDRANT_URL=http://localhost:6333
+MISTRIA_MEMORY_QDRANT_COLLECTION=mistria_memories
+# Embedding model name (used by SentenceTransformers if provider is local)
+MISTRIA_MEMORY_EMBEDDING_MODEL_NAME=all-MiniLM-L6-v2
+# Enable the POST /debug/memory/retrieve endpoint
+MISTRIA_MEMORY_DEBUG_ENDPOINT_ENABLED=True
 # Required: activate the memory profile to start the Qdrant container
 COMPOSE_PROFILES=memory
 ```
@@ -165,7 +170,7 @@ Compose uses named volumes:
 - `mistria_logs`: application logs at `/app/Logs`.
 - `mistria_hf_cache`: Hugging Face model cache at `/app/.cache/huggingface`.
 - `mistria_qdrant_data`: Qdrant vector storage at `/qdrant/storage` (only used when `COMPOSE_PROFILES=memory` is set).
-- `mistria_embeddings_cache`: Local embedding model cache (if using `MISTRIA_MEMORY_EMBEDDING_PROVIDER=local`).
+- `mistria_embeddings_cache`: Local embedding model cache (used when `MISTRIA_MEMORY_ENABLED=True`).
 
 Container stdout/stderr is handled by Docker's `json-file` logging driver with rotation enabled.
 
