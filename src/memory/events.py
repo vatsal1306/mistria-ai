@@ -1,7 +1,7 @@
 """Internal event system for memory-related actions."""
 
 from datetime import datetime, timezone
-from typing import Optional, Protocol
+from typing import Literal, Optional, Protocol
 
 from pydantic import BaseModel, Field
 
@@ -9,11 +9,20 @@ from src.Logging import get_logger
 
 logger = get_logger(__name__)
 
+MemoryEventType = Literal[
+    "memory_candidate_extracted",
+    "memory_created",
+    "memory_superseded",
+    "memory_retrieved",
+    "high_importance_preference_saved",
+    "emotional_memory_saved",
+]
+
 
 class MemoryEvent(BaseModel):
     """Base payload for all memory-related internal events."""
 
-    event_type: str
+    event_type: MemoryEventType
     user_id: int
     ai_companion_id: int
     conversation_id: Optional[int] = None

@@ -33,7 +33,7 @@ def test_memory_event_payload():
 def test_noop_sink():
     """Verify NoOp sink does not crash."""
     sink = NoOpMemoryEventSink()
-    event = MemoryEvent(event_type="test", user_id=1, ai_companion_id=1)
+    event = MemoryEvent(event_type="memory_created", user_id=1, ai_companion_id=1)
     sink.emit(event)  # Should just do nothing
 
 def test_logging_sink():
@@ -119,6 +119,40 @@ def test_memory_service_emits_events(monkeypatch):
     assert retrieval_call.event_type == "memory_retrieved"
     assert retrieval_call.importance == 4
     assert retrieval_call.conversation_id == 555
+    assert retrieval_call.memory_id == 123
+
+    # 3. Test store_memories (superseding)
+    mock_sink.emit.reset_mock()
+    mock_repo.find_active_by_canonical_key.return_value = MagicMock(id=99, content="old")
+    mock_repo.create_memory.return_value = MagicMock(id=124)
+    
+    candidate = MemoryExtraction(
+        should_remember=True,
+        memory_type="preference",
+        canonical_key="test_key",
+        content="new content",
+        importance=5,
+        confidence=0.8,
+        reason="update"
+    )
+    
+    asyncio.run(service.store_memories(
+        user_id=1,
+        ai_companion_id=2,
+        conversation_id=3,
+        message_id=4,
+        extracted_memories=[candidate]
+    ))
+    
+    mock_sink.emit.assert_called()
+    superseded_call = mock_sink.emit.call_args[0][0]
+    assert superseded_call.event_type == "memory_superseded"
+    assert superseded_call.memory_id == 124
+    assert superseded_call.importance == 5
+    assert superseded_call.confidence == 0.8
+    assert superseded_call.user_id == 1
+    assert superseded_call.ai_companion_id == 2
+    assert superseded_call.conversation_id == 3
 
 def test_worker_emits_events():
     """Verify MemoryExtractionWorker emits memory_candidate_extracted."""
