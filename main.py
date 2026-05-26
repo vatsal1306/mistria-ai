@@ -1,6 +1,8 @@
 """FastAPI entrypoint for chat transport and companion management APIs."""
 
 from contextlib import asynccontextmanager
+from typing import Literal
+
 
 import uvicorn
 from fastapi import FastAPI, Query, WebSocket, status, HTTPException
@@ -326,8 +328,8 @@ async def debug_memory_retrieve(payload: DebugMemoryRetrieveRequest) -> DebugMem
 async def debug_memory_list(
     user_mail_id: str,
     ai_companion_id: int,
-    status_filter: str | None = Query("active", alias="status"),
-    memory_type: str | None = Query(None, alias="memory_type"),
+    status_filter: Literal["active", "superseded", "archived", "all"] = Query("active", alias="status"),
+    memory_type: Literal["fact", "preference", "pattern", "emotional"] | None = Query(None, alias="memory_type"),
     limit: int = Query(50, ge=1, le=100),
 ) -> DebugMemoryListResponse:
     """Internal debug endpoint to list stored memories for a specific user and companion."""

@@ -125,3 +125,35 @@ async def test_debug_memory_list_filters(api_client, mock_user, mock_companion):
             memory_type="fact",
             limit=10
         )
+
+
+@pytest.mark.anyio
+async def test_debug_memory_list_invalid_validation(api_client, mock_user, mock_companion):
+    """Verify that invalid or blank values for status or memory_type trigger 422 validation errors."""
+    mock_s = mock.Mock()
+    mock_s.memory.debug_endpoint_enabled = True
+    mock_s.memory.enabled = True
+    with mock.patch("main.settings", new=mock_s), \
+         mock.patch("main.memory_service", new=mock.Mock()), \
+         mock.patch("main.user_repository") as mock_user_repo, \
+         mock.patch("main.ai_companion_repository") as mock_comp_repo:
+        
+        mock_user_repo.find_by_email.return_value = mock_user
+        mock_comp_repo.find_by_id.return_value = mock_companion
+
+        # Invalid status
+        response = api_client.get("/debug/memory/debug@example.com/10?status=invalid")
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+        # Empty status
+        response = api_client.get("/debug/memory/debug@example.com/10?status=")
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+        # Invalid memory type
+        response = api_client.get("/debug/memory/debug@example.com/10?memory_type=invalid")
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+        # Empty memory type
+        response = api_client.get("/debug/memory/debug@example.com/10?memory_type=")
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
