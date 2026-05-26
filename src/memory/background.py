@@ -107,49 +107,58 @@ class MemoryExtractionWorker:
         recent_messages: list[ChatMessage] | None,
     ) -> None:
         """Execute a single extraction-and-store cycle."""
+        from src.memory.timing import timed_operation
+
         try:
-            logger.info(
-                "Extraction job started user_id=%d conversation_id=%d message_id=%d",
-                user_id, conversation_id, message_id,
-            )
-            candidates = await self.extraction_service.extract_memories(
+            with timed_operation(
+                "extraction_job",
                 user_id=user_id,
                 ai_companion_id=ai_companion_id,
-                conversation_id=conversation_id,
-                message_id=message_id,
-                message_content=message_content,
-                recent_messages=recent_messages,
-            )
-
-            if not candidates:
+            ) as job_timer:
                 logger.info(
-                    "Extraction job completed with no candidates user_id=%d message_id=%d",
-                    user_id, message_id,
+                    "Extraction job started user_id=%d conversation_id=%d message_id=%d",
+                    user_id, conversation_id, message_id,
                 )
-                return
-
-            for candidate in candidates:
-                self.memory_service.event_sink.emit(MemoryEvent(
-                    event_type="memory_candidate_extracted",
+                candidates = await self.extraction_service.extract_memories(
                     user_id=user_id,
                     ai_companion_id=ai_companion_id,
                     conversation_id=conversation_id,
-                    memory_type=candidate.memory_type,
-                    importance=candidate.importance,
-                    confidence=candidate.confidence,
-                ))
+                    message_id=message_id,
+                    message_content=message_content,
+                    recent_messages=recent_messages,
+                )
 
-            outcome = await self.memory_service.store_memories(
-                user_id=user_id,
-                ai_companion_id=ai_companion_id,
-                conversation_id=conversation_id,
-                message_id=message_id,
-                extracted_memories=candidates,
-            )
-            logger.info(
-                "Extraction job succeeded user_id=%d message_id=%d candidates=%d created=%d superseded=%d failed=%d",
-                user_id, message_id, len(candidates), outcome.created_count, outcome.superseded_count, outcome.failed_count,
-            )
+                if not candidates:
+                    logger.info(
+                        "Extraction job completed with no candidates user_id=%d message_id=%d",
+                        user_id, message_id,
+                    )
+                    job_timer.count = 0
+                    return
+
+                for candidate in candidates:
+                    self.memory_service.event_sink.emit(MemoryEvent(
+                        event_type="memory_candidate_extracted",
+                        user_id=user_id,
+                        ai_companion_id=ai_companion_id,
+                        conversation_id=conversation_id,
+                        memory_type=candidate.memory_type,
+                        importance=candidate.importance,
+                        confidence=candidate.confidence,
+                    ))
+
+                outcome = await self.memory_service.store_memories(
+                    user_id=user_id,
+                    ai_companion_id=ai_companion_id,
+                    conversation_id=conversation_id,
+                    message_id=message_id,
+                    extracted_memories=candidates,
+                )
+                job_timer.count = len(candidates)
+                logger.info(
+                    "Extraction job succeeded user_id=%d message_id=%d candidates=%d created=%d superseded=%d failed=%d",
+                    user_id, message_id, len(candidates), outcome.created_count, outcome.superseded_count, outcome.failed_count,
+                )
         except Exception:
             logger.exception(
                 "Extraction job failed user_id=%d conversation_id=%d message_id=%d",
@@ -157,3 +166,4 @@ class MemoryExtractionWorker:
             )
         finally:
             self._pending -= 1
+

@@ -99,12 +99,18 @@ class ChatService:
         memory_block = ""
         if self.memory_service:
             try:
-                memories = await self.memory_service.retrieve_memories(
+                from src.memory.timing import timed_operation
+                with timed_operation(
+                    "chat_memory_retrieval",
                     user_id=internal_user_id,
                     ai_companion_id=request.ai_companion_id,
-                    query=request.user_message,
-                    conversation_id=conversation.id
-                )
+                ):
+                    memories = await self.memory_service.retrieve_memories(
+                        user_id=internal_user_id,
+                        ai_companion_id=request.ai_companion_id,
+                        query=request.user_message,
+                        conversation_id=conversation.id
+                    )
 
                 if memories:
                     memory_block = render_memory_prompt(memories)
