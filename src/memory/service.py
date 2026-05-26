@@ -352,4 +352,22 @@ class MemoryService:
 
         return top_results
 
+    async def list_memories(
+        self,
+        user_id: int,
+        ai_companion_id: int,
+        status: str | None = "active",
+        memory_type: str | None = None,
+        limit: int = 50,
+    ) -> list[MemoryRecord]:
+        """List stored memories for a specific user and companion (debug use)."""
+        return await asyncio.to_thread(
+            self.repository.list_memories,
+            user_id=user_id,
+            ai_companion_id=ai_companion_id,
+            status=status,
+            memory_type=memory_type,
+            limit=limit,
+        )
+
 

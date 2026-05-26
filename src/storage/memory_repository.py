@@ -65,6 +65,17 @@ class MemoryRepository(ABC):
     ) -> list[MemoryRecord]:
         """List all active memories across the entire system with optional filtering."""
 
+    @abstractmethod
+    def list_memories(
+        self,
+        user_id: int,
+        ai_companion_id: int,
+        status: str | None = "active",
+        memory_type: str | None = None,
+        limit: int = 50,
+    ) -> list[MemoryRecord]:
+        """List memories with various filters for a specific scope."""
+
 
 class SQLiteMemoryRepository(MemoryRepository):
     """SQLite-backed implementation of the memory repository."""
@@ -239,6 +250,34 @@ class SQLiteMemoryRepository(MemoryRepository):
         if limit is not None:
             query += " LIMIT ?"
             params.append(limit)
+
+        with self.database.connection() as connection:
+            rows = connection.execute(query, tuple(params)).fetchall()
+
+        return [self._row_to_record(dict(row)) for row in rows]
+
+    def list_memories(
+        self,
+        user_id: int,
+        ai_companion_id: int,
+        status: str | None = "active",
+        memory_type: str | None = None,
+        limit: int = 50,
+    ) -> list[MemoryRecord]:
+        """List memories with various filters for a specific scope."""
+        query = "SELECT * FROM memories WHERE user_id = ? AND ai_companion_id = ?"
+        params = [user_id, ai_companion_id]
+
+        if status and status != "all":
+            query += " AND status = ?"
+            params.append(status)
+        
+        if memory_type:
+            query += " AND memory_type = ?"
+            params.append(memory_type)
+
+        query += " ORDER BY updated_at DESC, id DESC LIMIT ?"
+        params.append(limit)
 
         with self.database.connection() as connection:
             rows = connection.execute(query, tuple(params)).fetchall()
