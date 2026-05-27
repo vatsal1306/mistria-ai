@@ -58,6 +58,10 @@ def test_memory_service_emits_events(monkeypatch):
     
     mock_config = MagicMock()
     mock_config.enabled = True
+    mock_config.retrieval_timeout_seconds = 3.0
+    mock_config.retrieval_top_k = 5
+    mock_config.retrieval_min_score = 0.35
+    mock_config.raw_content_logging_enabled = True
     mock_repo = MagicMock()
     mock_vector = MagicMock()
     mock_embed = MagicMock()

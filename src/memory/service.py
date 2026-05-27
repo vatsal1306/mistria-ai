@@ -11,6 +11,7 @@ from src.config import Memory
 from src.memory.events import MemoryEvent, MemoryEventSink, NoOpMemoryEventSink
 from src.memory.embeddings import BaseEmbeddingProvider
 from src.memory.schemas import MemoryExtraction, MemorySearchResult, MemoryStoreOutcome
+from src.memory.timing import timed_operation
 from src.memory.vector_store import BaseVectorStore
 from src.storage.memory_repository import MemoryRepository
 
@@ -203,146 +204,178 @@ class MemoryService:
         conversation_id: int | None = None,
     ) -> list[MemorySearchResult]:
         """Retrieve relevant memories using a hybrid of semantic and keyword search.
-        
+
+        The entire retrieval pipeline is guarded by ``retrieval_timeout_seconds``.
+        If the timeout is exceeded, an empty list is returned and a warning is
+        logged so that chat generation can proceed without memory context.
+
         Args:
             user_id: The ID of the user.
             ai_companion_id: The ID of the companion persona.
             query: The search query (usually the latest user message).
-            
+
         Returns:
             A list of ranked MemorySearchResult objects.
         """
         if not self.config.enabled:
             return []
 
-        logger.info(
-            "Retrieval started user_id=%d companion_id=%d",
-            user_id, ai_companion_id,
-        )
-        if self.config.raw_content_logging_enabled:
-            logger.debug("Retrieval query content=%r", query)
-
-        # 1. Semantic Search (Qdrant)
-        semantic_results = []
+        timeout = self.config.retrieval_timeout_seconds
         try:
-            vector = await asyncio.to_thread(self.embedding_provider.embed_text, query)
-            semantic_results = await asyncio.to_thread(
-                self.vector_store.search,
-                user_id=user_id,
-                ai_companion_id=ai_companion_id,
-                query_vector=vector,
-                limit=self.config.retrieval_top_k * 2,
+            return await asyncio.wait_for(
+                self._retrieve_memories_inner(user_id, ai_companion_id, query, conversation_id),
+                timeout=timeout,
             )
-        except Exception as e:
-            logger.error("Semantic search failed during memory retrieval: %s", e)
-
-        # 2. Keyword Search (SQLite)
-        keyword_records = []
-        try:
-            keyword_records = await asyncio.to_thread(
-                self.repository.keyword_search,
-                user_id=user_id,
-                ai_companion_id=ai_companion_id,
-                query=query,
-                limit=self.config.retrieval_top_k * 2,
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Memory retrieval timed out after %.1fs — continuing without memory "
+                "user_id=%d companion_id=%d",
+                timeout, user_id, ai_companion_id,
             )
-        except Exception as e:
-            logger.error("Keyword search failed during memory retrieval: %s", e)
+            return []
 
-        # 3. Merge and Score
-        candidate_ids = set([r.memory_id for r in semantic_results] + [r.id for r in keyword_records])
-        scored_results = []
+    async def _retrieve_memories_inner(
+        self,
+        user_id: int,
+        ai_companion_id: int,
+        query: str,
+        conversation_id: int | None = None,
+    ) -> list[MemorySearchResult]:
+        """Core retrieval pipeline with per-step timing instrumentation."""
+        scope = dict(user_id=user_id, ai_companion_id=ai_companion_id)
+        warn_ms = self.config.retrieval_timeout_seconds * 1000 * 0.8  # 80% of timeout
 
-        for mid in candidate_ids:
-            # Get full record (prefer existing keyword record to avoid extra DB call)
-            record = next((r for r in keyword_records if r.id == mid), None)
-            if not record:
-                record = await asyncio.to_thread(self.repository.find_by_id, mid)
+        with timed_operation("memory_retrieval_total", **scope, warn_threshold_ms=warn_ms) as total_timer:
+            logger.info(
+                "Retrieval started user_id=%d companion_id=%d",
+                user_id, ai_companion_id,
+            )
+            if self.config.raw_content_logging_enabled:
+                logger.debug("Retrieval query content=%r", query)
 
-            if not record or record.status != "active":
-                continue
+            # 1. Embedding generation
+            vector = None
+            with timed_operation("embedding_generation", **scope) as embed_timer:
+                try:
+                    vector = await asyncio.to_thread(self.embedding_provider.embed_text, query)
+                except Exception as e:
+                    logger.error("Embedding generation failed: %s", e)
 
-            # Ensure isolation
-            if record.user_id != user_id or record.ai_companion_id != ai_companion_id:
-                continue
+            # 2. Semantic Search (Qdrant)
+            semantic_results = []
+            if vector is not None:
+                with timed_operation("qdrant_search", **scope) as qdrant_timer:
+                    try:
+                        semantic_results = await asyncio.to_thread(
+                            self.vector_store.search,
+                            user_id=user_id,
+                            ai_companion_id=ai_companion_id,
+                            query_vector=vector,
+                            limit=self.config.retrieval_top_k * 2,
+                        )
+                        qdrant_timer.count = len(semantic_results)
+                    except Exception as e:
+                        logger.error("Semantic search failed during memory retrieval: %s", e)
 
-            # Scoring factors
-            semantic_score = next((r.score for r in semantic_results if r.memory_id == mid), 0.0)
-            keyword_hit = any(r.id == mid for r in keyword_records)
+            # 3. Keyword Search (SQLite)
+            keyword_records = []
+            with timed_operation("keyword_search", **scope) as kw_timer:
+                try:
+                    keyword_records = await asyncio.to_thread(
+                        self.repository.keyword_search,
+                        user_id=user_id,
+                        ai_companion_id=ai_companion_id,
+                        query=query,
+                        limit=self.config.retrieval_top_k * 2,
+                    )
+                    kw_timer.count = len(keyword_records)
+                except Exception as e:
+                    logger.error("Keyword search failed during memory retrieval: %s", e)
 
-            # Base score calculation
-            # Semantic score is naturally 0.0-1.0. Keyword hit gets a base relevance.
-            base_score = semantic_score
-            if keyword_hit:
-                base_score = max(base_score, 0.5)
-                if semantic_score > 0:
-                    base_score += 0.2  # Hybrid bonus
+            # 4. Merge and Score
+            with timed_operation("hybrid_merge", **scope) as merge_timer:
+                candidate_ids = set([r.memory_id for r in semantic_results] + [r.id for r in keyword_records])
+                scored_results = []
 
-            # Apply multipliers
-            final_score = base_score
-            final_score *= (0.5 + (record.importance / 10.0))  # Range 0.6 to 1.0
-            final_score *= record.confidence
+                for mid in candidate_ids:
+                    record = next((r for r in keyword_records if r.id == mid), None)
+                    if not record:
+                        record = await asyncio.to_thread(self.repository.find_by_id, mid)
 
-            # Recency decay (Monthly)
-            try:
-                # SQLite timestamps are UTC strings, potentially naive
-                ts_str = record.updated_at
-                updated_at = datetime.fromisoformat(ts_str)
-                if updated_at.tzinfo is None:
-                    updated_at = updated_at.replace(tzinfo=timezone.utc)
-                
-                now = datetime.now(timezone.utc)
-                days_old = (now - updated_at).days
-                recency_multiplier = 1.0 / (1.0 + (max(0, days_old) / 30.0))
-                final_score *= recency_multiplier
-            except Exception as e:
-                logger.debug("Failed to calculate recency for memory %d: %s", mid, e)
+                    if not record or record.status != "active":
+                        continue
 
-            # Filter by threshold
-            if final_score >= self.config.retrieval_min_score:
-                # Determine source label
-                if semantic_score > 0 and keyword_hit:
-                    source: Literal["semantic", "keyword", "hybrid"] = "hybrid"
-                elif semantic_score > 0:
-                    source = "semantic"
-                else:
-                    source = "keyword"
+                    if record.user_id != user_id or record.ai_companion_id != ai_companion_id:
+                        continue
 
-                scored_results.append(MemorySearchResult(
-                    memory_id=record.id,
-                    memory_type=record.memory_type,
-                    content=record.content,
-                    canonical_key=record.canonical_key,
-                    score=min(final_score, 1.0),
-                    importance=record.importance,
-                    source=source
+                    semantic_score = next((r.score for r in semantic_results if r.memory_id == mid), 0.0)
+                    keyword_hit = any(r.id == mid for r in keyword_records)
+
+                    base_score = semantic_score
+                    if keyword_hit:
+                        base_score = max(base_score, 0.5)
+                        if semantic_score > 0:
+                            base_score += 0.2  # Hybrid bonus
+
+                    final_score = base_score
+                    final_score *= (0.5 + (record.importance / 10.0))
+                    final_score *= record.confidence
+
+                    try:
+                        ts_str = record.updated_at
+                        updated_at = datetime.fromisoformat(ts_str)
+                        if updated_at.tzinfo is None:
+                            updated_at = updated_at.replace(tzinfo=timezone.utc)
+                        now = datetime.now(timezone.utc)
+                        days_old = (now - updated_at).days
+                        recency_multiplier = 1.0 / (1.0 + (max(0, days_old) / 30.0))
+                        final_score *= recency_multiplier
+                    except Exception as e:
+                        logger.debug("Failed to calculate recency for memory %d: %s", mid, e)
+
+                    if final_score >= self.config.retrieval_min_score:
+                        if semantic_score > 0 and keyword_hit:
+                            source: Literal["semantic", "keyword", "hybrid"] = "hybrid"
+                        elif semantic_score > 0:
+                            source = "semantic"
+                        else:
+                            source = "keyword"
+
+                        scored_results.append(MemorySearchResult(
+                            memory_id=record.id,
+                            memory_type=record.memory_type,
+                            content=record.content,
+                            canonical_key=record.canonical_key,
+                            score=min(final_score, 1.0),
+                            importance=record.importance,
+                            source=source
+                        ))
+
+                merge_timer.count = len(scored_results)
+
+            # 5. Finalize and mark retrieval
+            scored_results.sort(key=lambda x: x.score, reverse=True)
+            top_results = scored_results[:self.config.retrieval_top_k]
+
+            for res in top_results:
+                try:
+                    await asyncio.to_thread(self.repository.mark_retrieved, res.memory_id)
+                except Exception as e:
+                    logger.warning("Failed to mark memory %d as retrieved: %s", res.memory_id, e)
+
+                self.event_sink.emit(MemoryEvent(
+                    event_type="memory_retrieved",
+                    user_id=user_id,
+                    ai_companion_id=ai_companion_id,
+                    conversation_id=conversation_id,
+                    memory_id=res.memory_id,
+                    memory_type=res.memory_type,
+                    importance=res.importance,
+                    confidence=res.score,
                 ))
 
-        # 4. Finalize and mark retrieval
-        scored_results.sort(key=lambda x: x.score, reverse=True)
-        top_results = scored_results[:self.config.retrieval_top_k]
+            total_timer.count = len(top_results)
 
-        for res in top_results:
-            try:
-                await asyncio.to_thread(self.repository.mark_retrieved, res.memory_id)
-            except Exception as e:
-                logger.warning("Failed to mark memory %d as retrieved: %s", res.memory_id, e)
-
-            self.event_sink.emit(MemoryEvent(
-                event_type="memory_retrieved",
-                user_id=user_id,
-                ai_companion_id=ai_companion_id,
-                conversation_id=conversation_id,
-                memory_id=res.memory_id,
-                memory_type=res.memory_type,
-                importance=res.importance,
-                confidence=res.score,  # Using score as confidence for retrieval
-            ))
-
-        logger.info(
-            "Retrieval completed user_id=%d companion_id=%d results=%d",
-            user_id, ai_companion_id, len(top_results),
-        )
         if self.config.raw_content_logging_enabled:
             for res in top_results:
                 logger.debug(

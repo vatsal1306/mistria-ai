@@ -168,6 +168,7 @@ class Memory:
     embedding_model_name: str = _get_str("MISTRIA_MEMORY_EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
     retrieval_top_k: int = _get_int("MISTRIA_MEMORY_RETRIEVAL_TOP_K", 5)
     retrieval_min_score: float = _get_float("MISTRIA_MEMORY_RETRIEVAL_MIN_SCORE", 0.35)
+    retrieval_timeout_seconds: float = _get_float("MISTRIA_MEMORY_RETRIEVAL_TIMEOUT_SECONDS", 3.0)
     raw_content_logging_enabled: bool = _get_bool("MISTRIA_MEMORY_RAW_CONTENT_LOGGING_ENABLED", True)
     extraction_enabled: bool = _get_bool("MISTRIA_MEMORY_EXTRACTION_ENABLED", False)
     debug_endpoint_enabled: bool = _get_bool("MISTRIA_MEMORY_DEBUG_ENDPOINT_ENABLED", False)
