@@ -57,57 +57,73 @@ TraitVector = dict[TraitKey, float]
 
 ARCHETYPE_TARGET_VECTORS: Final[dict[ArchetypeId, TraitVector]] = {
     "soulmate": {
-        "power": 0.3,
-        "pace": 0.3,
-        "intensity": 0.3,
-        "depth": 0.9,
-        "soft": 0.9,
-        "freedom": 0.3,
-        "sharp": 0.1,
+        "power": -1.0,
+        "pace": -2.0,
+        "intensity": 1.0,
+        "depth": 3.0,
+        "soft": 3.0,
+        "freedom": 0.0,
+        "sharp": 0.0,
     },
     "protector": {
-        "power": 0.8,
-        "pace": 0.4,
-        "intensity": 0.6,
-        "depth": 0.7,
-        "soft": 0.6,
-        "freedom": 0.2,
-        "sharp": 0.4,
+        "power": 2.0,
+        "pace": -1.0,
+        "intensity": 1.0,
+        "depth": 1.0,
+        "soft": 2.0,
+        "freedom": 0.0,
+        "sharp": 0.0,
     },
     "devotee": {
-        "power": 0.2,
-        "pace": 0.3,
-        "intensity": 0.7,
-        "depth": 0.8,
-        "soft": 0.8,
-        "freedom": 0.2,
-        "sharp": 0.2,
+        "power": -1.0,
+        "pace": 1.0,
+        "intensity": 3.0,
+        "depth": 3.0,
+        "soft": 1.0,
+        "freedom": 0.0,
+        "sharp": 1.0,
     },
     "muse": {
-        "power": 0.5,
-        "pace": 0.7,
-        "intensity": 0.5,
-        "depth": 0.4,
-        "soft": 0.5,
-        "freedom": 0.8,
-        "sharp": 0.6,
+        "power": 0.0,
+        "pace": 1.0,
+        "intensity": 2.0,
+        "depth": 1.0,
+        "soft": 1.0,
+        "freedom": 3.0,
+        "sharp": 1.0,
     },
     "rebel": {
-        "power": 0.9,
-        "pace": 0.8,
-        "intensity": 0.9,
-        "depth": 0.3,
-        "soft": 0.1,
-        "freedom": 0.9,
-        "sharp": 0.9,
+        "power": 3.0,
+        "pace": 2.0,
+        "intensity": 3.0,
+        "depth": 0.0,
+        "soft": -3.0,
+        "freedom": 1.0,
+        "sharp": 4.0,
     },
 }
 
 # ---------------------------------------------------------------------------
+# Tie-break priority order
+#
+# If similarity scores match closely, ties are resolved using the archetype's
+# score on its strongest trait dimensions in this order.
+# ---------------------------------------------------------------------------
+
+TIEBREAK_TRAIT_PRIORITY: Final[tuple[TraitKey, ...]] = (
+    "depth",
+    "intensity",
+    "sharp",
+    "soft",
+    "freedom",
+    "power",
+    "pace",
+)
+
+# ---------------------------------------------------------------------------
 # Tie-break order
 #
-# When two or more archetypes produce the same score, the one appearing
-# earlier in this tuple wins.  This keeps results fully deterministic.
+# Fallback deterministic order when trait comparisons are also tied.
 # ---------------------------------------------------------------------------
 
 TIE_BREAK_ORDER: Final[tuple[ArchetypeId, ...]] = (
@@ -129,7 +145,7 @@ class ArchetypeScoreResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     archetype_id: ArchetypeId
-    score: float = Field(ge=0.0, le=1.0)
+    score: float = Field(ge=-1.0, le=1.0)
 
 
 class ArchetypeResult(BaseModel):

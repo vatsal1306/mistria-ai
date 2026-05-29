@@ -11,6 +11,7 @@ from src.archetypes.contracts import (
     ArchetypeResult,
     ArchetypeScoreResult,
     TIE_BREAK_ORDER,
+    TIEBREAK_TRAIT_PRIORITY,
     TRAIT_KEYS,
 )
 
@@ -30,10 +31,10 @@ class TestCanonicalConstants:
             )
 
     def test_target_vector_values_in_range(self):
-        """All target vector values must be in [0.0, 1.0]."""
+        """All target vector values must be in [-3.0, 4.0]."""
         for archetype_id, vector in ARCHETYPE_TARGET_VECTORS.items():
             for key, value in vector.items():
-                assert 0.0 <= value <= 1.0, (
+                assert -3.0 <= value <= 4.0, (
                     f"{archetype_id}.{key} = {value} is out of range"
                 )
 
@@ -41,6 +42,11 @@ class TestCanonicalConstants:
         """Tie-break order must be a permutation of the archetype IDs."""
         assert set(TIE_BREAK_ORDER) == set(ARCHETYPE_IDS)
         assert len(TIE_BREAK_ORDER) == len(ARCHETYPE_IDS)
+
+    def test_tiebreak_trait_priority_covers_all_traits(self):
+        """Tiebreak trait priority must be a permutation of canonical trait keys."""
+        assert set(TIEBREAK_TRAIT_PRIORITY) == set(TRAIT_KEYS)
+        assert len(TIEBREAK_TRAIT_PRIORITY) == len(TRAIT_KEYS)
 
     def test_no_duplicate_archetype_ids(self):
         """No duplicate entries in the canonical tuples."""
@@ -59,20 +65,20 @@ class TestArchetypeScoreResult:
     """Verify ArchetypeScoreResult validation."""
 
     def test_valid_score(self):
-        """Accept a score in [0.0, 1.0]."""
-        result = ArchetypeScoreResult(archetype_id="rebel", score=0.75)
+        """Accept a score in [-1.0, 1.0]."""
+        result = ArchetypeScoreResult(archetype_id="rebel", score=-0.75)
         assert result.archetype_id == "rebel"
-        assert result.score == 0.75
+        assert result.score == -0.75
 
     def test_rejects_score_above_one(self):
         """Reject scores above 1.0."""
         with pytest.raises(ValidationError):
             ArchetypeScoreResult(archetype_id="muse", score=1.5)
 
-    def test_rejects_negative_score(self):
-        """Reject negative scores."""
+    def test_rejects_score_below_minus_one(self):
+        """Reject scores below -1.0."""
         with pytest.raises(ValidationError):
-            ArchetypeScoreResult(archetype_id="muse", score=-0.1)
+            ArchetypeScoreResult(archetype_id="muse", score=-1.5)
 
     def test_rejects_invalid_archetype_id(self):
         """Reject unknown archetype IDs."""
