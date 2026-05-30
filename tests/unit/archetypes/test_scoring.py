@@ -291,11 +291,10 @@ class TestBlendActivation:
         """Blend metadata must not change the primary archetype assignment."""
         result = score_trait_vector(NEAR_BOUNDARY_VECTOR)
 
-        # Primary is still the top scorer regardless of blend
-        all_sorted = sorted(
-            result.all_scores.items(), key=lambda x: -x[1]
-        )
-        assert result.primary_archetype == all_sorted[0][0]
+        # Primary is still the top ranked archetype in the ordered all_scores
+        ordered_archetypes = list(result.all_scores.keys())
+        assert result.primary_archetype == ordered_archetypes[0]
+        assert result.secondary_archetype == ordered_archetypes[1]
 
     def test_blend_metadata_is_metadata_only(self):
         """secondary_archetype and blend_active are metadata — not a routing override."""
