@@ -154,17 +154,19 @@ def _resolve_tiebreak(
     if len(tied) <= 1:
         return candidates
 
-    def _sort_key(item: tuple[ArchetypeId, float]) -> tuple:
-        aid, sim = item
+    untied = candidates[len(tied):]
+
+    def _tiebreak_key(item: tuple[ArchetypeId, float]) -> tuple:
+        aid, _ = item
         target = ARCHETYPE_TARGET_VECTORS[aid]
         trait_scores = tuple(
             -abs(target[t]) for t in TIEBREAK_TRAIT_PRIORITY
         )
         fallback = TIE_BREAK_ORDER.index(aid)
-        return (-sim, trait_scores, fallback)
+        return (trait_scores, fallback)
 
-    candidates.sort(key=_sort_key)
-    return candidates
+    tied.sort(key=_tiebreak_key)
+    return tied + untied
 
 
 def score_trait_vector(trait_vector: dict[str, float]) -> ScoringResult:
