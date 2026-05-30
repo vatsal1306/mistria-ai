@@ -132,3 +132,72 @@ class TestArchetypeResult:
                 onboarding_pathway="slow_burn",
                 extra_field="nope",
             )
+
+
+class TestTraitVectorValidation:
+    """Verify TraitVector enforcement on ArchetypeResult.trait_vector."""
+
+    def _make_scores(self) -> list[ArchetypeScoreResult]:
+        return [
+            ArchetypeScoreResult(archetype_id=aid, score=round(i * 0.2, 1))
+            for i, aid in enumerate(ARCHETYPE_IDS)
+        ]
+
+    def _build(self, trait_vector: dict) -> ArchetypeResult:
+        """Helper to construct an ArchetypeResult with the given trait vector."""
+        return ArchetypeResult(
+            matched_archetype="soulmate",
+            scores=self._make_scores(),
+            trait_vector=trait_vector,
+            onboarding_pathway="slow_burn",
+        )
+
+    def test_accepts_complete_valid_vector(self):
+        """Accept a trait vector with all seven canonical keys and valid values."""
+        result = self._build({k: 1.5 for k in TRAIT_KEYS})
+        assert set(result.trait_vector.keys()) == set(TRAIT_KEYS)
+
+    def test_accepts_negative_values(self):
+        """Accept negative values within bounds."""
+        result = self._build({k: -5.0 for k in TRAIT_KEYS})
+        assert result.trait_vector["power"] == -5.0
+
+    def test_rejects_missing_keys(self):
+        """Reject a trait vector that omits canonical keys."""
+        with pytest.raises(ValidationError, match="missing trait keys"):
+            self._build({"power": 1.0})
+
+    def test_rejects_extra_keys(self):
+        """Reject a trait vector with non-canonical keys."""
+        vector = {k: 0.5 for k in TRAIT_KEYS}
+        vector["charisma"] = 1.0
+        with pytest.raises(ValidationError, match="unexpected trait keys"):
+            self._build(vector)
+
+    def test_rejects_out_of_range_high(self):
+        """Reject trait values above the upper bound."""
+        vector = {k: 0.5 for k in TRAIT_KEYS}
+        vector["power"] = 99.0
+        with pytest.raises(ValidationError, match="out of range"):
+            self._build(vector)
+
+    def test_rejects_out_of_range_low(self):
+        """Reject trait values below the lower bound."""
+        vector = {k: 0.5 for k in TRAIT_KEYS}
+        vector["soft"] = -50.0
+        with pytest.raises(ValidationError, match="out of range"):
+            self._build(vector)
+
+    def test_rejects_infinity(self):
+        """Reject non-finite trait values."""
+        vector = {k: 0.5 for k in TRAIT_KEYS}
+        vector["depth"] = float("inf")
+        with pytest.raises(ValidationError, match="must be finite"):
+            self._build(vector)
+
+    def test_rejects_nan(self):
+        """Reject NaN trait values."""
+        vector = {k: 0.5 for k in TRAIT_KEYS}
+        vector["depth"] = float("nan")
+        with pytest.raises(ValidationError, match="must be finite"):
+            self._build(vector)

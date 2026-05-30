@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Final, Literal
+import math
+from typing import Annotated, Any, Final, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
 # ---------------------------------------------------------------------------
 # Onboarding pathway
@@ -43,10 +44,51 @@ TRAIT_KEYS: Final[tuple[TraitKey, ...]] = (
 )
 
 # ---------------------------------------------------------------------------
-# Trait vector — typed alias for the seven-dimension mapping
+# Trait vector — validated seven-dimension mapping
+#
+# When used as a Pydantic model field the validator enforces that exactly
+# the seven canonical trait keys are present and values are within bounds.
 # ---------------------------------------------------------------------------
 
-TraitVector = dict[TraitKey, float]
+_TRAIT_VALUE_MIN: Final[float] = -20.0
+_TRAIT_VALUE_MAX: Final[float] = 20.0
+
+
+def _validate_trait_vector(value: Any) -> dict[str, float]:
+    """Require exactly the canonical trait keys with bounded, finite values."""
+    if not isinstance(value, dict):
+        raise ValueError("trait vector must be a dict")
+
+    keys = set(value.keys())
+    expected = set(TRAIT_KEYS)
+
+    missing = expected - keys
+    if missing:
+        raise ValueError(f"missing trait keys: {sorted(missing)}")
+
+    extra = keys - expected
+    if extra:
+        raise ValueError(f"unexpected trait keys: {sorted(extra)}")
+
+    for key, val in value.items():
+        if not isinstance(val, (int, float)):
+            raise ValueError(
+                f"trait {key!r} must be numeric, got {type(val).__name__}"
+            )
+        if not math.isfinite(val):
+            raise ValueError(f"trait {key!r} must be finite, got {val}")
+        if not (_TRAIT_VALUE_MIN <= val <= _TRAIT_VALUE_MAX):
+            raise ValueError(
+                f"trait {key!r} value {val} out of range "
+                f"[{_TRAIT_VALUE_MIN}, {_TRAIT_VALUE_MAX}]"
+            )
+
+    return {k: float(v) for k, v in value.items()}
+
+
+TraitVector = Annotated[
+    dict[str, float], BeforeValidator(_validate_trait_vector)
+]
 
 # ---------------------------------------------------------------------------
 # Target archetype vectors
