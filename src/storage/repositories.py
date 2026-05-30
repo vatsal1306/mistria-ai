@@ -8,6 +8,7 @@ from src.Logging import get_logger
 from src.storage.database import SQLiteDatabase
 from src.storage.models import (
     AICompanionRecord,
+    ArchetypeResultRecord,
     ConversationRecord,
     MessageRecord,
     UserCompanionRecord,
@@ -520,3 +521,117 @@ class SQLiteConversationRepository:
             len(record.content),
         )
         return record
+
+
+class SQLiteArchetypeResultRepository:
+    """Persistence for Slow Burn archetype scoring submissions."""
+
+    def __init__(self, database: SQLiteDatabase):
+        self.database = database
+
+    def create(
+        self,
+        user_id: int,
+        onboarding_pathway: str,
+        trait_scores_json: str,
+        primary_archetype: str,
+        primary_similarity: float,
+        secondary_archetype: str | None,
+        secondary_similarity: float | None,
+        blend_active: bool,
+    ) -> ArchetypeResultRecord:
+        """Insert a new archetype scoring submission and return the created record."""
+        with self.database.connection() as connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO archetype_results
+                    (user_id, onboarding_pathway, trait_scores_json,
+                     primary_archetype, primary_similarity,
+                     secondary_archetype, secondary_similarity, blend_active)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    user_id,
+                    onboarding_pathway,
+                    trait_scores_json,
+                    primary_archetype,
+                    primary_similarity,
+                    secondary_archetype,
+                    secondary_similarity,
+                    int(blend_active),
+                ),
+            )
+            row = connection.execute(
+                """
+                SELECT id, user_id, onboarding_pathway, trait_scores_json,
+                       primary_archetype, primary_similarity,
+                       secondary_archetype, secondary_similarity,
+                       blend_active, created_at
+                FROM archetype_results
+                WHERE id = ?
+                """,
+                (cursor.lastrowid,),
+            ).fetchone()
+            connection.commit()
+
+        record = ArchetypeResultRecord(**dict(row))
+        logger.debug(
+            "Created archetype result record_id=%s user_id=%s primary=%s",
+            record.id,
+            record.user_id,
+            record.primary_archetype,
+        )
+        return record
+
+    def find_latest_by_user_id(self, user_id: int) -> ArchetypeResultRecord | None:
+        """Fetch the most recent archetype result for a user."""
+        with self.database.connection() as connection:
+            row = connection.execute(
+                """
+                SELECT id, user_id, onboarding_pathway, trait_scores_json,
+                       primary_archetype, primary_similarity,
+                       secondary_archetype, secondary_similarity,
+                       blend_active, created_at
+                FROM archetype_results
+                WHERE user_id = ?
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+                """,
+                (user_id,),
+            ).fetchone()
+
+        if row is None:
+            logger.debug("Archetype result lookup missed user_id=%s", user_id)
+            return None
+        record = ArchetypeResultRecord(**dict(row))
+        logger.debug(
+            "Archetype result lookup hit record_id=%s user_id=%s primary=%s",
+            record.id,
+            record.user_id,
+            record.primary_archetype,
+        )
+        return record
+
+    def find_all_by_user_id(self, user_id: int) -> list[ArchetypeResultRecord]:
+        """Fetch all archetype results for a user, newest first."""
+        with self.database.connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, user_id, onboarding_pathway, trait_scores_json,
+                       primary_archetype, primary_similarity,
+                       secondary_archetype, secondary_similarity,
+                       blend_active, created_at
+                FROM archetype_results
+                WHERE user_id = ?
+                ORDER BY created_at DESC, id DESC
+                """,
+                (user_id,),
+            ).fetchall()
+
+        records = [ArchetypeResultRecord(**dict(row)) for row in rows]
+        logger.debug(
+            "Archetype result list user_id=%s count=%s",
+            user_id,
+            len(records),
+        )
+        return records

@@ -301,6 +301,22 @@ class SQLiteDatabase:
                 FOREIGN KEY (supersedes_memory_id) REFERENCES memories (id) ON DELETE SET NULL
             )
             """,
+            """
+            CREATE TABLE IF NOT EXISTS archetype_results
+            (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                onboarding_pathway TEXT NOT NULL DEFAULT 'slow_burn',
+                trait_scores_json TEXT NOT NULL,
+                primary_archetype TEXT NOT NULL,
+                primary_similarity REAL NOT NULL,
+                secondary_archetype TEXT,
+                secondary_similarity REAL,
+                blend_active INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )
+            """,
         )
 
         index_statements = (
@@ -338,6 +354,10 @@ class SQLiteDatabase:
             """
             CREATE INDEX IF NOT EXISTS idx_memories_source_message
                 ON memories(source_message_id)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_archetype_results_user_latest
+                ON archetype_results(user_id, created_at DESC, id DESC)
             """,
         )
 

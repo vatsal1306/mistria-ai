@@ -91,3 +91,18 @@ class MemoryRecord:
     updated_at: str
     last_retrieved_at: str | None
     retrieval_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class ArchetypeResultRecord:
+    """Persisted Slow Burn archetype scoring submission row."""
+    id: int
+    user_id: int
+    onboarding_pathway: str
+    trait_scores_json: str
+    primary_archetype: str
+    primary_similarity: float
+    secondary_archetype: str | None
+    secondary_similarity: float | None
+    blend_active: bool
+    created_at: str

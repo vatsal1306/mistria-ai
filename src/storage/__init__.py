@@ -5,6 +5,7 @@ from src.storage.database import SQLiteDatabase
 from src.storage.exceptions import DatabaseInitializationError, RepositoryError, StorageError
 from src.storage.models import (
     AICompanionRecord,
+    ArchetypeResultRecord,
     ConversationRecord,
     MemoryRecord,
     MessageRecord,
@@ -14,6 +15,7 @@ from src.storage.models import (
 from src.storage.memory_repository import MemoryRepository, SQLiteMemoryRepository
 from src.storage.repositories import (
     SQLiteAICompanionRepository,
+    SQLiteArchetypeResultRepository,
     SQLiteConversationRepository,
     SQLiteUserCompanionRepository,
     SQLiteUserRepository,
@@ -23,6 +25,7 @@ from src.storage.service import ChatHistoryService
 
 __all__ = [
     "AICompanionRecord",
+    "ArchetypeResultRecord",
     "ChatHistoryService",
     "ConversationRecord",
     "ConversationSnapshot",
@@ -33,6 +36,7 @@ __all__ = [
     "MessageRecord",
     "RepositoryError",
     "SQLiteAICompanionRepository",
+    "SQLiteArchetypeResultRepository",
     "SQLiteConversationRepository",
     "SQLiteConversationStore",
     "SQLiteDatabase",
