@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from src.storage.database import SQLiteDatabase
 from src.storage.models import ArchetypeResultRecord
@@ -500,3 +501,41 @@ class TestArchetypeResultConvenienceHelpers:
 
         parsed = repo.parse_trait_scores(record)
         assert parsed == traits_dict
+
+    def test_parse_trait_scores_validation_failures(self, repo):
+        """parse_trait_scores() must raise ValidationError if the json content is invalid."""
+        invalid_cases = [
+            # Missing keys
+            {"power": 3.0},
+            # Extra keys
+            {
+                "power": 3.0, "pace": 2.0, "intensity": 5.0, "depth": 3.0,
+                "soft": 1.0, "freedom": 1.0, "sharp": 4.0, "extra": 9.9
+            },
+            # Non-numeric val
+            {
+                "power": "high", "pace": 2.0, "intensity": 5.0, "depth": 3.0,
+                "soft": 1.0, "freedom": 1.0, "sharp": 4.0
+            },
+            # Out of bounds value
+            {
+                "power": 99.0, "pace": 2.0, "intensity": 5.0, "depth": 3.0,
+                "soft": 1.0, "freedom": 1.0, "sharp": 4.0
+            },
+        ]
+
+        for case in invalid_cases:
+            record = ArchetypeResultRecord(
+                id=1,
+                user_id=1,
+                onboarding_pathway="slow_burn",
+                trait_scores_json=json.dumps(case),
+                primary_archetype="rebel",
+                primary_similarity=0.94,
+                secondary_archetype=None,
+                secondary_similarity=None,
+                blend_active=False,
+                created_at="2026-06-01 12:00:00",
+            )
+            with pytest.raises(ValidationError):
+                repo.parse_trait_scores(record)

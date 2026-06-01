@@ -6,7 +6,9 @@ import json
 import sqlite3
 from abc import ABC, abstractmethod
 
-from src.archetypes.contracts import ARCHETYPE_IDS
+from pydantic import TypeAdapter
+
+from src.archetypes.contracts import ARCHETYPE_IDS, TraitVector
 from src.Logging import get_logger
 from src.storage.database import SQLiteDatabase
 from src.storage.models import ArchetypeResultRecord
@@ -74,8 +76,9 @@ class ArchetypeResultRepository(ABC):
 
     @staticmethod
     def parse_trait_scores(record: ArchetypeResultRecord) -> dict[str, float]:
-        """Deserialize the stored ``trait_scores_json`` back to a typed dict."""
-        return json.loads(record.trait_scores_json)
+        """Deserialize the stored ``trait_scores_json`` back to a validated TraitVector dict."""
+        parsed = json.loads(record.trait_scores_json)
+        return TypeAdapter(TraitVector).validate_python(parsed)
 
 
 class SQLiteArchetypeResultRepository(ArchetypeResultRepository):
