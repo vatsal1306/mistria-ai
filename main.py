@@ -41,6 +41,13 @@ from src.memory.schemas import (
 from src.memory.service import MemoryService
 from src.memory.vector_store import QdrantVectorStore
 from src.storage.database import SQLiteDatabase
+from src.archetypes import (
+    ArchetypeResultResponse,
+    InvalidTraitVectorError,
+    SlowBurnScoreRequest,
+    score_trait_vector,
+)
+from src.storage.archetype_repository import SQLiteArchetypeResultRepository
 from src.storage.memory_repository import SQLiteMemoryRepository
 from src.storage.repositories import (
     SQLiteAICompanionRepository,
@@ -58,6 +65,7 @@ user_repository = SQLiteUserRepository(database)
 user_companion_repository = SQLiteUserCompanionRepository(database)
 ai_companion_repository = SQLiteAICompanionRepository(database)
 conversation_repository = SQLiteConversationRepository(database)
+archetype_repository = SQLiteArchetypeResultRepository(database)
 conversation_store = SQLiteConversationStore(conversation_repository)
 chat_history_service = ChatHistoryService(conversation_store)
 
@@ -188,6 +196,16 @@ async def user_already_exists_handler(_: object, exc: UserAlreadyExistsError) ->
     )
 
 
+@app.exception_handler(InvalidTraitVectorError)
+async def invalid_trait_vector_handler(_: object, exc: InvalidTraitVectorError) -> JSONResponse:
+    """Translate archetype trait validation failures into `422` responses."""
+    logger.warning("Returning invalid trait vector response detail=%s", exc)
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": str(exc)},
+    )
+
+
 @app.get("/info", response_model=dict[str, str])
 async def info() -> dict[str, str]:
     """Return a minimal description of the running API surface."""
@@ -234,6 +252,36 @@ def create_user(payload: UserCreateRequest) -> UserResponse:
         email=user.email,
         name=user.name,
         created_at=user.created_at,
+    )
+
+
+@app.post("/archetype/slow-burn/score", response_model=ArchetypeResultResponse)
+def score_slow_burn_archetype(payload: SlowBurnScoreRequest) -> ArchetypeResultResponse:
+    """Score a Slow Burn archetype quiz and persist the result."""
+    user = user_repository.find_by_email(payload.user_mail_id)
+    if not user:
+        raise CompanionNotFoundError("User not found.")
+
+    scoring_result = score_trait_vector(payload.trait_scores)
+
+    record = archetype_repository.create_from_scoring(
+        user_id=user.id,
+        onboarding_pathway="slow_burn",
+        scoring_result=scoring_result,
+    )
+
+    logger.info("Created archetype result user_id=%s primary_archetype=%s", user.id, record.primary_archetype)
+
+    return ArchetypeResultResponse(
+        user_mail_id=user.email,
+        onboarding_pathway=record.onboarding_pathway,
+        primary_archetype=record.primary_archetype,
+        primary_similarity=record.primary_similarity,
+        secondary_archetype=record.secondary_archetype,
+        secondary_similarity=record.secondary_similarity,
+        blend_active=record.blend_active,
+        trait_scores=scoring_result.trait_scores,
+        created_at=record.created_at,
     )
 
 
