@@ -13,9 +13,9 @@ from src.storage.models import (
     UserRecord,
 )
 from src.storage.memory_repository import MemoryRepository, SQLiteMemoryRepository
+from src.storage.archetype_repository import ArchetypeResultRepository, SQLiteArchetypeResultRepository
 from src.storage.repositories import (
     SQLiteAICompanionRepository,
-    SQLiteArchetypeResultRepository,
     SQLiteConversationRepository,
     SQLiteUserCompanionRepository,
     SQLiteUserRepository,
@@ -26,6 +26,7 @@ from src.storage.service import ChatHistoryService
 __all__ = [
     "AICompanionRecord",
     "ArchetypeResultRecord",
+    "ArchetypeResultRepository",
     "ChatHistoryService",
     "ConversationRecord",
     "ConversationSnapshot",
