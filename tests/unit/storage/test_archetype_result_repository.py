@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from src.archetypes import ScoringResult
 from src.storage.database import SQLiteDatabase
 from src.storage.models import ArchetypeResultRecord
 from src.storage.archetype_repository import SQLiteArchetypeResultRepository
@@ -485,15 +486,21 @@ class TestArchetypeResultConvenienceHelpers:
             "sharp": 4.0,
         }
 
-        record = repo.create_from_scoring(
-            user_id=user_id,
-            onboarding_pathway="slow_burn",
-            trait_vector=traits_dict,
+        scoring = ScoringResult(
             primary_archetype="rebel",
             primary_similarity=0.94,
             secondary_archetype="muse",
             secondary_similarity=0.88,
             blend_active=True,
+            trait_scores=traits_dict,
+            all_scores={},
+            low_confidence=False,
+        )
+
+        record = repo.create_from_scoring(
+            user_id=user_id,
+            onboarding_pathway="slow_burn",
+            scoring_result=scoring,
         )
 
         assert record.primary_archetype == "rebel"

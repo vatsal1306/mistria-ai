@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 
 from pydantic import TypeAdapter
 
-from src.archetypes.contracts import ARCHETYPE_IDS, TraitVector
+from src.archetypes import ARCHETYPE_IDS, TraitVector, ScoringResult
 from src.Logging import get_logger
 from src.storage.database import SQLiteDatabase
 from src.storage.models import ArchetypeResultRecord
@@ -51,27 +51,22 @@ class ArchetypeResultRepository(ABC):
         self,
         user_id: int,
         onboarding_pathway: str,
-        trait_vector: dict[str, float],
-        primary_archetype: str,
-        primary_similarity: float,
-        secondary_archetype: str | None = None,
-        secondary_similarity: float | None = None,
-        blend_active: bool = False,
+        scoring_result: ScoringResult,
     ) -> ArchetypeResultRecord:
-        """Serialize a trait-vector dict and persist the result in one call.
+        """Create a new archetype scoring submission from a ScoringResult model.
 
-        This keeps JSON serialization centralized so callers never build
-        the ``trait_scores_json`` string themselves.
+        This keeps JSON serialization and metadata unpacking centralized so callers
+        never manually build the JSON or extract fields from the scoring results.
         """
         return self.create_result(
             user_id=user_id,
             onboarding_pathway=onboarding_pathway,
-            trait_scores_json=json.dumps(trait_vector, sort_keys=True),
-            primary_archetype=primary_archetype,
-            primary_similarity=primary_similarity,
-            secondary_archetype=secondary_archetype,
-            secondary_similarity=secondary_similarity,
-            blend_active=blend_active,
+            trait_scores_json=json.dumps(scoring_result.trait_scores, sort_keys=True),
+            primary_archetype=scoring_result.primary_archetype,
+            primary_similarity=scoring_result.primary_similarity,
+            secondary_archetype=scoring_result.secondary_archetype,
+            secondary_similarity=scoring_result.secondary_similarity,
+            blend_active=scoring_result.blend_active,
         )
 
     @staticmethod
