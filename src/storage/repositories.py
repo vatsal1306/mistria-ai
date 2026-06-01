@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from abc import ABC, abstractmethod
 
 from src.Logging import get_logger
@@ -530,6 +531,12 @@ class SQLiteArchetypeResultRepository:
     def __init__(self, database: SQLiteDatabase):
         self.database = database
 
+    @staticmethod
+    def _map_row(row: sqlite3.Row) -> ArchetypeResultRecord:
+        data = dict(row)
+        data["blend_active"] = bool(data["blend_active"])
+        return ArchetypeResultRecord(**data)
+
     def create(
         self,
         user_id: int,
@@ -592,7 +599,7 @@ class SQLiteArchetypeResultRepository:
             ).fetchone()
             connection.commit()
 
-        record = ArchetypeResultRecord(**dict(row))
+        record = self._map_row(row)
         logger.debug(
             "Created archetype result record_id=%s user_id=%s primary=%s",
             record.id,
@@ -621,7 +628,7 @@ class SQLiteArchetypeResultRepository:
         if row is None:
             logger.debug("Archetype result lookup missed user_id=%s", user_id)
             return None
-        record = ArchetypeResultRecord(**dict(row))
+        record = self._map_row(row)
         logger.debug(
             "Archetype result lookup hit record_id=%s user_id=%s primary=%s",
             record.id,
@@ -646,7 +653,7 @@ class SQLiteArchetypeResultRepository:
                 (user_id,),
             ).fetchall()
 
-        records = [ArchetypeResultRecord(**dict(row)) for row in rows]
+        records = [self._map_row(row) for row in rows]
         logger.debug(
             "Archetype result list user_id=%s count=%s",
             user_id,

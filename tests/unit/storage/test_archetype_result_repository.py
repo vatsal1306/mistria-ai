@@ -117,7 +117,7 @@ class TestArchetypeResultCreate:
         assert record.primary_similarity == pytest.approx(0.94)
         assert record.secondary_archetype == "muse"
         assert record.secondary_similarity == pytest.approx(0.88)
-        assert record.blend_active == 1
+        assert record.blend_active is True
         assert record.created_at is not None
 
     def test_create_without_secondary(self, repo, user_id):
@@ -135,7 +135,7 @@ class TestArchetypeResultCreate:
 
         assert record.secondary_archetype is None
         assert record.secondary_similarity is None
-        assert record.blend_active == 0
+        assert record.blend_active is False
 
     def test_trait_scores_json_roundtrips(self, repo, user_id):
         """The trait scores JSON must survive storage and retrieval."""
