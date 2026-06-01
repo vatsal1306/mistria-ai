@@ -301,6 +301,22 @@ class SQLiteDatabase:
                 FOREIGN KEY (supersedes_memory_id) REFERENCES memories (id) ON DELETE SET NULL
             )
             """,
+            """
+            CREATE TABLE IF NOT EXISTS archetype_results
+            (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                onboarding_pathway TEXT NOT NULL DEFAULT 'slow_burn',
+                trait_scores_json TEXT NOT NULL,
+                primary_archetype TEXT NOT NULL CHECK (primary_archetype IN ('devotee', 'muse', 'protector', 'rebel', 'soulmate')),
+                primary_similarity REAL NOT NULL CHECK (primary_similarity >= -3.0 AND primary_similarity <= 3.0),
+                secondary_archetype TEXT CHECK (secondary_archetype IS NULL OR secondary_archetype IN ('devotee', 'muse', 'protector', 'rebel', 'soulmate')),
+                secondary_similarity REAL CHECK (secondary_similarity IS NULL OR (secondary_similarity >= -3.0 AND secondary_similarity <= 3.0)),
+                blend_active INTEGER NOT NULL CHECK (blend_active IN (0, 1)) DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )
+            """,
         )
 
         index_statements = (
@@ -338,6 +354,10 @@ class SQLiteDatabase:
             """
             CREATE INDEX IF NOT EXISTS idx_memories_source_message
                 ON memories(source_message_id)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_archetype_results_user_latest
+                ON archetype_results(user_id, created_at DESC, id DESC)
             """,
         )
 
@@ -431,6 +451,7 @@ class SQLiteDatabase:
                     connection.execute(statement)
                 self._ensure_users_password_nullable(connection)
                 self._ensure_conversations_ai_companion_column(connection)
+                self._ensure_archetype_results_constraints(connection)
                 for statement in index_statements:
                     connection.execute(statement)
                 for statement in trigger_statements:
@@ -512,5 +533,63 @@ class SQLiteDatabase:
                 ADD COLUMN ai_companion_id INTEGER REFERENCES ai_companion (id) ON DELETE CASCADE
             """
         )
+
+    def _ensure_archetype_results_constraints(self, connection: sqlite3.Connection) -> None:
+        row = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='archetype_results'"
+        ).fetchone()
+        if not row:
+            return
+
+        sql = row["sql"]
+        if "CHECK" in sql:
+            return
+
+        logger.info("Migrating archetype_results to include CHECK constraints")
+        connection.execute("PRAGMA foreign_keys = OFF")
+        try:
+            connection.execute("ALTER TABLE archetype_results RENAME TO archetype_results_legacy")
+            connection.execute(
+                """
+                CREATE TABLE archetype_results
+                (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    onboarding_pathway TEXT NOT NULL DEFAULT 'slow_burn',
+                    trait_scores_json TEXT NOT NULL,
+                    primary_archetype TEXT NOT NULL CHECK (primary_archetype IN ('devotee', 'muse', 'protector', 'rebel', 'soulmate')),
+                    primary_similarity REAL NOT NULL CHECK (primary_similarity >= -3.0 AND primary_similarity <= 3.0),
+                    secondary_archetype TEXT CHECK (secondary_archetype IS NULL OR secondary_archetype IN ('devotee', 'muse', 'protector', 'rebel', 'soulmate')),
+                    secondary_similarity REAL CHECK (secondary_similarity IS NULL OR (secondary_similarity >= -3.0 AND secondary_similarity <= 3.0)),
+                    blend_active INTEGER NOT NULL CHECK (blend_active IN (0, 1)) DEFAULT 0,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                )
+                """
+            )
+            connection.execute(
+                """
+                INSERT INTO archetype_results (
+                    id, user_id, onboarding_pathway, trait_scores_json,
+                    primary_archetype, primary_similarity,
+                    secondary_archetype, secondary_similarity,
+                    blend_active, created_at
+                )
+                SELECT id, user_id, onboarding_pathway, trait_scores_json,
+                       primary_archetype, primary_similarity,
+                       secondary_archetype, secondary_similarity,
+                       blend_active, created_at
+                FROM archetype_results_legacy
+                WHERE primary_archetype IN ('devotee', 'muse', 'protector', 'rebel', 'soulmate')
+                  AND primary_similarity >= -3.0 AND primary_similarity <= 3.0
+                  AND (secondary_archetype IS NULL OR secondary_archetype IN ('devotee', 'muse', 'protector', 'rebel', 'soulmate'))
+                  AND (secondary_similarity IS NULL OR (secondary_similarity >= -3.0 AND secondary_similarity <= 3.0))
+                  AND blend_active IN (0, 1)
+                """
+            )
+            connection.execute("DROP TABLE archetype_results_legacy")
+        finally:
+            connection.execute("PRAGMA foreign_keys = ON")
+
 
 
