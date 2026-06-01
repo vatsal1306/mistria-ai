@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import tempfile
 from pathlib import Path
 
@@ -272,3 +273,178 @@ class TestIntenseHeatNotRequired:
         repo = SQLiteArchetypeResultRepository(db)
         assert repo.find_latest_by_user_id(uid) is None
         assert repo.find_all_by_user_id(uid) == []
+
+
+class TestArchetypeResultConstraintsAndValidation:
+    """Verify CHECK constraints and repository validation rules."""
+
+    def test_repo_validates_primary_archetype(self, repo, user_id):
+        """Repository must reject invalid primary archetype ID with ValueError."""
+        with pytest.raises(ValueError, match="Invalid primary_archetype"):
+            repo.create(
+                user_id=user_id,
+                onboarding_pathway="slow_burn",
+                trait_scores_json=SAMPLE_TRAITS,
+                primary_archetype="not-real",
+                primary_similarity=0.95,
+                secondary_archetype=None,
+                secondary_similarity=None,
+                blend_active=False,
+            )
+
+    def test_repo_validates_secondary_archetype(self, repo, user_id):
+        """Repository must reject invalid secondary archetype ID with ValueError."""
+        with pytest.raises(ValueError, match="Invalid secondary_archetype"):
+            repo.create(
+                user_id=user_id,
+                onboarding_pathway="slow_burn",
+                trait_scores_json=SAMPLE_TRAITS,
+                primary_archetype="soulmate",
+                primary_similarity=0.95,
+                secondary_archetype="not-real-secondary",
+                secondary_similarity=0.88,
+                blend_active=True,
+            )
+
+    def test_repo_validates_primary_similarity_range(self, repo, user_id):
+        """Repository must reject primary_similarity outside [-3.0, 3.0] with ValueError."""
+        with pytest.raises(ValueError, match="Invalid primary_similarity"):
+            repo.create(
+                user_id=user_id,
+                onboarding_pathway="slow_burn",
+                trait_scores_json=SAMPLE_TRAITS,
+                primary_archetype="soulmate",
+                primary_similarity=4.0,
+                secondary_archetype=None,
+                secondary_similarity=None,
+                blend_active=False,
+            )
+        with pytest.raises(ValueError, match="Invalid primary_similarity"):
+            repo.create(
+                user_id=user_id,
+                onboarding_pathway="slow_burn",
+                trait_scores_json=SAMPLE_TRAITS,
+                primary_archetype="soulmate",
+                primary_similarity=-3.1,
+                secondary_archetype=None,
+                secondary_similarity=None,
+                blend_active=False,
+            )
+
+    def test_repo_validates_secondary_similarity_range(self, repo, user_id):
+        """Repository must reject secondary_similarity outside [-3.0, 3.0] with ValueError."""
+        with pytest.raises(ValueError, match="Invalid secondary_similarity"):
+            repo.create(
+                user_id=user_id,
+                onboarding_pathway="slow_burn",
+                trait_scores_json=SAMPLE_TRAITS,
+                primary_archetype="soulmate",
+                primary_similarity=0.95,
+                secondary_archetype="devotee",
+                secondary_similarity=3.5,
+                blend_active=True,
+            )
+        with pytest.raises(ValueError, match="Invalid secondary_similarity"):
+            repo.create(
+                user_id=user_id,
+                onboarding_pathway="slow_burn",
+                trait_scores_json=SAMPLE_TRAITS,
+                primary_archetype="soulmate",
+                primary_similarity=0.95,
+                secondary_archetype="devotee",
+                secondary_similarity=-3.2,
+                blend_active=True,
+            )
+
+    def test_db_enforces_primary_archetype_check(self, db, user_id):
+        """SQLite must raise IntegrityError for invalid primary_archetype."""
+        with db.connection() as conn:
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(
+                    """
+                    INSERT INTO archetype_results
+                        (user_id, trait_scores_json, primary_archetype, primary_similarity, blend_active)
+                    VALUES (?, ?, 'not-real', 0.95, 0)
+                    """,
+                    (user_id, SAMPLE_TRAITS),
+                )
+
+    def test_db_enforces_secondary_archetype_check(self, db, user_id):
+        """SQLite must raise IntegrityError for invalid secondary_archetype."""
+        with db.connection() as conn:
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(
+                    """
+                    INSERT INTO archetype_results
+                        (user_id, trait_scores_json, primary_archetype, primary_similarity, secondary_archetype, blend_active)
+                    VALUES (?, ?, 'soulmate', 0.95, 'not-real', 0)
+                    """,
+                    (user_id, SAMPLE_TRAITS),
+                )
+
+    def test_db_enforces_primary_similarity_range_check(self, db, user_id):
+        """SQLite must raise IntegrityError for primary_similarity outside [-3.0, 3.0]."""
+        with db.connection() as conn:
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(
+                    """
+                    INSERT INTO archetype_results
+                        (user_id, trait_scores_json, primary_archetype, primary_similarity, blend_active)
+                    VALUES (?, ?, 'soulmate', 3.5, 0)
+                    """,
+                    (user_id, SAMPLE_TRAITS),
+                )
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(
+                    """
+                    INSERT INTO archetype_results
+                        (user_id, trait_scores_json, primary_archetype, primary_similarity, blend_active)
+                    VALUES (?, ?, 'soulmate', -3.5, 0)
+                    """,
+                    (user_id, SAMPLE_TRAITS),
+                )
+
+    def test_db_enforces_secondary_similarity_range_check(self, db, user_id):
+        """SQLite must raise IntegrityError for secondary_similarity outside [-3.0, 3.0]."""
+        with db.connection() as conn:
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(
+                    """
+                    INSERT INTO archetype_results
+                        (user_id, trait_scores_json, primary_archetype, primary_similarity, secondary_archetype, secondary_similarity, blend_active)
+                    VALUES (?, ?, 'soulmate', 0.95, 'devotee', 3.5, 1)
+                    """,
+                    (user_id, SAMPLE_TRAITS),
+                )
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(
+                    """
+                    INSERT INTO archetype_results
+                        (user_id, trait_scores_json, primary_archetype, primary_similarity, secondary_archetype, secondary_similarity, blend_active)
+                    VALUES (?, ?, 'soulmate', 0.95, 'devotee', -3.5, 1)
+                    """,
+                    (user_id, SAMPLE_TRAITS),
+                )
+
+    def test_db_enforces_blend_active_check(self, db, user_id):
+        """SQLite must raise IntegrityError for blend_active outside 0/1."""
+        with db.connection() as conn:
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(
+                    """
+                    INSERT INTO archetype_results
+                        (user_id, trait_scores_json, primary_archetype, primary_similarity, blend_active)
+                    VALUES (?, ?, 'soulmate', 0.95, 2)
+                    """,
+                    (user_id, SAMPLE_TRAITS),
+                )
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(
+                    """
+                    INSERT INTO archetype_results
+                        (user_id, trait_scores_json, primary_archetype, primary_similarity, blend_active)
+                    VALUES (?, ?, 'soulmate', 0.95, -1)
+                    """,
+                    (user_id, SAMPLE_TRAITS),
+                )
+

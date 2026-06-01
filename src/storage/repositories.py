@@ -14,6 +14,7 @@ from src.storage.models import (
     UserCompanionRecord,
     UserRecord,
 )
+from src.archetypes.contracts import ARCHETYPE_IDS
 
 logger = get_logger(__name__)
 
@@ -541,6 +542,23 @@ class SQLiteArchetypeResultRepository:
         blend_active: bool,
     ) -> ArchetypeResultRecord:
         """Insert a new archetype scoring submission and return the created record."""
+        if primary_archetype not in ARCHETYPE_IDS:
+            raise ValueError(
+                f"Invalid primary_archetype: '{primary_archetype}'. Must be one of {ARCHETYPE_IDS}"
+            )
+        if not (-3.0 <= primary_similarity <= 3.0):
+            raise ValueError(
+                f"Invalid primary_similarity: {primary_similarity}. Must be between -3.0 and 3.0"
+            )
+        if secondary_archetype is not None and secondary_archetype not in ARCHETYPE_IDS:
+            raise ValueError(
+                f"Invalid secondary_archetype: '{secondary_archetype}'. Must be one of {ARCHETYPE_IDS} or None"
+            )
+        if secondary_similarity is not None and not (-3.0 <= secondary_similarity <= 3.0):
+            raise ValueError(
+                f"Invalid secondary_similarity: {secondary_similarity}. Must be between -3.0 and 3.0"
+            )
+
         with self.database.connection() as connection:
             cursor = connection.execute(
                 """
