@@ -8,10 +8,12 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
+from src.archetypes import ScoringResult
 from src.storage.database import SQLiteDatabase
 from src.storage.models import ArchetypeResultRecord
-from src.storage.repositories import SQLiteArchetypeResultRepository
+from src.storage.archetype_repository import SQLiteArchetypeResultRepository
 
 
 @pytest.fixture()
@@ -97,8 +99,8 @@ class TestArchetypeResultCreate:
     """Verify inserting archetype scoring submissions."""
 
     def test_create_returns_record(self, repo, user_id):
-        """create() must return a fully populated ArchetypeResultRecord."""
-        record = repo.create(
+        """create_result() must return a fully populated ArchetypeResultRecord."""
+        record = repo.create_result(
             user_id=user_id,
             onboarding_pathway="slow_burn",
             trait_scores_json=SAMPLE_TRAITS,
@@ -122,7 +124,7 @@ class TestArchetypeResultCreate:
 
     def test_create_without_secondary(self, repo, user_id):
         """Submissions with no blend should store NULL for secondary fields."""
-        record = repo.create(
+        record = repo.create_result(
             user_id=user_id,
             onboarding_pathway="slow_burn",
             trait_scores_json=SAMPLE_TRAITS,
@@ -139,7 +141,7 @@ class TestArchetypeResultCreate:
 
     def test_trait_scores_json_roundtrips(self, repo, user_id):
         """The trait scores JSON must survive storage and retrieval."""
-        record = repo.create(
+        record = repo.create_result(
             user_id=user_id,
             onboarding_pathway="slow_burn",
             trait_scores_json=SAMPLE_TRAITS,
@@ -161,7 +163,7 @@ class TestArchetypeResultCreate:
                 "SELECT COUNT(*) FROM user_companion"
             ).fetchone()[0]
 
-        repo.create(
+        repo.create_result(
             user_id=user_id,
             onboarding_pathway="slow_burn",
             trait_scores_json=SAMPLE_TRAITS,
@@ -186,7 +188,7 @@ class TestArchetypeResultMultipleSubmissions:
     def test_allows_multiple_per_user(self, repo, user_id):
         """Multiple archetype submissions for the same user must all persist."""
         for archetype in ("soulmate", "protector", "rebel"):
-            repo.create(
+            repo.create_result(
                 user_id=user_id,
                 onboarding_pathway="slow_burn",
                 trait_scores_json=SAMPLE_TRAITS,
@@ -197,12 +199,12 @@ class TestArchetypeResultMultipleSubmissions:
                 blend_active=False,
             )
 
-        records = repo.find_all_by_user_id(user_id)
+        records = repo.list_by_user_id(user_id)
         assert len(records) == 3
 
     def test_latest_is_identifiable(self, repo, user_id):
         """The most recent submission must be returned by find_latest_by_user_id."""
-        repo.create(
+        repo.create_result(
             user_id=user_id,
             onboarding_pathway="slow_burn",
             trait_scores_json=SAMPLE_TRAITS,
@@ -212,7 +214,7 @@ class TestArchetypeResultMultipleSubmissions:
             secondary_similarity=None,
             blend_active=False,
         )
-        repo.create(
+        repo.create_result(
             user_id=user_id,
             onboarding_pathway="slow_burn",
             trait_scores_json=SAMPLE_TRAITS,
@@ -235,14 +237,14 @@ class TestArchetypeResultLookup:
         """No record for an unknown user must return None."""
         assert repo.find_latest_by_user_id(999999) is None
 
-    def test_find_all_returns_empty_for_unknown_user(self, repo):
+    def test_list_returns_empty_for_unknown_user(self, repo):
         """No records for an unknown user must return an empty list."""
-        assert repo.find_all_by_user_id(999999) == []
+        assert repo.list_by_user_id(999999) == []
 
-    def test_find_all_ordered_newest_first(self, repo, user_id):
+    def test_list_ordered_newest_first(self, repo, user_id):
         """Results must be ordered newest first."""
         for archetype in ("soulmate", "protector", "rebel"):
-            repo.create(
+            repo.create_result(
                 user_id=user_id,
                 onboarding_pathway="slow_burn",
                 trait_scores_json=SAMPLE_TRAITS,
@@ -253,9 +255,29 @@ class TestArchetypeResultLookup:
                 blend_active=False,
             )
 
-        records = repo.find_all_by_user_id(user_id)
+        records = repo.list_by_user_id(user_id)
         ids = [r.id for r in records]
         assert ids == sorted(ids, reverse=True)
+
+    def test_list_respects_limit(self, repo, user_id):
+        """Repository list_by_user_id must respect optional limit parameter."""
+        for archetype in ("soulmate", "protector", "rebel"):
+            repo.create_result(
+                user_id=user_id,
+                onboarding_pathway="slow_burn",
+                trait_scores_json=SAMPLE_TRAITS,
+                primary_archetype=archetype,
+                primary_similarity=0.90,
+                secondary_archetype=None,
+                secondary_similarity=None,
+                blend_active=False,
+            )
+
+        records = repo.list_by_user_id(user_id, limit=2)
+        assert len(records) == 2
+        # Verify it's the two newest
+        assert records[0].primary_archetype == "rebel"
+        assert records[1].primary_archetype == "protector"
 
 
 class TestIntenseHeatNotRequired:
@@ -272,7 +294,7 @@ class TestIntenseHeatNotRequired:
 
         repo = SQLiteArchetypeResultRepository(db)
         assert repo.find_latest_by_user_id(uid) is None
-        assert repo.find_all_by_user_id(uid) == []
+        assert repo.list_by_user_id(uid) == []
 
 
 class TestArchetypeResultConstraintsAndValidation:
@@ -281,7 +303,7 @@ class TestArchetypeResultConstraintsAndValidation:
     def test_repo_validates_primary_archetype(self, repo, user_id):
         """Repository must reject invalid primary archetype ID with ValueError."""
         with pytest.raises(ValueError, match="Invalid primary_archetype"):
-            repo.create(
+            repo.create_result(
                 user_id=user_id,
                 onboarding_pathway="slow_burn",
                 trait_scores_json=SAMPLE_TRAITS,
@@ -295,7 +317,7 @@ class TestArchetypeResultConstraintsAndValidation:
     def test_repo_validates_secondary_archetype(self, repo, user_id):
         """Repository must reject invalid secondary archetype ID with ValueError."""
         with pytest.raises(ValueError, match="Invalid secondary_archetype"):
-            repo.create(
+            repo.create_result(
                 user_id=user_id,
                 onboarding_pathway="slow_burn",
                 trait_scores_json=SAMPLE_TRAITS,
@@ -309,7 +331,7 @@ class TestArchetypeResultConstraintsAndValidation:
     def test_repo_validates_primary_similarity_range(self, repo, user_id):
         """Repository must reject primary_similarity outside [-3.0, 3.0] with ValueError."""
         with pytest.raises(ValueError, match="Invalid primary_similarity"):
-            repo.create(
+            repo.create_result(
                 user_id=user_id,
                 onboarding_pathway="slow_burn",
                 trait_scores_json=SAMPLE_TRAITS,
@@ -320,7 +342,7 @@ class TestArchetypeResultConstraintsAndValidation:
                 blend_active=False,
             )
         with pytest.raises(ValueError, match="Invalid primary_similarity"):
-            repo.create(
+            repo.create_result(
                 user_id=user_id,
                 onboarding_pathway="slow_burn",
                 trait_scores_json=SAMPLE_TRAITS,
@@ -334,7 +356,7 @@ class TestArchetypeResultConstraintsAndValidation:
     def test_repo_validates_secondary_similarity_range(self, repo, user_id):
         """Repository must reject secondary_similarity outside [-3.0, 3.0] with ValueError."""
         with pytest.raises(ValueError, match="Invalid secondary_similarity"):
-            repo.create(
+            repo.create_result(
                 user_id=user_id,
                 onboarding_pathway="slow_burn",
                 trait_scores_json=SAMPLE_TRAITS,
@@ -345,7 +367,7 @@ class TestArchetypeResultConstraintsAndValidation:
                 blend_active=True,
             )
         with pytest.raises(ValueError, match="Invalid secondary_similarity"):
-            repo.create(
+            repo.create_result(
                 user_id=user_id,
                 onboarding_pathway="slow_burn",
                 trait_scores_json=SAMPLE_TRAITS,
@@ -448,3 +470,79 @@ class TestArchetypeResultConstraintsAndValidation:
                     (user_id, SAMPLE_TRAITS),
                 )
 
+
+class TestArchetypeResultConvenienceHelpers:
+    """Verify serialization and deserialization convenience helpers."""
+
+    def test_create_from_scoring_serializes_traits(self, repo, user_id):
+        """create_from_scoring() must serialize dict of traits correctly."""
+        traits_dict = {
+            "power": 3.0,
+            "pace": 2.0,
+            "intensity": 5.0,
+            "depth": 3.0,
+            "soft": 1.0,
+            "freedom": 1.0,
+            "sharp": 4.0,
+        }
+
+        scoring = ScoringResult(
+            primary_archetype="rebel",
+            primary_similarity=0.94,
+            secondary_archetype="muse",
+            secondary_similarity=0.88,
+            blend_active=True,
+            trait_scores=traits_dict,
+            all_scores={},
+            low_confidence=False,
+        )
+
+        record = repo.create_from_scoring(
+            user_id=user_id,
+            onboarding_pathway="slow_burn",
+            scoring_result=scoring,
+        )
+
+        assert record.primary_archetype == "rebel"
+        assert record.blend_active is True
+
+        parsed = repo.parse_trait_scores(record)
+        assert parsed == traits_dict
+
+    def test_parse_trait_scores_validation_failures(self, repo):
+        """parse_trait_scores() must raise ValidationError if the json content is invalid."""
+        invalid_cases = [
+            # Missing keys
+            {"power": 3.0},
+            # Extra keys
+            {
+                "power": 3.0, "pace": 2.0, "intensity": 5.0, "depth": 3.0,
+                "soft": 1.0, "freedom": 1.0, "sharp": 4.0, "extra": 9.9
+            },
+            # Non-numeric val
+            {
+                "power": "high", "pace": 2.0, "intensity": 5.0, "depth": 3.0,
+                "soft": 1.0, "freedom": 1.0, "sharp": 4.0
+            },
+            # Out of bounds value
+            {
+                "power": 99.0, "pace": 2.0, "intensity": 5.0, "depth": 3.0,
+                "soft": 1.0, "freedom": 1.0, "sharp": 4.0
+            },
+        ]
+
+        for case in invalid_cases:
+            record = ArchetypeResultRecord(
+                id=1,
+                user_id=1,
+                onboarding_pathway="slow_burn",
+                trait_scores_json=json.dumps(case),
+                primary_archetype="rebel",
+                primary_similarity=0.94,
+                secondary_archetype=None,
+                secondary_similarity=None,
+                blend_active=False,
+                created_at="2026-06-01 12:00:00",
+            )
+            with pytest.raises(ValidationError):
+                repo.parse_trait_scores(record)

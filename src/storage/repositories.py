@@ -2,20 +2,17 @@
 
 from __future__ import annotations
 
-import sqlite3
 from abc import ABC, abstractmethod
 
 from src.Logging import get_logger
 from src.storage.database import SQLiteDatabase
 from src.storage.models import (
     AICompanionRecord,
-    ArchetypeResultRecord,
     ConversationRecord,
     MessageRecord,
     UserCompanionRecord,
     UserRecord,
 )
-from src.archetypes.contracts import ARCHETYPE_IDS
 
 logger = get_logger(__name__)
 
@@ -524,139 +521,3 @@ class SQLiteConversationRepository:
         )
         return record
 
-
-class SQLiteArchetypeResultRepository:
-    """Persistence for Slow Burn archetype scoring submissions."""
-
-    def __init__(self, database: SQLiteDatabase):
-        self.database = database
-
-    @staticmethod
-    def _map_row(row: sqlite3.Row) -> ArchetypeResultRecord:
-        data = dict(row)
-        data["blend_active"] = bool(data["blend_active"])
-        return ArchetypeResultRecord(**data)
-
-    def create(
-        self,
-        user_id: int,
-        onboarding_pathway: str,
-        trait_scores_json: str,
-        primary_archetype: str,
-        primary_similarity: float,
-        secondary_archetype: str | None,
-        secondary_similarity: float | None,
-        blend_active: bool,
-    ) -> ArchetypeResultRecord:
-        """Insert a new archetype scoring submission and return the created record."""
-        if primary_archetype not in ARCHETYPE_IDS:
-            raise ValueError(
-                f"Invalid primary_archetype: '{primary_archetype}'. Must be one of {ARCHETYPE_IDS}"
-            )
-        if not (-3.0 <= primary_similarity <= 3.0):
-            raise ValueError(
-                f"Invalid primary_similarity: {primary_similarity}. Must be between -3.0 and 3.0"
-            )
-        if secondary_archetype is not None and secondary_archetype not in ARCHETYPE_IDS:
-            raise ValueError(
-                f"Invalid secondary_archetype: '{secondary_archetype}'. Must be one of {ARCHETYPE_IDS} or None"
-            )
-        if secondary_similarity is not None and not (-3.0 <= secondary_similarity <= 3.0):
-            raise ValueError(
-                f"Invalid secondary_similarity: {secondary_similarity}. Must be between -3.0 and 3.0"
-            )
-
-        with self.database.connection() as connection:
-            cursor = connection.execute(
-                """
-                INSERT INTO archetype_results
-                    (user_id, onboarding_pathway, trait_scores_json,
-                     primary_archetype, primary_similarity,
-                     secondary_archetype, secondary_similarity, blend_active)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    user_id,
-                    onboarding_pathway,
-                    trait_scores_json,
-                    primary_archetype,
-                    primary_similarity,
-                    secondary_archetype,
-                    secondary_similarity,
-                    int(blend_active),
-                ),
-            )
-            row = connection.execute(
-                """
-                SELECT id, user_id, onboarding_pathway, trait_scores_json,
-                       primary_archetype, primary_similarity,
-                       secondary_archetype, secondary_similarity,
-                       blend_active, created_at
-                FROM archetype_results
-                WHERE id = ?
-                """,
-                (cursor.lastrowid,),
-            ).fetchone()
-            connection.commit()
-
-        record = self._map_row(row)
-        logger.debug(
-            "Created archetype result record_id=%s user_id=%s primary=%s",
-            record.id,
-            record.user_id,
-            record.primary_archetype,
-        )
-        return record
-
-    def find_latest_by_user_id(self, user_id: int) -> ArchetypeResultRecord | None:
-        """Fetch the most recent archetype result for a user."""
-        with self.database.connection() as connection:
-            row = connection.execute(
-                """
-                SELECT id, user_id, onboarding_pathway, trait_scores_json,
-                       primary_archetype, primary_similarity,
-                       secondary_archetype, secondary_similarity,
-                       blend_active, created_at
-                FROM archetype_results
-                WHERE user_id = ?
-                ORDER BY created_at DESC, id DESC
-                LIMIT 1
-                """,
-                (user_id,),
-            ).fetchone()
-
-        if row is None:
-            logger.debug("Archetype result lookup missed user_id=%s", user_id)
-            return None
-        record = self._map_row(row)
-        logger.debug(
-            "Archetype result lookup hit record_id=%s user_id=%s primary=%s",
-            record.id,
-            record.user_id,
-            record.primary_archetype,
-        )
-        return record
-
-    def find_all_by_user_id(self, user_id: int) -> list[ArchetypeResultRecord]:
-        """Fetch all archetype results for a user, newest first."""
-        with self.database.connection() as connection:
-            rows = connection.execute(
-                """
-                SELECT id, user_id, onboarding_pathway, trait_scores_json,
-                       primary_archetype, primary_similarity,
-                       secondary_archetype, secondary_similarity,
-                       blend_active, created_at
-                FROM archetype_results
-                WHERE user_id = ?
-                ORDER BY created_at DESC, id DESC
-                """,
-                (user_id,),
-            ).fetchall()
-
-        records = [self._map_row(row) for row in rows]
-        logger.debug(
-            "Archetype result list user_id=%s count=%s",
-            user_id,
-            len(records),
-        )
-        return records
