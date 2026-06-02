@@ -6,7 +6,7 @@ from src.backend.schemas import ChatMessage, ChatSocketRequest
 from src.backend.service import ChatService
 from src.memory.schemas import MemorySearchResult
 from src.storage.conversation_store import ConversationSnapshot
-from src.storage.models import AICompanionRecord, ConversationRecord, MessageRecord, UserCompanionRecord
+from src.storage.models import AICompanionRecord, ConversationRecord, MessageRecord, UserCompanionRecord, ArchetypeResultRecord
 
 
 class _StreamingRuntimeStub:
@@ -217,6 +217,68 @@ async def test_stream_response_injects_memories_when_enabled():
     assert "'User loves cats'" in system_prompt
     assert "Use the provided long-term memory and the visible conversation history" in system_prompt
     assert len(memory_service.calls) == 1
+
+
+@pytest.mark.anyio
+async def test_stream_response_injects_rebel_prompt_when_archetype_is_rebel():
+    runtime = _StreamingRuntimeStub(tokens=["Hi."])
+    snapshot = ConversationSnapshot(
+        conversation=ConversationRecord(id=1, user_id=1, ai_companion_id=2, created_at="", updated_at=""),
+        messages=[],
+    )
+    history_service = _HistoryServiceStub(snapshot)
+    
+    service = ChatService(
+        chat_config=SimpleNamespace(history_message_limit=10, system_prompt="Base."),
+        runtime=runtime,
+        history_service=history_service,
+    )
+    
+    user_companion = UserCompanionRecord(id=1, user_id=1, title="T", description="D", intent_type="alive", dominance_mode="ai_leads", intensity_level="break_glass", silence_response="come_looking", secret_desire="both", created_at="", updated_at="")
+    ai_companion = AICompanionRecord(id=2, user_id=1, title="Luna", description="D", gender="F", style="S", ethnicity="E", eye_color="G", hair_style="L", hair_color="P", personality="P", voice="V", connection="C", created_at="", updated_at="")
+    archetype_record = ArchetypeResultRecord(
+        id=1, user_id=1, onboarding_pathway="slow_burn", trait_scores_json="{}", primary_archetype="rebel", primary_similarity=0.9, secondary_archetype=None, secondary_similarity=None, blend_active=False, created_at=""
+    )
+    
+    request = ChatSocketRequest(action="chat", user_id="u", ai_companion_id=2, system_prompt=None, user_message="hello")
+    
+    async for _ in service.stream_response(request, internal_user_id=1, user_name="V", user_companion=user_companion, ai_companion=ai_companion, snapshot=snapshot, archetype_record=archetype_record):
+        pass
+
+    system_prompt = runtime.requests[0].system_prompt
+    assert "VOICE PACKAGE: REBEL" in system_prompt
+    assert "Calm, restrained, dangerous" in system_prompt
+
+
+@pytest.mark.anyio
+async def test_stream_response_skips_rebel_prompt_when_archetype_is_not_rebel():
+    runtime = _StreamingRuntimeStub(tokens=["Hi."])
+    snapshot = ConversationSnapshot(
+        conversation=ConversationRecord(id=1, user_id=1, ai_companion_id=2, created_at="", updated_at=""),
+        messages=[],
+    )
+    history_service = _HistoryServiceStub(snapshot)
+    
+    service = ChatService(
+        chat_config=SimpleNamespace(history_message_limit=10, system_prompt="Base."),
+        runtime=runtime,
+        history_service=history_service,
+    )
+    
+    user_companion = UserCompanionRecord(id=1, user_id=1, title="T", description="D", intent_type="alive", dominance_mode="ai_leads", intensity_level="break_glass", silence_response="come_looking", secret_desire="both", created_at="", updated_at="")
+    ai_companion = AICompanionRecord(id=2, user_id=1, title="Luna", description="D", gender="F", style="S", ethnicity="E", eye_color="G", hair_style="L", hair_color="P", personality="P", voice="V", connection="C", created_at="", updated_at="")
+    archetype_record = ArchetypeResultRecord(
+        id=1, user_id=1, onboarding_pathway="slow_burn", trait_scores_json="{}", primary_archetype="intense_heat", primary_similarity=0.9, secondary_archetype=None, secondary_similarity=None, blend_active=False, created_at=""
+    )
+    
+    request = ChatSocketRequest(action="chat", user_id="u", ai_companion_id=2, system_prompt=None, user_message="hello")
+    
+    async for _ in service.stream_response(request, internal_user_id=1, user_name="V", user_companion=user_companion, ai_companion=ai_companion, snapshot=snapshot, archetype_record=archetype_record):
+        pass
+
+    system_prompt = runtime.requests[0].system_prompt
+    assert "VOICE PACKAGE: REBEL" not in system_prompt
+    assert "Calm, restrained, dangerous" not in system_prompt
 
 
 @pytest.mark.anyio
