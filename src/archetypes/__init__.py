@@ -24,6 +24,7 @@ from src.archetypes.scoring import (
     ScoringResult,
     score_trait_vector,
 )
+from src.archetypes.schemas import ArchetypeResultResponse, SlowBurnScoreRequest
 
 __all__ = [
     "ARCHETYPE_IDS",
@@ -31,12 +32,14 @@ __all__ = [
     "ArchetypeError",
     "ArchetypeId",
     "ArchetypeResult",
+    "ArchetypeResultResponse",
     "ArchetypeScoreResult",
     "BLEND_THRESHOLD",
     "InvalidTraitVectorError",
     "NEUTRAL_MIN_SIMILARITY",
     "OnboardingPathway",
     "ScoringResult",
+    "SlowBurnScoreRequest",
     "TIE_BREAK_ORDER",
     "TIEBREAK_TRAIT_PRIORITY",
     "TRAIT_KEYS",
