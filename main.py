@@ -285,6 +285,33 @@ def score_slow_burn_archetype(payload: SlowBurnScoreRequest) -> ArchetypeResultR
     )
 
 
+@app.get("/archetype/latest/{user_mail_id}", response_model=ArchetypeResultResponse)
+def get_latest_archetype_result(user_mail_id: str) -> ArchetypeResultResponse:
+    """Fetch the most recent Slow Burn archetype result for a user."""
+    user = user_repository.find_by_email(user_mail_id)
+    if not user:
+        raise CompanionNotFoundError("User not found.")
+
+    record = archetype_repository.find_latest_by_user_id(user.id)
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No archetype result found for user.",
+        )
+
+    return ArchetypeResultResponse(
+        user_mail_id=user.email,
+        onboarding_pathway=record.onboarding_pathway,
+        primary_archetype=record.primary_archetype,
+        primary_similarity=record.primary_similarity,
+        secondary_archetype=record.secondary_archetype,
+        secondary_similarity=record.secondary_similarity,
+        blend_active=record.blend_active,
+        trait_scores=archetype_repository.parse_trait_scores(record),
+        created_at=record.created_at,
+    )
+
+
 @app.websocket(settings.api.websocket_path)
 async def chat_socket(websocket: WebSocket) -> None:
     """Handle websocket chat traffic for the active inference backend."""
