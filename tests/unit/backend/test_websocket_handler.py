@@ -62,6 +62,9 @@ class _Repository:
     def find_by_id(self, item_id: int):
         return self.value if getattr(self.value, "id", None) == item_id else None
 
+    def find_latest_by_user_id(self, user_id: int):
+        return self.value if getattr(self.value, "user_id", None) == user_id else None
+
 
 class _HistoryService:
     def __init__(self, snapshot=None):
@@ -93,6 +96,7 @@ def _handler(
     user_repo=None,
     user_companion_repo=None,
     ai_companion_repo=None,
+    archetype_repo=None,
     require_api_key: bool = False,
 ) -> WebSocketChatHandler:
     return WebSocketChatHandler(
@@ -103,6 +107,7 @@ def _handler(
         user_repo or _Repository(),
         user_companion_repo or _Repository(),
         ai_companion_repo or _Repository(),
+        archetype_repo or _Repository(),
     )
 
 
@@ -160,7 +165,8 @@ async def test_handle_prefetches_history_from_query_and_processes_first_message(
 
     assert [event["type"] for event in websocket.sent] == ["ready", "delta", "delta", "done"]
     assert [event.get("delta") for event in websocket.sent if event["type"] == "delta"] == ["A", "B"]
-    assert service.calls[0][-1] == snapshot
+    assert service.calls[0][-2] == snapshot
+    assert service.calls[0][-1] is None
 
 
 @pytest.mark.anyio

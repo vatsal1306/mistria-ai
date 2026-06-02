@@ -6,7 +6,7 @@ from textwrap import dedent
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from src.storage.models import AICompanionRecord, UserCompanionRecord
+    from src.storage.models import AICompanionRecord, UserCompanionRecord, ArchetypeResultRecord
 
 CHAT_SYSTEM_PROMPT = (
     "You are a bold, seductive, emotionally attentive AI companion for consenting adults. "
@@ -87,6 +87,7 @@ def build_chat_system_prompt(
         user_name: str | None,
         user_companion: UserCompanionRecord,
         ai_companion: AICompanionRecord,
+        archetype_record: ArchetypeResultRecord | None = None,
         memory_block: str = "",
 ) -> str:
     """Render the authoritative chat system prompt with companion-specific context."""

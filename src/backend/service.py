@@ -14,7 +14,7 @@ from src.memory.prompts import render_memory_prompt
 from src.memory.service import MemoryService
 from src.prompts import build_chat_system_prompt
 from src.storage.conversation_store import ConversationSnapshot
-from src.storage.models import AICompanionRecord, UserCompanionRecord
+from src.storage.models import AICompanionRecord, UserCompanionRecord, ArchetypeResultRecord
 from src.storage.service import ChatHistoryService
 
 logger = get_logger(__name__)
@@ -44,7 +44,8 @@ class ChatService:
         user_name: str | None,
         user_companion: UserCompanionRecord,
         ai_companion: AICompanionRecord,
-        snapshot: ConversationSnapshot | None = None
+        snapshot: ConversationSnapshot | None = None,
+        archetype_record: ArchetypeResultRecord | None = None,
     ) -> AsyncGenerator[str, None]:
         """Trim message history, persist logic via DB, and delegate streamed generation to the runtime."""
         logger.info(
@@ -144,7 +145,7 @@ class ChatService:
 
         inference_request = InferencePromptRequest(
             system_prompt=self._build_system_prompt(
-                request, user_name, user_companion, ai_companion, memory_block
+                request, user_name, user_companion, ai_companion, archetype_record=archetype_record, memory_block=memory_block
             ),
             messages=mapped_messages,
         )
@@ -202,6 +203,7 @@ class ChatService:
             user_name: str | None,
             user_companion: UserCompanionRecord,
             ai_companion: AICompanionRecord,
+            archetype_record: ArchetypeResultRecord | None = None,
             memory_block: str = "",
     ) -> str:
         base_prompt = request.system_prompt or self.chat_config.system_prompt
@@ -210,5 +212,6 @@ class ChatService:
             user_name=user_name,
             user_companion=user_companion,
             ai_companion=ai_companion,
+            archetype_record=archetype_record,
             memory_block=memory_block,
         )

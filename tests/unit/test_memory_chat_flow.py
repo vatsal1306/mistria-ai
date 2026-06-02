@@ -189,13 +189,14 @@ def api_client(sqlite_db, monkeypatch):
     )
     
     main.websocket_handler = WebSocketChatHandler(
-        main.settings.api,
-        main.settings.secrets,
-        main.chat_service,
-        history_service,
-        user_repo,
-        user_comp_repo,
-        ai_comp_repo
+        api_config=main.settings.api,
+        secrets_config=main.settings.secrets,
+        service=main.chat_service,
+        history_service=history_service,
+        user_repo=user_repo,
+        user_companion_repo=user_comp_repo,
+        ai_companion_repo=ai_comp_repo,
+        archetype_repo=main.archetype_repository,
     )
 
     # Patch the runtime stream
