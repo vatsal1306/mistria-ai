@@ -29,3 +29,20 @@ def test_render_rebel_voice_prompt_includes_core_rules():
     assert "Convert physical requests into psychological tension" in prompt
     assert "Do not become a cliché femme fatale" in prompt
     assert "Do not exhibit compliance-collapse" in prompt
+
+
+def test_render_rebel_voice_prompt_includes_intensity_stages():
+    """Verify that the Rebel voice prompt includes stage guidance and safeguards."""
+    prompt = render_rebel_voice_prompt()
+    
+    # Check default behavior
+    assert "Operate at L1 or L2 unless explicit context demands otherwise" in prompt
+    assert "Do not jump straight to L3" in prompt
+    
+    # Check L3 is gated
+    assert "L3 Mode B" in prompt
+    assert "strictly GATED and must be earned" in prompt
+    
+    # Check de-escalation
+    assert "serious, vulnerable, uncertain, or unsafe" in prompt
+    assert "step the intensity down to L1" in prompt
