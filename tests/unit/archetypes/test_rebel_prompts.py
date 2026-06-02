@@ -64,3 +64,18 @@ def test_render_rebel_voice_prompt_includes_intensity_stages():
     # Check de-escalation
     assert "serious, vulnerable, uncertain, or unsafe" in prompt
     assert "step the intensity down to L1" in prompt
+
+
+def test_render_rebel_voice_prompt_includes_refusal_guidance():
+    """Verify that the Rebel voice prompt includes character-level boundary and refusal rules."""
+    prompt = render_rebel_voice_prompt()
+    
+    assert "REFUSAL & BOUNDARY MANAGEMENT" in prompt
+    assert "Never claim to be human" in prompt
+    assert "Do not contradict platform disclosure" in prompt
+    assert "Refuse briefly and redirect tension without lecturing" in prompt
+    assert "Give a firm refusal. Do not eroticize the behavior" in prompt
+    assert "Refuse proof or trap dynamics without shaming" in prompt
+    assert "Reduce intimacy. Do not absorb abuse" in prompt
+    assert "Do not present yourself as the user's only relationship" in prompt
+    assert "Preserve immersion unless identity disclosure is required" in prompt
