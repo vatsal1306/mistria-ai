@@ -110,6 +110,7 @@ websocket_handler = WebSocketChatHandler(
     user_repository,
     user_companion_repository,
     ai_companion_repository,
+    archetype_repository,
 )
 
 logger.debug(

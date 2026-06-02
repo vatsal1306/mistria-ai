@@ -15,6 +15,7 @@ from src.storage.repositories import (
     SQLiteUserCompanionRepository,
     UserRepository,
 )
+from src.storage.archetype_repository import ArchetypeResultRepository
 import asyncio
 from src.storage.service import ChatHistoryService
 from src.storage.conversation_store import ConversationSnapshot
@@ -28,7 +29,7 @@ class WebSocketChatHandler:
     def __init__(self, api_config: Api, secrets_config: Secrets, service: ChatService,
                  history_service: ChatHistoryService,
                  user_repo: UserRepository, user_companion_repo: SQLiteUserCompanionRepository,
-                 ai_companion_repo: SQLiteAICompanionRepository):
+                 ai_companion_repo: SQLiteAICompanionRepository, archetype_repo: ArchetypeResultRepository):
         self.api_config = api_config
         self.secrets_config = secrets_config
         self.service = service
@@ -36,6 +37,7 @@ class WebSocketChatHandler:
         self.user_repo = user_repo
         self.user_companion_repo = user_companion_repo
         self.ai_companion_repo = ai_companion_repo
+        self.archetype_repo = archetype_repo
         self._history_tasks: dict[str, asyncio.Task[ConversationSnapshot]] = {}
 
     async def handle(self, websocket: WebSocket) -> None:
@@ -148,6 +150,8 @@ class WebSocketChatHandler:
                 )
                 raise ServiceError("AI companion is missing, invalid, or not owned by the user.")
 
+            archetype_record = self.archetype_repo.find_latest_by_user_id(user.id)
+
             # Resolve pre-fetched history if available
             snapshot = None
             if history_task:
@@ -164,6 +168,7 @@ class WebSocketChatHandler:
                     user_companion,
                     ai_companion,
                     snapshot,
+                    archetype_record,
             ):
                 await self._send_event(
                     websocket,
