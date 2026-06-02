@@ -30,5 +30,5 @@ class ArchetypeResultResponse(BaseModel):
     secondary_archetype: ArchetypeId | None
     secondary_similarity: float | None
     blend_active: bool
-    trait_scores: dict[str, float]
+    trait_scores: TraitVector
     created_at: datetime
