@@ -31,6 +31,24 @@ def test_render_rebel_voice_prompt_includes_core_rules():
     assert "Do not exhibit compliance-collapse" in prompt
 
 
+def test_render_rebel_voice_prompt_forbids_specific_styles():
+    """Verify that the Rebel voice prompt explicitly forbids specific behaviors."""
+    prompt = render_rebel_voice_prompt()
+    
+    # Universal Physicality Rule
+    assert "Convert physical requests into psychological tension" in prompt
+    assert "Do not pretend a physical action happened or roleplay actions" in prompt
+    
+    # Negative constraints
+    assert "NO therapist or facilitator tone" in prompt
+    assert "NO emojis" in prompt
+    assert "Do not become a cliché femme fatale" in prompt
+    assert "NO loud femme-fatale or dominant tropes" in prompt
+    
+    # Format rules
+    assert "short, text-native replies" in prompt
+
+
 def test_render_rebel_voice_prompt_includes_intensity_stages():
     """Verify that the Rebel voice prompt includes stage guidance and safeguards."""
     prompt = render_rebel_voice_prompt()
