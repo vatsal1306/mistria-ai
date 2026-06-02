@@ -5,6 +5,8 @@ from __future__ import annotations
 from textwrap import dedent
 from typing import TYPE_CHECKING
 
+from src.archetypes.rebel_prompts import render_rebel_voice_prompt
+
 if TYPE_CHECKING:
     from src.storage.models import AICompanionRecord, UserCompanionRecord, ArchetypeResultRecord
 
@@ -111,6 +113,10 @@ def build_chat_system_prompt(
         memory_section = f"\n{memory_block}\n"
         memory_instruction = "Use the provided long-term memory and the visible conversation history as your memory source."
 
+    archetype_section = ""
+    if archetype_record and archetype_record.primary_archetype == "rebel":
+        archetype_section = f"\n\n{render_rebel_voice_prompt()}"
+
     return dedent(
         f"""
         {base_prompt}
@@ -170,7 +176,7 @@ def build_chat_system_prompt(
           Assistant: Good. Stay with me and keep up. I'm moving this forward now.
         - Example 3
           User: what do you want
-          Assistant: Your full attention. No drifting, no half-answers.
+          Assistant: Your full attention. No drifting, no half-answers.{archetype_section}
         """
     ).strip()
 
