@@ -21,8 +21,9 @@
    - [GET /user-companion/{user_mail_id}](#get-user-companionuser_mail_id)
    - [POST /ai-companion](#post-ai-companion)
    - [POST /ai-companion/generate](#post-ai-companiongenerate)
-   - [GET /ai-companion](#get-ai-companion)
    - [GET /ai-companion/{ai_companion_id}](#get-ai-companionai_companion_id)
+   - [POST /archetype/slow-burn/score](#post-archetypeslow-burnscore)
+   - [GET /archetype/latest/{user_mail_id}](#get-archetypelatestuser_mail_id)
    - [POST /debug/memory/retrieve](#post-debugmemoryretrieve) [Internal]
 5. [WebSocket Endpoint](#websocket-endpoint)
    - [Connection](#connection)
@@ -193,6 +194,109 @@ Content-Type: application/json
 
 ---
 
+### Archetype Onboarding (Slow Burn vs Intense Heat)
+
+The platform supports two distinct onboarding paths:
+1. **Intense Heat**: The user skips archetype testing. They do **not** require an archetype result. The frontend proceeds directly to `POST /user-companion` and `POST /ai-companion`.
+2. **Slow Burn**: The frontend asks a series of archetype questions, converts the selections into trait scores, and submits them to `POST /archetype/slow-burn/score`. The backend calculates and stores the archetype. **Afterward**, the user still sets their user companion preferences and AI companion preferences exactly like the Intense Heat flow. Archetype scoring is additive and does not replace the standard preferences.
+
+> **Note**: The backend stores every completed Slow Burn submission, but the chat runtime always uses the **latest** stored result.
+
+---
+
+### POST /archetype/slow-burn/score
+
+Submit a completed Slow Burn trait vector to calculate and store the user's archetype result.
+
+**Request:**
+```
+POST /archetype/slow-burn/score
+Content-Type: application/json
+
+{
+  "user_mail_id": "user@example.com",
+  "trait_scores": {
+    "power": 4,
+    "pace": 2,
+    "intensity": 5,
+    "depth": 3,
+    "soft": 1,
+    "freedom": 5,
+    "sharp": 4
+  }
+}
+```
+
+| Field | Type | Constraints | Required |
+|---|---|---|---|
+| `user_mail_id` | `string` | Valid email, 3–320 chars | ✅ |
+| `trait_scores` | `object` | Contains exactly 7 predefined keys with float/int values | ✅ |
+
+**Required trait keys**: `power`, `pace`, `intensity`, `depth`, `soft`, `freedom`, `sharp`
+
+**Response:** `200 OK`
+```json
+{
+  "primary_archetype": "rebel",
+  "primary_similarity": 0.89,
+  "secondary_archetype": null,
+  "secondary_similarity": null,
+  "blend_active": false,
+  "trait_scores": {
+    "power": 4,
+    "pace": 2,
+    "intensity": 5,
+    "depth": 3,
+    "soft": 1,
+    "freedom": 5,
+    "sharp": 4
+  },
+  "created_at": "2026-04-18 10:35:00"
+}
+```
+
+**Errors:**
+- `404 Not Found` — User not registered
+- `422 Unprocessable Entity` — Invalid trait vector (missing keys, extra keys, or non-numeric values)
+
+---
+
+### GET /archetype/latest/{user_mail_id}
+
+Retrieve the user's most recent Slow Burn archetype result.
+
+**Request:**
+```
+GET /archetype/latest/user@example.com
+```
+
+**Response:** `200 OK`
+```json
+{
+  "primary_archetype": "rebel",
+  "primary_similarity": 0.89,
+  "secondary_archetype": null,
+  "secondary_similarity": null,
+  "blend_active": false,
+  "trait_scores": {
+    "power": 4,
+    "pace": 2,
+    "intensity": 5,
+    "depth": 3,
+    "soft": 1,
+    "freedom": 5,
+    "sharp": 4
+  },
+  "created_at": "2026-04-18 10:35:00"
+}
+```
+
+**Errors:**
+- `404 Not Found` — User not registered
+- `404 Not Found` — No archetype result exists for this user
+
+---
+
 ### POST /user-companion
 
 Create or replace the saved user-level companion preferences. If preferences already exist for the user, they are overwritten (upsert behavior).
@@ -269,6 +373,8 @@ GET /user-companion/user@example.com
 ---
 
 ### POST /ai-companion
+
+> **Note:** The current AI Companion schema is a placeholder from Intense Heat. Schema changes to support full Slow Burn integration (including archetype-specific attributes) are pending and tracked in a separate issue.
 
 Create a new AI companion persona for a registered user.
 
@@ -769,9 +875,14 @@ For `422` validation errors, FastAPI returns:
 1. **User Registration First:** A user must be created via `POST /users` before calling any companion or chat endpoint. The `user_mail_id` / `user_id` field across all endpoints refers to the registered email.
 
 2. **Onboarding Flow:**
-   ```
-   POST /users  →  POST /user-companion  →  POST /ai-companion  →  WebSocket /ws/chat
-   ```
+   - **Intense Heat:**
+     ```
+     POST /users  →  POST /user-companion  →  POST /ai-companion  →  WebSocket /ws/chat
+     ```
+   - **Slow Burn:**
+     ```
+     POST /users  →  POST /archetype/slow-burn/score  →  POST /user-companion  →  POST /ai-companion  →  WebSocket /ws/chat
+     ```
 
 3. **Preview Generation Flow:** If the frontend only needs a generated title and description before account creation or before saving, call:
    ```
