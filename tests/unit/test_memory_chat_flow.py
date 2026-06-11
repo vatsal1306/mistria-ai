@@ -103,6 +103,16 @@ class MockExtractionService:
         return []
 
 
+def receive_until_done(ws) -> None:
+    """Drain websocket events and fail fast instead of hanging on error frames."""
+    while True:
+        resp = ws.receive_json()
+        if resp["type"] == "done":
+            return
+        if resp["type"] == "error":
+            pytest.fail(f"websocket returned error frame: {resp.get('detail')}")
+
+
 @pytest.fixture
 def mock_memory_infrastructure(monkeypatch, sqlite_db):
     from src.config import Memory
@@ -149,6 +159,7 @@ def api_client(sqlite_db, monkeypatch):
     from src.storage.conversation_store import SQLiteConversationStore
     from src.storage.service import ChatHistoryService
     from src.storage.memory_repository import SQLiteMemoryRepository
+    from src.storage.archetype_repository import SQLiteArchetypeResultRepository
     from src.companion.service import CompanionService
     from src.backend.service import ChatService
     from src.backend.websocket_handler import WebSocketChatHandler
@@ -161,6 +172,7 @@ def api_client(sqlite_db, monkeypatch):
     conv_store = SQLiteConversationStore(conv_repo)
     history_service = ChatHistoryService(conv_store)
     memory_repo = SQLiteMemoryRepository(sqlite_db)
+    archetype_repo = SQLiteArchetypeResultRepository(sqlite_db)
     
     # 2. Patch main globals so routes use them
     monkeypatch.setattr(main, "database", sqlite_db)
@@ -171,6 +183,7 @@ def api_client(sqlite_db, monkeypatch):
     monkeypatch.setattr(main, "conversation_store", conv_store)
     monkeypatch.setattr(main, "chat_history_service", history_service)
     monkeypatch.setattr(main, "memory_repository", memory_repo, raising=False)
+    monkeypatch.setattr(main, "archetype_repository", archetype_repo)
     
     # 3. Re-instantiate services and handlers in main
     main.chat_service = ChatService(
@@ -196,7 +209,7 @@ def api_client(sqlite_db, monkeypatch):
         user_repo=user_repo,
         user_companion_repo=user_comp_repo,
         ai_companion_repo=ai_comp_repo,
-        archetype_repo=main.archetype_repository,
+        archetype_repo=archetype_repo,
     )
 
     # Patch the runtime stream
@@ -296,10 +309,7 @@ def test_memory_chat_flow_persistence_and_isolation(api_client, mock_memory_infr
             "user_message": "I love skydiving."
         })
         
-        while True:
-            resp = ws.receive_json()
-            if resp["type"] == "done":
-                break
+        receive_until_done(ws)
                 
     # 5. Run extraction manually in a controlled loop
     assert len(extraction_args) == 1
@@ -321,10 +331,7 @@ def test_memory_chat_flow_persistence_and_isolation(api_client, mock_memory_infr
                 "ai_companion_id": sara_id,
                 "user_message": f"Filler message {i}"
             })
-            while True:
-                resp = ws.receive_json()
-                if resp["type"] == "done":
-                    break
+            receive_until_done(ws)
 
     # 7. Reconnect to Sara and verify memory injection (now that it's out of history)
     stream_calls.clear()
@@ -339,10 +346,7 @@ def test_memory_chat_flow_persistence_and_isolation(api_client, mock_memory_infr
             "user_message": "What should we do today?"
         })
         
-        while True:
-            resp = ws.receive_json()
-            if resp["type"] == "done":
-                break
+        receive_until_done(ws)
                 
     # Check that system prompt injected the memory
     assert len(stream_calls) == 1
@@ -367,10 +371,7 @@ def test_memory_chat_flow_persistence_and_isolation(api_client, mock_memory_infr
             "user_message": "Any ideas?"
         })
         
-        while True:
-            resp = ws.receive_json()
-            if resp["type"] == "done":
-                break
+        receive_until_done(ws)
                 
     # Luna should NOT have the skydiving memory
     assert len(stream_calls) == 1
