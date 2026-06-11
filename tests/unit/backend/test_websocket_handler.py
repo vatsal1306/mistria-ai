@@ -94,7 +94,6 @@ def _handler(
     service=None,
     history_service=None,
     user_repo=None,
-    user_companion_repo=None,
     ai_companion_repo=None,
     archetype_repo=None,
     require_api_key: bool = False,
@@ -105,7 +104,6 @@ def _handler(
         service or _ChatService(["ok"]),
         history_service or _HistoryService(),
         user_repo or _Repository(),
-        user_companion_repo or _Repository(),
         ai_companion_repo or _Repository(),
         archetype_repo or _Repository(),
     )
@@ -138,7 +136,6 @@ async def test_handle_sends_ready_and_closes_on_auth_failure():
 @pytest.mark.anyio
 async def test_handle_prefetches_history_from_query_and_processes_first_message(
     sample_user,
-    sample_user_companion,
     sample_ai_companion,
     sample_conversation,
 ):
@@ -159,7 +156,6 @@ async def test_handle_prefetches_history_from_query_and_processes_first_message(
         service=service,
         history_service=_HistoryService(snapshot),
         user_repo=_Repository(sample_user),
-        user_companion_repo=_Repository(sample_user_companion),
         ai_companion_repo=_Repository(sample_ai_companion),
     ).handle(websocket)
 
@@ -192,7 +188,7 @@ async def test_handle_request_rejects_missing_user(sample_ai_companion):
 
 
 @pytest.mark.anyio
-async def test_handle_request_rejects_missing_user_companion(sample_user, sample_ai_companion):
+async def test_handle_request_streams_when_user_and_ai_companion_are_valid(sample_user, sample_ai_companion):
     websocket = _FakeWebSocket()
     request = json.dumps(
         {"action": "chat", "user_id": sample_user.email, "ai_companion_id": sample_ai_companion.id, "user_message": "Hi"}
@@ -203,11 +199,11 @@ async def test_handle_request_rejects_missing_user_companion(sample_user, sample
         ai_companion_repo=_Repository(sample_ai_companion),
     )._handle_request_message(websocket, request)
 
-    assert "preferences are missing" in websocket.sent[0]["detail"]
+    assert [event["type"] for event in websocket.sent] == ["delta", "done"]
 
 
 @pytest.mark.anyio
-async def test_handle_request_rejects_ai_companion_not_owned(sample_user, sample_user_companion, sample_ai_companion):
+async def test_handle_request_rejects_ai_companion_not_owned(sample_user, sample_ai_companion):
     wrong_companion = mock.Mock(id=sample_ai_companion.id, user_id=999)
     websocket = _FakeWebSocket()
     request = json.dumps(
@@ -216,7 +212,6 @@ async def test_handle_request_rejects_ai_companion_not_owned(sample_user, sample
 
     await _handler(
         user_repo=_Repository(sample_user),
-        user_companion_repo=_Repository(sample_user_companion),
         ai_companion_repo=_Repository(wrong_companion),
     )._handle_request_message(websocket, request)
 
@@ -226,7 +221,6 @@ async def test_handle_request_rejects_ai_companion_not_owned(sample_user, sample
 @pytest.mark.anyio
 async def test_handle_request_unhandled_exception_sends_error_frame(
     sample_user,
-    sample_user_companion,
     sample_ai_companion,
 ):
     websocket = _FakeWebSocket()
@@ -237,7 +231,6 @@ async def test_handle_request_unhandled_exception_sends_error_frame(
     await _handler(
         service=_ChatService(exc=RuntimeError("stream exploded")),
         user_repo=_Repository(sample_user),
-        user_companion_repo=_Repository(sample_user_companion),
         ai_companion_repo=_Repository(sample_ai_companion),
     )._handle_request_message(websocket, request)
 

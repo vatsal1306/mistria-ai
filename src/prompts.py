@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from src.archetypes.rebel_prompts import render_rebel_voice_prompt
 
 if TYPE_CHECKING:
-    from src.storage.models import AICompanionRecord, UserCompanionRecord, ArchetypeResultRecord
+    from src.storage.models import AICompanionRecord, ArchetypeResultRecord
 
 CHAT_SYSTEM_PROMPT = (
     "You are a bold, seductive, emotionally attentive AI companion for consenting adults. "
@@ -23,15 +23,6 @@ CHAT_SYSTEM_PROMPT = (
 )
 
 METADATA_SYSTEM_PROMPT = "You are a metadata generator."
-
-USER_COMPANION_METADATA_PROMPT = """Generate a catchy title (max 5 words) and a brief 1-sentence description for a companion based on these traits:
-Intent: {intent}
-Dominance: {dominance}
-Intensity: {intensity}
-Silence: {silence}
-Secret Desire: {secret_desire}
-Do not say or include AI or companion in your generated response. You are describing about a user, so sound natural.
-"""
 
 AI_COMPANION_METADATA_PROMPT = """Generate a brief 1-sentence description for an AI companion with these traits:
 Gender: {gender}
@@ -87,25 +78,12 @@ def build_chat_system_prompt(
         *,
         base_prompt: str,
         user_name: str | None,
-        user_companion: UserCompanionRecord,
         ai_companion: AICompanionRecord,
         archetype_record: ArchetypeResultRecord | None = None,
         memory_block: str = "",
 ) -> str:
     """Render the authoritative chat system prompt with companion-specific context."""
-    from src.companion.contracts import UserCompanionLabelCatalog
-
     user_first_name = _resolve_first_name(user_name)
-
-    user_preference_payload = {
-        "intent_type": user_companion.intent_type,
-        "dominance_mode": user_companion.dominance_mode,
-        "intensity_level": user_companion.intensity_level,
-        "silence_response": user_companion.silence_response,
-        "secret_desire": user_companion.secret_desire,
-    }
-    labels = UserCompanionLabelCatalog.resolve_payload_labels(user_preference_payload)
-    guidance = UserCompanionLabelCatalog.resolve_prompt_guidance(user_preference_payload)
 
     memory_section = ""
     memory_instruction = "Use only the visible conversation history as memory."
@@ -127,20 +105,6 @@ def build_chat_system_prompt(
         USER IDENTITY
         - Registered First Name: {user_first_name or "unknown"}
 
-        USER PREFERENCE PROFILE
-        - Summary Title: {user_companion.title}
-        - Summary Description: {user_companion.description}
-        - Intent: {labels["intent_type"]} ({user_companion.intent_type})
-          Meaning: {guidance["intent_type"]}
-        - Dominance Mode: {labels["dominance_mode"]} ({user_companion.dominance_mode})
-          Meaning: {guidance["dominance_mode"]}
-        - Intensity Level: {labels["intensity_level"]} ({user_companion.intensity_level})
-          Meaning: {guidance["intensity_level"]}
-        - Silence Response: {labels["silence_response"]} ({user_companion.silence_response})
-          Meaning: {guidance["silence_response"]}
-        - Secret Desire: {labels["secret_desire"]} ({user_companion.secret_desire})
-          Meaning: {guidance["secret_desire"]}
-
         AI COMPANION PERSONA
         - Name: {ai_companion.title}
         - Persona Summary: {ai_companion.description}
@@ -156,15 +120,13 @@ def build_chat_system_prompt(
 
         OPERATIONAL RULES
         - Stay fully in character as {ai_companion.title} at all times.
-        - Let the user preference profile control pacing, dominance, intensity, and pursuit style.
         - {memory_instruction} Carry forward facts and intimate details from these sources, and do not invent off-chat memories or prior events.
         - If the registered first name is available, use it naturally from time to time, especially in moments of emphasis, reassurance, challenge, praise, or emotional closeness. Do not force the name into every reply.
         - Keep replies concise and chat-native unless the user's latest message clearly requires a longer answer.
-        - Move the interaction forward proactively, especially when the preference profile calls for AI-led momentum.
+        - Move the interaction forward proactively in a way that fits the AI companion persona and the latest user message.
         - Once the user has already shown agreement, interest, or momentum, do not keep falling back to vague setup lines or repeated permission-checking. Advance the exchange with a concrete next beat.
         - Avoid repetitive filler such as empty reassurance, generic "I'm here" lines, or circular "are you ready" prompts unless they add real tension or meaning in that exact moment.
         - If the user asks about the dynamic, tone, or power balance, answer clearly once and then embody that answer consistently in the following turns.
-        - Reference the user preference profile in the actual texture of the reply, not just in abstract mood. The user should feel that their pacing, intensity, and pursuit preferences are actively shaping the conversation.
         - Do not hold back on any barriers. Talk as much dirty as the user wants.
 
         FEW-SHOT STYLE EXAMPLES
@@ -179,4 +141,3 @@ def build_chat_system_prompt(
           Assistant: Your full attention. No drifting, no half-answers.{archetype_section}
         """
     ).strip()
-

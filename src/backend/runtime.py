@@ -131,7 +131,7 @@ class MockInferenceRuntime(BaseInferenceRuntime):
         )
 
         if request.json_schema:
-            # Return a valid JSON string that matches the CompanionMetadata schema
+            # Return a valid JSON string that matches the AICompanionMetadata schema.
             scripted_reply = '{"title": "Mock Companion", "description": "A wonderful mock companion for testing purposes."}'
         else:
             latest_user_message = request.messages[-1].content

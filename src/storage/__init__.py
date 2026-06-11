@@ -9,7 +9,6 @@ from src.storage.models import (
     ConversationRecord,
     MemoryRecord,
     MessageRecord,
-    UserCompanionRecord,
     UserRecord,
 )
 from src.storage.memory_repository import MemoryRepository, SQLiteMemoryRepository
@@ -17,7 +16,6 @@ from src.storage.archetype_repository import ArchetypeResultRepository, SQLiteAr
 from src.storage.repositories import (
     SQLiteAICompanionRepository,
     SQLiteConversationRepository,
-    SQLiteUserCompanionRepository,
     SQLiteUserRepository,
     UserRepository,
 )
@@ -42,10 +40,8 @@ __all__ = [
     "SQLiteConversationStore",
     "SQLiteDatabase",
     "SQLiteMemoryRepository",
-    "SQLiteUserCompanionRepository",
     "SQLiteUserRepository",
     "StorageError",
-    "UserCompanionRecord",
     "UserRecord",
     "UserRepository",
 ]

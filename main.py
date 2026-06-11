@@ -23,9 +23,6 @@ from src.companion.schemas import (
     AICompanionGenerateRequest,
     AICompanionGenerateResponse,
     AICompanionResponse,
-    UserCompanionResponse,
-    UserCompanionUpsertRequest,
-    UserCompanionUpsertResponse,
 )
 from src.companion.service import CompanionService
 from src.config import settings
@@ -52,7 +49,6 @@ from src.storage.memory_repository import SQLiteMemoryRepository
 from src.storage.repositories import (
     SQLiteAICompanionRepository,
     SQLiteConversationRepository,
-    SQLiteUserCompanionRepository,
     SQLiteUserRepository,
 )
 from src.storage.conversation_store import SQLiteConversationStore
@@ -62,7 +58,6 @@ logger = get_logger(__name__)
 
 database = SQLiteDatabase(settings.storage.sqlite_path)
 user_repository = SQLiteUserRepository(database)
-user_companion_repository = SQLiteUserCompanionRepository(database)
 ai_companion_repository = SQLiteAICompanionRepository(database)
 conversation_repository = SQLiteConversationRepository(database)
 archetype_repository = SQLiteArchetypeResultRepository(database)
@@ -70,7 +65,7 @@ conversation_store = SQLiteConversationStore(conversation_repository)
 chat_history_service = ChatHistoryService(conversation_store)
 
 runtime = InferenceRuntimeFactory.create(settings.chat, settings.inference, settings.secrets)
-companion_service = CompanionService(user_repository, user_companion_repository, ai_companion_repository, runtime)
+companion_service = CompanionService(user_repository, ai_companion_repository, runtime)
 
 # Initialize memory sub-system if enabled
 memory_service = None
@@ -108,7 +103,6 @@ websocket_handler = WebSocketChatHandler(
     chat_service,
     chat_history_service,
     user_repository,
-    user_companion_repository,
     ai_companion_repository,
     archetype_repository,
 )
@@ -317,22 +311,6 @@ def get_latest_archetype_result(user_mail_id: str) -> ArchetypeResultResponse:
 async def chat_socket(websocket: WebSocket) -> None:
     """Handle websocket chat traffic for the active inference backend."""
     await websocket_handler.handle(websocket)
-
-
-@app.post("/user-companion", response_model=UserCompanionUpsertResponse)
-async def upsert_user_companion(payload: UserCompanionUpsertRequest) -> UserCompanionUpsertResponse:
-    """Create or replace the saved user-companion preferences for a registered user."""
-    logger.info("Upserting user companion preferences via API email=%s", payload.user_mail_id)
-    response = await companion_service.upsert_user_companion(payload)
-    logger.info("Upserted user companion preferences via API email=%s", response.user_mail_id)
-    return response
-
-
-@app.get("/user-companion/{user_mail_id}", response_model=UserCompanionResponse)
-def get_user_companion(user_mail_id: str) -> UserCompanionResponse:
-    """Fetch the saved user-companion preferences for the given email address."""
-    logger.debug("Fetching user companion preferences via API email=%s", user_mail_id)
-    return companion_service.get_user_companion(user_mail_id)
 
 
 @app.post("/ai-companion", response_model=AICompanionCreateResponse)

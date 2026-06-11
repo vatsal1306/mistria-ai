@@ -16,7 +16,6 @@ from src.companion.exceptions import CompanionNotFoundError
 from src.companion.schemas import (
     AICompanionCreateRequest,
     AICompanionGenerateRequest,
-    UserCompanionUpsertRequest,
 )
 from src.storage.models import UserRecord
 
@@ -171,26 +170,15 @@ async def test_chat_socket_delegates_to_websocket_handler(monkeypatch):
 
 @pytest.mark.anyio
 async def test_companion_endpoints_delegate_to_service(monkeypatch):
-    upsert_response = SimpleNamespace(user_mail_id="user@example.com")
     create_response = SimpleNamespace(ai_companion_id=4)
     generate_response = SimpleNamespace(title="Mira")
     service = mock.Mock()
-    service.upsert_user_companion = mock.AsyncMock(return_value=upsert_response)
-    service.get_user_companion.return_value = "user-companion"
     service.create_ai_companion = mock.AsyncMock(return_value=create_response)
     service.generate_ai_companion = mock.AsyncMock(return_value=generate_response)
     service.list_ai_companions.return_value = ["one"]
     service.get_ai_companion.return_value = "ai-companion"
     monkeypatch.setattr(main, "companion_service", service)
 
-    upsert_payload = UserCompanionUpsertRequest(
-        user_mail_id="user@example.com",
-        intent_type="easy",
-        dominance_mode="user_leads",
-        intensity_level="show_me",
-        silence_response="wait",
-        secret_desire="running",
-    )
     create_payload = AICompanionCreateRequest(
         user_mail_id="user@example.com",
         title="Mira",
@@ -217,8 +205,6 @@ async def test_companion_endpoints_delegate_to_service(monkeypatch):
         connection="New Encounter",
     )
 
-    assert await main.upsert_user_companion(upsert_payload) is upsert_response
-    assert main.get_user_companion("user@example.com") == "user-companion"
     assert await main.create_ai_companion(create_payload) is create_response
     assert await main.generate_ai_companion(generate_payload) is generate_response
     assert main.list_ai_companions("user@example.com") == ["one"]

@@ -10,7 +10,6 @@ from src.storage.models import (
     AICompanionRecord,
     ConversationRecord,
     MessageRecord,
-    UserCompanionRecord,
     UserRecord,
 )
 
@@ -107,117 +106,6 @@ class SQLiteUserRepository(UserRepository):
         user = UserRecord(**dict(row))
         logger.debug("Created user record user_id=%s email=%s", user.id, user.email)
         return user
-
-
-class SQLiteUserCompanionRepository:
-    """Persistence for user-level companion preferences."""
-
-    def __init__(self, database: SQLiteDatabase):
-        self.database = database
-
-    def find_by_user_id(self, user_id: int) -> UserCompanionRecord | None:
-        """Fetch the saved user-companion preferences for one user."""
-        with self.database.connection() as connection:
-            row = connection.execute(
-                """
-                SELECT
-                    id,
-                    user_id,
-                    intent_type,
-                    dominance_mode,
-                    intensity_level,
-                    silence_response,
-                    secret_desire,
-                    title,
-                    description,
-                    created_at,
-                    updated_at
-                FROM user_companion
-                WHERE user_id = ?
-                """,
-                (user_id,),
-            ).fetchone()
-
-        if row is None:
-            logger.debug("User companion lookup missed user_id=%s", user_id)
-            return None
-        record = UserCompanionRecord(**dict(row))
-        logger.debug("User companion lookup hit record_id=%s user_id=%s", record.id, record.user_id)
-        return record
-
-    def upsert(
-        self,
-        user_id: int,
-        intent_type: str,
-        dominance_mode: str,
-        intensity_level: str,
-        silence_response: str,
-        secret_desire: str,
-        title: str,
-        description: str,
-    ) -> UserCompanionRecord:
-        """Insert or replace the user-companion preferences for one user."""
-        with self.database.connection() as connection:
-            connection.execute(
-                """
-                INSERT INTO user_companion
-                (
-                    user_id,
-                    intent_type,
-                    dominance_mode,
-                    intensity_level,
-                    silence_response,
-                    secret_desire,
-                    title,
-                    description
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(user_id)
-                DO UPDATE SET
-                    intent_type = excluded.intent_type,
-                    dominance_mode = excluded.dominance_mode,
-                    intensity_level = excluded.intensity_level,
-                    silence_response = excluded.silence_response,
-                    secret_desire = excluded.secret_desire,
-                    title = excluded.title,
-                    description = excluded.description,
-                    updated_at = CURRENT_TIMESTAMP
-                """,
-                (
-                    user_id,
-                    intent_type,
-                    dominance_mode,
-                    intensity_level,
-                    silence_response,
-                    secret_desire,
-                    title,
-                    description,
-                ),
-            )
-            row = connection.execute(
-                """
-                SELECT
-                    id,
-                    user_id,
-                    intent_type,
-                    dominance_mode,
-                    intensity_level,
-                    silence_response,
-                    secret_desire,
-                    title,
-                    description,
-                    created_at,
-                    updated_at
-                FROM user_companion
-                WHERE user_id = ?
-                """,
-                (user_id,),
-            ).fetchone()
-            connection.commit()
-
-        record = UserCompanionRecord(**dict(row))
-        logger.debug("Upserted user companion record record_id=%s user_id=%s", record.id, record.user_id)
-        return record
 
 
 class SQLiteAICompanionRepository:
@@ -520,4 +408,3 @@ class SQLiteConversationRepository:
             len(record.content),
         )
         return record
-

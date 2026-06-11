@@ -94,7 +94,7 @@ def test_post_json_sends_payload_and_parses_response(monkeypatch):
 
 
 def test_seed_smoke_user_posts_required_records(monkeypatch):
-    responses = [{}, {}, {"ai_companion_id": 42}]
+    responses = [{}, {"ai_companion_id": 42}]
     posted = []
 
     def fake_post_json(base_url, path, payload):
@@ -108,7 +108,7 @@ def test_seed_smoke_user_posts_required_records(monkeypatch):
 
     assert email == "smoke-abcdef12@ci.test"
     assert ai_companion_id == 42
-    assert [path for _, path, _ in posted] == ["/users", "/user-companion", "/ai-companion"]
+    assert [path for _, path, _ in posted] == ["/users", "/ai-companion"]
 
 
 def test_run_websocket_round_trip_collects_deltas(monkeypatch):

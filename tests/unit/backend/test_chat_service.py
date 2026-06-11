@@ -6,7 +6,7 @@ from src.backend.schemas import ChatMessage, ChatSocketRequest
 from src.backend.service import ChatService
 from src.memory.schemas import MemorySearchResult
 from src.storage.conversation_store import ConversationSnapshot
-from src.storage.models import AICompanionRecord, ConversationRecord, MessageRecord, UserCompanionRecord, ArchetypeResultRecord
+from src.storage.models import AICompanionRecord, ConversationRecord, MessageRecord, ArchetypeResultRecord
 
 
 class _StreamingRuntimeStub:
@@ -109,19 +109,6 @@ async def test_stream_response_builds_companion_contract_prompt_and_trims_histor
         system_prompt=None,
         user_message="so what now?",
     )
-    user_companion = UserCompanionRecord(
-        id=1,
-        user_id=1,
-        intent_type="alive",
-        dominance_mode="ai_leads",
-        intensity_level="break_glass",
-        silence_response="come_looking",
-        secret_desire="both",
-        title="Chased and Unapologetic",
-        description="A high-intensity dynamic built on pursuit and surrender.",
-        created_at="2026-04-24 09:00:00",
-        updated_at="2026-04-24 09:00:00",
-    )
     ai_companion = AICompanionRecord(
         id=2,
         user_id=1,
@@ -145,7 +132,6 @@ async def test_stream_response_builds_companion_contract_prompt_and_trims_histor
             request,
             internal_user_id=1,
             user_name="Vatsal Patel",
-            user_companion=user_companion,
             ai_companion=ai_companion,
             snapshot=snapshot,
     ):
@@ -163,12 +149,12 @@ async def test_stream_response_builds_companion_contract_prompt_and_trims_histor
     system_prompt = inference_request.system_prompt
     assert system_prompt is not None
     assert "Base chat prompt." in system_prompt
-    assert "Summary Title: Chased and Unapologetic" in system_prompt
     assert "Registered First Name: Vatsal" in system_prompt
-    assert "Dominance Mode: She Leads (ai_leads)" in system_prompt
-    assert "You must lead. Take initiative" in system_prompt
     assert "Name: Luna" in system_prompt
     assert "Relationship Frame: Passionate Lover" in system_prompt
+    assert "USER PREFERENCE PROFILE" not in system_prompt
+    assert "Summary Title:" not in system_prompt
+    assert "Dominance Mode:" not in system_prompt
     assert "Use only the visible conversation history as memory." in system_prompt
     assert "use it naturally from time to time" in system_prompt
     assert "do not keep falling back to vague setup lines" in system_prompt
@@ -204,12 +190,11 @@ async def test_stream_response_injects_memories_when_enabled():
         memory_service=memory_service,
     )
     
-    user_companion = UserCompanionRecord(id=1, user_id=1, title="T", description="D", intent_type="alive", dominance_mode="ai_leads", intensity_level="break_glass", silence_response="come_looking", secret_desire="both", created_at="", updated_at="")
     ai_companion = AICompanionRecord(id=2, user_id=1, title="Luna", description="D", gender="F", style="S", ethnicity="E", eye_color="G", hair_style="L", hair_color="P", personality="P", voice="V", connection="C", created_at="", updated_at="")
     
     request = ChatSocketRequest(action="chat", user_id="u", ai_companion_id=2, system_prompt=None, user_message="hello")
     
-    async for _ in service.stream_response(request, internal_user_id=1, user_name="V", user_companion=user_companion, ai_companion=ai_companion, snapshot=snapshot):
+    async for _ in service.stream_response(request, internal_user_id=1, user_name="V", ai_companion=ai_companion, snapshot=snapshot):
         pass
 
     system_prompt = runtime.requests[0].system_prompt
@@ -234,7 +219,6 @@ async def test_stream_response_injects_rebel_prompt_when_archetype_is_rebel():
         history_service=history_service,
     )
     
-    user_companion = UserCompanionRecord(id=1, user_id=1, title="T", description="D", intent_type="alive", dominance_mode="ai_leads", intensity_level="break_glass", silence_response="come_looking", secret_desire="both", created_at="", updated_at="")
     ai_companion = AICompanionRecord(id=2, user_id=1, title="Luna", description="D", gender="F", style="S", ethnicity="E", eye_color="G", hair_style="L", hair_color="P", personality="P", voice="V", connection="C", created_at="", updated_at="")
     archetype_record = ArchetypeResultRecord(
         id=1, user_id=1, onboarding_pathway="slow_burn", trait_scores_json="{}", primary_archetype="rebel", primary_similarity=0.9, secondary_archetype=None, secondary_similarity=None, blend_active=False, created_at=""
@@ -242,7 +226,7 @@ async def test_stream_response_injects_rebel_prompt_when_archetype_is_rebel():
     
     request = ChatSocketRequest(action="chat", user_id="u", ai_companion_id=2, system_prompt=None, user_message="hello")
     
-    async for _ in service.stream_response(request, internal_user_id=1, user_name="V", user_companion=user_companion, ai_companion=ai_companion, snapshot=snapshot, archetype_record=archetype_record):
+    async for _ in service.stream_response(request, internal_user_id=1, user_name="V", ai_companion=ai_companion, snapshot=snapshot, archetype_record=archetype_record):
         pass
 
     system_prompt = runtime.requests[0].system_prompt
@@ -265,7 +249,6 @@ async def test_stream_response_skips_rebel_prompt_when_archetype_is_not_rebel():
         history_service=history_service,
     )
     
-    user_companion = UserCompanionRecord(id=1, user_id=1, title="T", description="D", intent_type="alive", dominance_mode="ai_leads", intensity_level="break_glass", silence_response="come_looking", secret_desire="both", created_at="", updated_at="")
     ai_companion = AICompanionRecord(id=2, user_id=1, title="Luna", description="D", gender="F", style="S", ethnicity="E", eye_color="G", hair_style="L", hair_color="P", personality="P", voice="V", connection="C", created_at="", updated_at="")
     archetype_record = ArchetypeResultRecord(
         id=1, user_id=1, onboarding_pathway="slow_burn", trait_scores_json="{}", primary_archetype="intense_heat", primary_similarity=0.9, secondary_archetype=None, secondary_similarity=None, blend_active=False, created_at=""
@@ -273,7 +256,7 @@ async def test_stream_response_skips_rebel_prompt_when_archetype_is_not_rebel():
     
     request = ChatSocketRequest(action="chat", user_id="u", ai_companion_id=2, system_prompt=None, user_message="hello")
     
-    async for _ in service.stream_response(request, internal_user_id=1, user_name="V", user_companion=user_companion, ai_companion=ai_companion, snapshot=snapshot, archetype_record=archetype_record):
+    async for _ in service.stream_response(request, internal_user_id=1, user_name="V", ai_companion=ai_companion, snapshot=snapshot, archetype_record=archetype_record):
         pass
 
     system_prompt = runtime.requests[0].system_prompt
@@ -298,13 +281,12 @@ async def test_stream_response_graceful_fallback_on_memory_failure():
         memory_service=memory_service,
     )
     
-    user_companion = UserCompanionRecord(id=1, user_id=1, title="T", description="D", intent_type="alive", dominance_mode="ai_leads", intensity_level="break_glass", silence_response="come_looking", secret_desire="both", created_at="", updated_at="")
     ai_companion = AICompanionRecord(id=2, user_id=1, title="Luna", description="D", gender="F", style="S", ethnicity="E", eye_color="G", hair_style="L", hair_color="P", personality="P", voice="V", connection="C", created_at="", updated_at="")
     
     request = ChatSocketRequest(action="chat", user_id="u", ai_companion_id=2, system_prompt=None, user_message="hello")
     
     # Should not raise exception
-    async for _ in service.stream_response(request, internal_user_id=1, user_name="V", user_companion=user_companion, ai_companion=ai_companion, snapshot=snapshot):
+    async for _ in service.stream_response(request, internal_user_id=1, user_name="V", ai_companion=ai_companion, snapshot=snapshot):
         pass
 
     system_prompt = runtime.requests[0].system_prompt
@@ -314,7 +296,6 @@ async def test_stream_response_graceful_fallback_on_memory_failure():
 
 @pytest.mark.anyio
 async def test_stream_response_discards_mismatched_prefetched_snapshot_and_starts_fresh(
-    sample_user_companion,
     sample_ai_companion,
 ):
     runtime = _StreamingRuntimeStub(tokens=[])
@@ -352,7 +333,6 @@ async def test_stream_response_discards_mismatched_prefetched_snapshot_and_start
             request,
             internal_user_id=1,
             user_name=None,
-            user_companion=sample_user_companion,
             ai_companion=sample_ai_companion,
             snapshot=mismatched_snapshot,
         )
@@ -365,7 +345,7 @@ async def test_stream_response_discards_mismatched_prefetched_snapshot_and_start
 
 
 @pytest.mark.anyio
-async def test_stream_response_starts_fresh_when_no_history_exists(sample_user_companion, sample_ai_companion):
+async def test_stream_response_starts_fresh_when_no_history_exists(sample_ai_companion):
     fresh_snapshot = ConversationSnapshot(
         conversation=ConversationRecord(30, 1, 2, "2026-04-24 10:00:00", "2026-04-24 10:00:00"),
         messages=[],
@@ -392,10 +372,9 @@ async def test_stream_response_starts_fresh_when_no_history_exists(sample_user_c
         chunk
         async for chunk in service.stream_response(
             ChatSocketRequest(user_id="user@example.com", ai_companion_id=2, user_message="hello"),
-            1,
-            None,
-            sample_user_companion,
-            sample_ai_companion,
+            internal_user_id=1,
+            user_name=None,
+            ai_companion=sample_ai_companion,
         )
     ]
 
@@ -405,7 +384,7 @@ async def test_stream_response_starts_fresh_when_no_history_exists(sample_user_c
 
 
 @pytest.mark.anyio
-async def test_stream_response_propagates_runtime_failure(sample_user_companion, sample_ai_companion, sample_conversation):
+async def test_stream_response_propagates_runtime_failure(sample_ai_companion, sample_conversation):
     class _FailingRuntime(_StreamingRuntimeStub):
         async def stream_text(self, request):
             self.requests.append(request)
@@ -423,11 +402,10 @@ async def test_stream_response_propagates_runtime_failure(sample_user_companion,
     with pytest.raises(RuntimeError, match="runtime failed"):
         async for _ in service.stream_response(
             ChatSocketRequest(user_id="user@example.com", ai_companion_id=2, user_message="hello"),
-            1,
-            None,
-            sample_user_companion,
-            sample_ai_companion,
-            snapshot,
+            internal_user_id=1,
+            user_name=None,
+            ai_companion=sample_ai_companion,
+            snapshot=snapshot,
         ):
             pass
 
@@ -444,7 +422,7 @@ class _ExtractionWorkerStub:
 
 @pytest.mark.anyio
 async def test_stream_response_schedules_extraction_after_assistant_save(
-    sample_user_companion, sample_ai_companion,
+    sample_ai_companion,
 ):
     """Verify extraction is scheduled after the assistant message is persisted."""
     runtime = _StreamingRuntimeStub(tokens=["Hi."])
@@ -466,7 +444,7 @@ async def test_stream_response_schedules_extraction_after_assistant_save(
 
     async for _ in service.stream_response(
         request, internal_user_id=1, user_name="V",
-        user_companion=sample_user_companion, ai_companion=sample_ai_companion, snapshot=snapshot,
+        ai_companion=sample_ai_companion, snapshot=snapshot,
     ):
         pass
 
@@ -487,7 +465,7 @@ async def test_stream_response_schedules_extraction_after_assistant_save(
 
 @pytest.mark.anyio
 async def test_stream_response_does_not_schedule_extraction_on_empty_output(
-    sample_user_companion, sample_ai_companion,
+    sample_ai_companion,
 ):
     """Verify extraction is skipped when the assistant produces empty output."""
     runtime = _StreamingRuntimeStub(tokens=[])
@@ -509,7 +487,7 @@ async def test_stream_response_does_not_schedule_extraction_on_empty_output(
 
     async for _ in service.stream_response(
         request, internal_user_id=1, user_name="V",
-        user_companion=sample_user_companion, ai_companion=sample_ai_companion, snapshot=snapshot,
+        ai_companion=sample_ai_companion, snapshot=snapshot,
     ):
         pass
 
@@ -518,7 +496,7 @@ async def test_stream_response_does_not_schedule_extraction_on_empty_output(
 
 @pytest.mark.anyio
 async def test_stream_response_does_not_block_when_no_extraction_worker(
-    sample_user_companion, sample_ai_companion,
+    sample_ai_companion,
 ):
     """Verify ChatService works normally without an extraction worker."""
     runtime = _StreamingRuntimeStub(tokens=["ok"])
@@ -539,9 +517,8 @@ async def test_stream_response_does_not_block_when_no_extraction_worker(
     chunks = []
     async for chunk in service.stream_response(
         request, internal_user_id=1, user_name="V",
-        user_companion=sample_user_companion, ai_companion=sample_ai_companion, snapshot=snapshot,
+        ai_companion=sample_ai_companion, snapshot=snapshot,
     ):
         chunks.append(chunk)
 
     assert chunks == ["ok"]
-

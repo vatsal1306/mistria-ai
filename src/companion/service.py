@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from src.Logging import get_logger
-from src.companion.contracts import UserCompanionLabelCatalog
-from src.companion.exceptions import AICompanionNotFoundError, UserCompanionNotFoundError, UserNotRegisteredError
+from src.companion.exceptions import AICompanionNotFoundError, UserNotRegisteredError
 from src.companion.schemas import (
     AICompanionCreateRequest,
     AICompanionCreateResponse,
@@ -12,25 +11,19 @@ from src.companion.schemas import (
     AICompanionGenerateResponse,
     AICompanionMetadata,
     AICompanionResponse,
-    CompanionMetadata,
-    UserCompanionResponse,
-    UserCompanionUpsertRequest,
-    UserCompanionUpsertResponse,
     normalize_user_mail_id,
 )
 from src.backend.runtime import BaseInferenceRuntime
 from src.backend.schemas import ChatMessage, InferencePromptRequest
-from src.storage.models import AICompanionRecord, UserCompanionRecord, UserRecord
+from src.storage.models import AICompanionRecord, UserRecord
 from src.storage.repositories import (
     SQLiteAICompanionRepository,
-    SQLiteUserCompanionRepository,
     SQLiteUserRepository,
 )
 from src.prompts import (
     AI_COMPANION_METADATA_PROMPT,
     AI_COMPANION_TITLE_INSTRUCTION,
     METADATA_SYSTEM_PROMPT,
-    USER_COMPANION_METADATA_PROMPT,
 )
 
 logger = get_logger(__name__)
@@ -42,62 +35,12 @@ class CompanionService:
     def __init__(
             self,
             user_repository: SQLiteUserRepository,
-            user_companion_repository: SQLiteUserCompanionRepository,
             ai_companion_repository: SQLiteAICompanionRepository,
             runtime: BaseInferenceRuntime,
     ):
         self.user_repository = user_repository
-        self.user_companion_repository = user_companion_repository
         self.ai_companion_repository = ai_companion_repository
         self.runtime = runtime
-
-    async def upsert_user_companion(self, payload: UserCompanionUpsertRequest) -> UserCompanionUpsertResponse:
-        """Create or replace the saved user-companion preferences for one user."""
-        logger.info("Upserting user companion preferences email=%s", payload.user_mail_id)
-        user = self._get_user_by_email(payload.user_mail_id)
-        
-        prompt = USER_COMPANION_METADATA_PROMPT.format(
-            intent=payload.intent_type,
-            dominance=payload.dominance_mode,
-            intensity=payload.intensity_level,
-            silence=payload.silence_response,
-            secret_desire=payload.secret_desire
-        )
-
-        req = InferencePromptRequest(
-            system_prompt=METADATA_SYSTEM_PROMPT,
-            messages=[ChatMessage(role="user", content=prompt)],
-            json_schema=CompanionMetadata.model_json_schema()
-        )
-        metadata_text = await self.runtime.generate_text(req)
-        metadata = CompanionMetadata.model_validate_json(metadata_text.strip())
-        
-        self.user_companion_repository.upsert(
-            user_id=user.id,
-            intent_type=payload.intent_type,
-            dominance_mode=payload.dominance_mode,
-            intensity_level=payload.intensity_level,
-            silence_response=payload.silence_response,
-            secret_desire=payload.secret_desire,
-            title=metadata.title,
-            description=metadata.description,
-        )
-        logger.info("Upserted user companion preferences user_id=%s email=%s", user.id, user.email)
-        return UserCompanionUpsertResponse(
-            user_mail_id=payload.user_mail_id,
-            title=metadata.title,
-            description=metadata.description,
-        )
-
-    def get_user_companion(self, user_mail_id: str) -> UserCompanionResponse:
-        """Load the stored user-companion preferences for the given email address."""
-        logger.debug("Fetching user companion preferences email=%s", user_mail_id)
-        user = self._get_user_by_email(user_mail_id)
-        record = self.user_companion_repository.find_by_user_id(user.id)
-        if record is None:
-            logger.warning("User companion preferences not found user_id=%s email=%s", user.id, user.email)
-            raise UserCompanionNotFoundError("User companion preferences not found.")
-        return self._build_user_companion_response(user.email, record)
 
     async def create_ai_companion(self, payload: AICompanionCreateRequest) -> AICompanionCreateResponse:
         """Persist a new AI companion persona and return its identifier and metadata."""
@@ -196,24 +139,6 @@ class CompanionService:
             raise AICompanionNotFoundError("AI companion not found.")
         return self._build_ai_companion_response(user.email, record)
 
-    def get_user_companion_labels(self, user_mail_id: str) -> dict[str, str]:
-        """Resolve label metadata for the stored user-companion selections."""
-        logger.debug("Resolving user companion labels email=%s", user_mail_id)
-        user = self._get_user_by_email(user_mail_id)
-        record = self.user_companion_repository.find_by_user_id(user.id)
-        if record is None:
-            logger.warning("Cannot resolve companion labels without preferences user_id=%s email=%s", user.id, user.email)
-            raise UserCompanionNotFoundError("User companion preferences not found.")
-        return UserCompanionLabelCatalog.resolve_payload_labels(
-            {
-                "intent_type": record.intent_type,
-                "dominance_mode": record.dominance_mode,
-                "intensity_level": record.intensity_level,
-                "silence_response": record.silence_response,
-                "secret_desire": record.secret_desire,
-            }
-        )
-
     def _get_user_by_email(self, user_mail_id: str) -> UserRecord:
         normalized_email = normalize_user_mail_id(user_mail_id)
         user = self.user_repository.find_by_email(normalized_email)
@@ -222,19 +147,6 @@ class CompanionService:
             raise UserNotRegisteredError("User not registered.")
         logger.debug("Resolved user email=%s user_id=%s", user.email, user.id)
         return user
-
-    @staticmethod
-    def _build_user_companion_response(user_mail_id: str, record: UserCompanionRecord) -> UserCompanionResponse:
-        return UserCompanionResponse(
-            user_mail_id=user_mail_id,
-            intent_type=record.intent_type,
-            dominance_mode=record.dominance_mode,
-            intensity_level=record.intensity_level,
-            silence_response=record.silence_response,
-            secret_desire=record.secret_desire,
-            title=record.title,
-            description=record.description,
-        )
 
     @staticmethod
     def _build_ai_companion_response(user_mail_id: str, record: AICompanionRecord) -> AICompanionResponse:

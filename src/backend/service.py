@@ -14,7 +14,7 @@ from src.memory.prompts import render_memory_prompt
 from src.memory.service import MemoryService
 from src.prompts import build_chat_system_prompt
 from src.storage.conversation_store import ConversationSnapshot
-from src.storage.models import AICompanionRecord, UserCompanionRecord, ArchetypeResultRecord
+from src.storage.models import AICompanionRecord, ArchetypeResultRecord
 from src.storage.service import ChatHistoryService
 
 logger = get_logger(__name__)
@@ -42,7 +42,6 @@ class ChatService:
         request: ChatSocketRequest, 
         internal_user_id: int, 
         user_name: str | None,
-        user_companion: UserCompanionRecord,
         ai_companion: AICompanionRecord,
         snapshot: ConversationSnapshot | None = None,
         archetype_record: ArchetypeResultRecord | None = None,
@@ -145,7 +144,7 @@ class ChatService:
 
         inference_request = InferencePromptRequest(
             system_prompt=self._build_system_prompt(
-                request, user_name, user_companion, ai_companion, archetype_record=archetype_record, memory_block=memory_block
+                request, user_name, ai_companion, archetype_record=archetype_record, memory_block=memory_block
             ),
             messages=mapped_messages,
         )
@@ -201,7 +200,6 @@ class ChatService:
             self,
             request: ChatSocketRequest,
             user_name: str | None,
-            user_companion: UserCompanionRecord,
             ai_companion: AICompanionRecord,
             archetype_record: ArchetypeResultRecord | None = None,
             memory_block: str = "",
@@ -210,7 +208,6 @@ class ChatService:
         return build_chat_system_prompt(
             base_prompt=base_prompt,
             user_name=user_name,
-            user_companion=user_companion,
             ai_companion=ai_companion,
             archetype_record=archetype_record,
             memory_block=memory_block,

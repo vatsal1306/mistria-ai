@@ -14,11 +14,6 @@ from src.companion.contracts import (
     AIPersonality,
     AIStyle,
     AIVoice,
-    DominanceMode,
-    IntentType,
-    IntensityLevel,
-    SecretDesire,
-    SilenceResponse,
 )
 
 
@@ -28,31 +23,6 @@ def normalize_user_mail_id(user_mail_id: str) -> str:
     if not normalized or "@" not in normalized:
         raise ValueError("user_mail_id must be a valid email address.")
     return normalized
-
-
-class UserCompanionUpsertRequest(BaseModel):
-    """Request payload for saving user-level companion preferences."""
-
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-
-    user_mail_id: str = Field(min_length=3, max_length=320)
-    intent_type: IntentType
-    dominance_mode: DominanceMode
-    intensity_level: IntensityLevel
-    silence_response: SilenceResponse
-    secret_desire: SecretDesire
-
-    @field_validator("user_mail_id")
-    @classmethod
-    def validate_user_mail_id(cls, value: str) -> str:
-        """Normalize the email identifier before model validation completes."""
-        return normalize_user_mail_id(value)
-
-
-class CompanionMetadata(BaseModel):
-    """Enforced structured output for companion metadata generation."""
-    title: str = Field(description="A catchy name or title (max 5 words)")
-    description: str = Field(description="A brief 1-sentence description")
 
 
 class AICompanionMetadata(BaseModel):
@@ -69,31 +39,6 @@ class AICompanionMetadata(BaseModel):
             "A brief single-sentence persona description grounded in the supplied traits."
         )
     )
-
-
-class UserCompanionUpsertResponse(BaseModel):
-    """Response returned when user-level companion preferences are saved."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    user_mail_id: str
-    title: str
-    description: str
-
-
-class UserCompanionResponse(BaseModel):
-    """Saved user-level companion preferences."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    user_mail_id: str
-    intent_type: IntentType
-    dominance_mode: DominanceMode
-    intensity_level: IntensityLevel
-    silence_response: SilenceResponse
-    secret_desire: SecretDesire
-    title: str
-    description: str
 
 
 class AICompanionCreateRequest(BaseModel):

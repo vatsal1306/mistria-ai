@@ -156,32 +156,6 @@ class TestArchetypeResultCreate:
         assert parsed["power"] == 3.0
         assert parsed["sharp"] == 4.0
 
-    def test_does_not_mutate_companion_records(self, db, repo, user_id):
-        """Archetype submissions must not affect user_companion rows."""
-        with db.connection() as conn:
-            before = conn.execute(
-                "SELECT COUNT(*) FROM user_companion"
-            ).fetchone()[0]
-
-        repo.create_result(
-            user_id=user_id,
-            onboarding_pathway="slow_burn",
-            trait_scores_json=SAMPLE_TRAITS,
-            primary_archetype="rebel",
-            primary_similarity=0.94,
-            secondary_archetype=None,
-            secondary_similarity=None,
-            blend_active=False,
-        )
-
-        with db.connection() as conn:
-            after = conn.execute(
-                "SELECT COUNT(*) FROM user_companion"
-            ).fetchone()[0]
-
-        assert after == before
-
-
 class TestArchetypeResultMultipleSubmissions:
     """Verify multiple submissions per user are supported."""
 

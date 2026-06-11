@@ -37,6 +37,29 @@ def test_database_initializes_and_creates_memories_table():
             assert columns["status"] == "TEXT"
 
 
+def test_database_initializes_without_user_companion_objects():
+    """Fresh databases must not create legacy user companion storage objects."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "test.db"
+        db = SQLiteDatabase(str(db_path))
+        db.initialize()
+
+        with db.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT name
+                FROM sqlite_master
+                WHERE name IN (
+                    'user_companion',
+                    'idx_user_companion_user_id',
+                    'trg_user_companion_updated_at'
+                )
+                """
+            ).fetchall()
+
+        assert rows == []
+
+
 def test_database_memories_constraints():
     """Verify that the memories table enforces CHECK constraints."""
     with tempfile.TemporaryDirectory() as tmpdir:
