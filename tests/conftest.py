@@ -9,7 +9,7 @@ import pytest
 
 from src.config import Memory
 from src.storage.database import SQLiteDatabase
-from src.storage.models import AICompanionRecord, ConversationRecord, MessageRecord, UserCompanionRecord, UserRecord
+from src.storage.models import AICompanionRecord, ConversationRecord, MessageRecord, UserRecord
 
 
 @pytest.fixture
@@ -40,23 +40,6 @@ def sample_user() -> UserRecord:
         name="Vatsal Patel",
         encrypted_password=None,
         created_at="2026-04-24 09:00:00",
-    )
-
-
-@pytest.fixture
-def sample_user_companion() -> UserCompanionRecord:
-    return UserCompanionRecord(
-        id=1,
-        user_id=1,
-        intent_type="alive",
-        dominance_mode="ai_leads",
-        intensity_level="break_glass",
-        silence_response="come_looking",
-        secret_desire="both",
-        title="Chased and Unapologetic",
-        description="A high-intensity dynamic built on pursuit and surrender.",
-        created_at="2026-04-24 09:00:00",
-        updated_at="2026-04-24 09:00:00",
     )
 
 

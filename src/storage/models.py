@@ -16,22 +16,6 @@ class UserRecord:
 
 
 @dataclass(frozen=True, slots=True)
-class UserCompanionRecord:
-    """Persisted user-level companion preference row."""
-    id: int
-    user_id: int
-    intent_type: str
-    dominance_mode: str
-    intensity_level: str
-    silence_response: str
-    secret_desire: str
-    title: str
-    description: str
-    created_at: str
-    updated_at: str
-
-
-@dataclass(frozen=True, slots=True)
 class AICompanionRecord:
     """Persisted AI companion persona row."""
     id: int

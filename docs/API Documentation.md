@@ -17,10 +17,9 @@
    - [GET /info](#get-info)
    - [GET /health](#get-health)
    - [POST /users](#post-users)
-   - [POST /user-companion](#post-user-companion)
-   - [GET /user-companion/{user_mail_id}](#get-user-companionuser_mail_id)
    - [POST /ai-companion](#post-ai-companion)
    - [POST /ai-companion/generate](#post-ai-companiongenerate)
+   - [GET /ai-companion](#get-ai-companion)
    - [GET /ai-companion/{ai_companion_id}](#get-ai-companionai_companion_id)
    - [POST /archetype/slow-burn/score](#post-archetypeslow-burnscore)
    - [GET /archetype/latest/{user_mail_id}](#get-archetypelatestuser_mail_id)
@@ -41,7 +40,7 @@
 
 Mistria AI exposes a FastAPI backend with:
 
-- **10 HTTP endpoints** for user management, companion preferences, AI persona generation, and memory debugging.
+- HTTP endpoints for user management, AI persona generation, archetype scoring, and memory debugging.
 - **1 WebSocket endpoint** for real-time streamed chat with long-term memory retrieval.
 
 All HTTP endpoints accept and return `application/json`. The WebSocket endpoint exchanges JSON text frames.
@@ -197,8 +196,8 @@ Content-Type: application/json
 ### Archetype Onboarding (Slow Burn vs Intense Heat)
 
 The platform supports two distinct onboarding paths:
-1. **Intense Heat**: The user skips archetype testing. They do **not** require an archetype result. The frontend proceeds directly to `POST /user-companion` and `POST /ai-companion`.
-2. **Slow Burn**: The frontend asks a series of archetype questions, converts the selections into trait scores, and submits them to `POST /archetype/slow-burn/score`. The backend calculates and stores the archetype. **Afterward**, the user still sets their user companion preferences and AI companion preferences exactly like the Intense Heat flow. Archetype scoring is additive and does not replace the standard preferences.
+1. **Intense Heat**: The user skips archetype testing. They do **not** require an archetype result. The frontend proceeds directly to `POST /ai-companion`.
+2. **Slow Burn**: The frontend asks a series of archetype questions, converts the selections into trait scores, and submits them to `POST /archetype/slow-burn/score`. The backend calculates and stores the archetype. **Afterward**, the user creates an AI companion persona exactly like the Intense Heat flow. Archetype scoring is additive and does not replace the AI companion persona.
 
 > **Note**: The backend stores every completed Slow Burn submission, but the chat runtime always uses the **latest** stored result.
 
@@ -294,81 +293,6 @@ GET /archetype/latest/user@example.com
 **Errors:**
 - `404 Not Found` — User not registered
 - `404 Not Found` — No archetype result exists for this user
-
----
-
-### POST /user-companion
-
-Create or replace the saved user-level companion preferences. If preferences already exist for the user, they are overwritten (upsert behavior).
-
-**Request:**
-```
-POST /user-companion
-Content-Type: application/json
-
-{
-  "user_mail_id": "user@example.com",
-  "intent_type": "alive",
-  "dominance_mode": "ai_leads",
-  "intensity_level": "break_glass",
-  "silence_response": "come_looking",
-  "secret_desire": "both"
-}
-```
-
-| Field | Type | Allowed Values | Required |
-|---|---|---|---|
-| `user_mail_id` | `string` | Valid email, 3–320 chars | ✅ |
-| `intent_type` | `string` | `"easy"`, `"alive"`, `"lose_myself"` | ✅ |
-| `dominance_mode` | `string` | `"user_leads"`, `"ai_leads"`, `"no_rules"` | ✅ |
-| `intensity_level` | `string` | `"show_me"`, `"break_glass"`, `"burn_it"` | ✅ |
-| `silence_response` | `string` | `"wait"`, `"come_looking"`, `"never_leave"` | ✅ |
-| `secret_desire` | `string` | `"running"`, `"searching"`, `"both"` | ✅ |
-
-**Response:** `200 OK`
-```json
-{
-  "user_mail_id": "user@example.com",
-  "title": "Chased and Unapologetic",
-  "description": "A high-intensity personality that wants pursuit, danger, and emotional surrender."
-}
-```
-
-**Error:** `404 Not Found` — User email not registered
-```json
-{
-  "detail": "User not registered."
-}
-```
-
----
-
-### GET /user-companion/{user_mail_id}
-
-Fetch the saved companion preferences for a user.
-
-**Request:**
-```
-GET /user-companion/user@example.com
-```
-
-**Response:** `200 OK`
-```json
-{
-  "user_mail_id": "user@example.com",
-  "intent_type": "alive",
-  "dominance_mode": "ai_leads",
-  "intensity_level": "break_glass",
-  "silence_response": "come_looking",
-  "secret_desire": "both",
-  "title": "Chased and Unapologetic",
-  "description": "A high-intensity personality that wants pursuit, danger, and emotional surrender."
-}
-```
-
-**Errors:**
-- `404 Not Found` — User not registered: `{"detail": "User not registered."}`
-- `404 Not Found` — Preferences not set: `{"detail": "User companion preferences not found."}`
 
 ---
 
@@ -651,7 +575,7 @@ Send a JSON text frame with the following structure:
 | `user_message` | `string` | The latest chat input from the user (min 1 char) | ✅ |
 
 **Validation Rules:**
-- The backend strictly validates identity: the user, user companion preferences, and AI companion must exist in the database and be correctly owned.
+- The backend strictly validates identity: the user and AI companion must exist in the database, and the AI companion must be owned by that user.
 - **Short-Term History**: The server automatically fetches recent conversation history from the database and trims it to the last 24 messages.
 - **Long-Term Memory (LTM)**: If enabled, the server retrieves relevant facts, preferences, and emotional context from the vector store (Qdrant) before starting inference, using a hybrid search of the latest `user_message`.
 - **Injection**: Both short-term history and long-term memories are injected into the system prompt before inference. This happens entirely server-side; the frontend does not need to manage or send the memory context.
@@ -811,16 +735,6 @@ Connection:             Remains open. Client should retry after checking /health
 
 ## Allowed Values Reference
 
-### User Companion Preferences
-
-| Field | Allowed Values |
-|---|---|
-| `intent_type` | `"easy"`, `"alive"`, `"lose_myself"` |
-| `dominance_mode` | `"user_leads"`, `"ai_leads"`, `"no_rules"` |
-| `intensity_level` | `"show_me"`, `"break_glass"`, `"burn_it"` |
-| `silence_response` | `"wait"`, `"come_looking"`, `"never_leave"` |
-| `secret_desire` | `"running"`, `"searching"`, `"both"` |
-
 ### AI Companion Persona
 
 | Field | Allowed Values |
@@ -877,11 +791,11 @@ For `422` validation errors, FastAPI returns:
 2. **Onboarding Flow:**
    - **Intense Heat:**
      ```
-     POST /users  →  POST /user-companion  →  POST /ai-companion  →  WebSocket /ws/chat
+     POST /users  →  POST /ai-companion  →  WebSocket /ws/chat
      ```
    - **Slow Burn:**
      ```
-     POST /users  →  POST /archetype/slow-burn/score  →  POST /user-companion  →  POST /ai-companion  →  WebSocket /ws/chat
+     POST /users  →  POST /archetype/slow-burn/score  →  POST /ai-companion  →  WebSocket /ws/chat
      ```
 
 3. **Preview Generation Flow:** If the frontend only needs a generated title and description before account creation or before saving, call:

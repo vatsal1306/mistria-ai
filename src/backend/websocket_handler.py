@@ -12,7 +12,6 @@ from src.backend.service import ChatService
 from src.config import Api, Secrets
 from src.storage.repositories import (
     SQLiteAICompanionRepository,
-    SQLiteUserCompanionRepository,
     UserRepository,
 )
 from src.storage.archetype_repository import ArchetypeResultRepository
@@ -28,14 +27,13 @@ class WebSocketChatHandler:
 
     def __init__(self, api_config: Api, secrets_config: Secrets, service: ChatService,
                  history_service: ChatHistoryService,
-                 user_repo: UserRepository, user_companion_repo: SQLiteUserCompanionRepository,
+                 user_repo: UserRepository,
                  ai_companion_repo: SQLiteAICompanionRepository, archetype_repo: ArchetypeResultRepository):
         self.api_config = api_config
         self.secrets_config = secrets_config
         self.service = service
         self.history_service = history_service
         self.user_repo = user_repo
-        self.user_companion_repo = user_companion_repo
         self.ai_companion_repo = ai_companion_repo
         self.archetype_repo = archetype_repo
         self._history_tasks: dict[str, asyncio.Task[ConversationSnapshot]] = {}
@@ -130,16 +128,6 @@ class WebSocketChatHandler:
                 logger.warning("Rejected websocket chat request for unknown user client=%s user_id=%s", client_label, request.user_id)
                 raise ServiceError(f"User not found in DB: {request.user_id}")
 
-            user_companion = self.user_companion_repo.find_by_user_id(user.id)
-            if not user_companion:
-                logger.warning(
-                    "Rejected websocket chat request with missing user companion client=%s user_id=%s internal_user_id=%s",
-                    client_label,
-                    request.user_id,
-                    user.id,
-                )
-                raise ServiceError("User companion preferences are missing in DB.")
-
             ai_companion = self.ai_companion_repo.find_by_id(request.ai_companion_id)
             if not ai_companion or ai_companion.user_id != user.id:
                 logger.warning(
@@ -165,7 +153,6 @@ class WebSocketChatHandler:
                     request,
                     user.id,
                     user.name,
-                    user_companion,
                     ai_companion,
                     snapshot,
                     archetype_record,

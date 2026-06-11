@@ -55,69 +55,6 @@ class SQLiteDatabase:
             )
             """,
             """
-            CREATE TABLE IF NOT EXISTS user_companion
-            (
-                id
-                INTEGER
-                PRIMARY
-                KEY
-                AUTOINCREMENT,
-                user_id
-                INTEGER
-                NOT
-                NULL
-                UNIQUE,
-                intent_type
-                TEXT
-                NOT
-                NULL,
-                dominance_mode
-                TEXT
-                NOT
-                NULL,
-                intensity_level
-                TEXT
-                NOT
-                NULL,
-                silence_response
-                TEXT
-                NOT
-                NULL,
-                secret_desire
-                TEXT
-                NOT
-                NULL,
-                title
-                TEXT
-                NOT
-                NULL,
-                description
-                TEXT
-                NOT
-                NULL,
-                created_at
-                TEXT
-                NOT
-                NULL
-                DEFAULT
-                CURRENT_TIMESTAMP,
-                updated_at
-                TEXT
-                NOT
-                NULL
-                DEFAULT
-                CURRENT_TIMESTAMP,
-                FOREIGN
-                KEY
-            (
-                user_id
-            ) REFERENCES users
-            (
-                id
-            ) ON DELETE CASCADE
-                )
-            """,
-            """
             CREATE TABLE IF NOT EXISTS ai_companion
             (
                 id
@@ -324,10 +261,6 @@ class SQLiteDatabase:
             CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)
             """,
             """
-            CREATE INDEX IF NOT EXISTS idx_user_companion_user_id
-                ON user_companion(user_id)
-            """,
-            """
             CREATE INDEX IF NOT EXISTS idx_ai_companion_user_created_at
                 ON ai_companion(user_id, created_at DESC, id DESC)
             """,
@@ -362,18 +295,6 @@ class SQLiteDatabase:
         )
 
         trigger_statements = (
-            """
-            CREATE TRIGGER IF NOT EXISTS trg_user_companion_updated_at
-            AFTER
-            UPDATE ON user_companion
-                FOR EACH ROW
-                WHEN NEW.updated_at = OLD.updated_at
-            BEGIN
-            UPDATE user_companion
-            SET updated_at = CURRENT_TIMESTAMP
-            WHERE id = OLD.id;
-            END
-            """,
             """
             CREATE TRIGGER IF NOT EXISTS trg_ai_companion_updated_at
             AFTER
@@ -452,6 +373,7 @@ class SQLiteDatabase:
                 self._ensure_users_password_nullable(connection)
                 self._ensure_conversations_ai_companion_column(connection)
                 self._ensure_archetype_results_constraints(connection)
+                self._drop_user_companion_objects(connection)
                 for statement in index_statements:
                     connection.execute(statement)
                 for statement in trigger_statements:
@@ -490,6 +412,12 @@ class SQLiteDatabase:
             if row["name"] == column_name:
                 return bool(row["notnull"])
         return False
+
+    @staticmethod
+    def _drop_user_companion_objects(connection: sqlite3.Connection) -> None:
+        connection.execute("DROP TRIGGER IF EXISTS trg_user_companion_updated_at")
+        connection.execute("DROP INDEX IF EXISTS idx_user_companion_user_id")
+        connection.execute("DROP TABLE IF EXISTS user_companion")
 
     def _ensure_users_password_nullable(self, connection: sqlite3.Connection) -> None:
         if not self._column_is_not_null(connection, "users", "encrypted_password"):
@@ -590,6 +518,4 @@ class SQLiteDatabase:
             connection.execute("DROP TABLE archetype_results_legacy")
         finally:
             connection.execute("PRAGMA foreign_keys = ON")
-
-
 

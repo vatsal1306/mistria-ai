@@ -85,22 +85,13 @@ def _post_json(base_url: str, path: str, payload: dict) -> dict:
 
 
 def seed_smoke_user(backend_base_url: str) -> tuple[str, int]:
-    """Register a smoke-test user, companion preferences, and AI companion.
+    """Register a smoke-test user and AI companion.
 
     Returns the user email and the created AI companion ID.
     """
     email = f"smoke-{uuid4().hex[:8]}@ci.test"
 
     _post_json(backend_base_url, "/users", {"email": email, "name": "CI Smoke User"})
-
-    _post_json(backend_base_url, "/user-companion", {
-        "user_mail_id": email,
-        "intent_type": "easy",
-        "dominance_mode": "user_leads",
-        "intensity_level": "show_me",
-        "silence_response": "wait",
-        "secret_desire": "running",  # nosec B105
-    })
 
     ai_companion = _post_json(backend_base_url, "/ai-companion", {
         "user_mail_id": email,
@@ -181,4 +172,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

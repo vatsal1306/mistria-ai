@@ -12,7 +12,6 @@ from src.storage.exceptions import RepositoryError
 from src.storage.repositories import (
     SQLiteAICompanionRepository,
     SQLiteConversationRepository,
-    SQLiteUserCompanionRepository,
     SQLiteUserRepository,
     _normalize_email,
 )
@@ -55,36 +54,6 @@ def test_user_repository_create_and_lookup(sqlite_db):
     assert repository.find_by_id(created.id) == created
     assert repository.find_by_email("missing@example.com") is None
     assert repository.find_by_id(9999) is None
-
-
-def test_user_companion_repository_upserts_latest_values(sqlite_db):
-    user = _create_user(SQLiteUserRepository(sqlite_db))
-    repository = SQLiteUserCompanionRepository(sqlite_db)
-
-    first = repository.upsert(
-        user_id=user.id,
-        intent_type="easy",
-        dominance_mode="user_leads",
-        intensity_level="show_me",
-        silence_response="wait",
-        secret_desire="running",
-        title="First",
-        description="First description",
-    )
-    second = repository.upsert(
-        user_id=user.id,
-        intent_type="alive",
-        dominance_mode="ai_leads",
-        intensity_level="break_glass",
-        silence_response="come_looking",
-        secret_desire="both",
-        title="Second",
-        description="Second description",
-    )
-
-    assert first.id == second.id
-    assert repository.find_by_user_id(user.id).title == "Second"
-    assert repository.find_by_user_id(9999) is None
 
 
 def test_ai_companion_repository_create_find_list_and_latest(sqlite_db):
@@ -156,6 +125,25 @@ def test_database_migrates_legacy_nullable_password_and_conversation_companion(t
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
+            CREATE TABLE user_companion (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL UNIQUE,
+                intent_type TEXT NOT NULL,
+                dominance_mode TEXT NOT NULL,
+                intensity_level TEXT NOT NULL,
+                silence_response TEXT NOT NULL,
+                secret_desire TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX idx_user_companion_user_id ON user_companion(user_id);
+            CREATE TRIGGER trg_user_companion_updated_at
+            AFTER UPDATE ON user_companion
+            BEGIN
+                UPDATE user_companion SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
+            END;
             """
         )
         connection.commit()
@@ -173,7 +161,19 @@ def test_database_migrates_legacy_nullable_password_and_conversation_companion(t
         encrypted_password = connection.execute(
             "SELECT encrypted_password FROM users WHERE email = 'legacy@example.com'"
         ).fetchone()["encrypted_password"]
+        legacy_objects = connection.execute(
+            """
+            SELECT name
+            FROM sqlite_master
+            WHERE name IN (
+                'user_companion',
+                'idx_user_companion_user_id',
+                'trg_user_companion_updated_at'
+            )
+            """
+        ).fetchall()
 
     assert user_columns["encrypted_password"]["notnull"] == 0
     assert encrypted_password is None
     assert "ai_companion_id" in conversation_columns
+    assert legacy_objects == []
