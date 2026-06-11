@@ -160,10 +160,42 @@ install_docker() {
   success "Docker Engine and Compose plugin are installed"
 }
 
+start_docker_daemon() {
+  local prefix
+  prefix="$(sudo_prefix)"
+
+  if command -v systemctl >/dev/null 2>&1; then
+    if ${prefix}systemctl enable --now docker >/dev/null 2>&1; then
+      return 0
+    fi
+
+    if ${prefix}systemctl start docker >/dev/null 2>&1; then
+      return 0
+    fi
+  fi
+
+  if command -v service >/dev/null 2>&1; then
+    if ${prefix}service docker start >/dev/null 2>&1; then
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
 ensure_docker_access() {
   if docker info >/dev/null 2>&1; then
     success "Current user can access Docker"
     return
+  fi
+
+  info "Docker daemon is not reachable yet; attempting to start Docker"
+  if start_docker_daemon; then
+    sleep 2
+    if docker info >/dev/null 2>&1; then
+      success "Docker daemon is running and current user can access Docker"
+      return
+    fi
   fi
 
   local prefix
@@ -174,7 +206,7 @@ ensure_docker_access() {
     fail "Docker is not available to the current shell without sudo. Log out/in or run bootstrap as root, then rerun."
   fi
 
-  fail "Docker daemon is not reachable. Start Docker and rerun bootstrap."
+  fail "Docker daemon is not reachable. Check Docker with 'sudo systemctl status docker' and rerun bootstrap after it starts."
 }
 
 sync_repo() {
