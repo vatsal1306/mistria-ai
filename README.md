@@ -207,3 +207,50 @@ uv run python -m compileall main.py streamlit_app.py src scripts
 ```
 
 The production Docker image installs the optional `inference` extra so the embedded vLLM runtime can import and initialize inside the backend container.
+
+## Run Directly On Runpod
+
+Runpod pods commonly give you a shell inside a container and do not let that container manage Docker. Use the direct runtime scripts instead of `scripts/bootstrap.sh`.
+
+Use a CUDA/PyTorch Runpod template with Python 3.10+ and enough GPU memory for the selected model. Then run:
+
+```bash
+cd /workspace
+curl -O https://raw.githubusercontent.com/vatsal1306/mistria-ai/main/scripts/bootstrap_runpod.sh
+bash ./bootstrap_runpod.sh
+cd /workspace/mistria-ai
+bash scripts/run_direct.sh start
+```
+
+Expose these Runpod HTTP ports:
+
+- `8501` for Streamlit.
+- `8080` for FastAPI only if you need direct API access.
+
+Useful Runpod variables:
+
+```bash
+REPO_BRANCH=main
+REPO_DIR=/workspace/mistria-ai
+BACKEND_PORT=8080
+FRONTEND_PORT=8501
+MISTRIA_MODEL_NAME=dphn/Dolphin3.0-Llama3.1-8B
+MISTRIA_INFERENCE_BACKEND=vllm
+MISTRIA_MEMORY_ENABLED=False
+OVERWRITE_ENV=0
+INSTALL_SYSTEM_PACKAGES=1
+```
+
+Direct runtime commands:
+
+```bash
+bash scripts/run_direct.sh status
+bash scripts/run_direct.sh health
+bash scripts/run_direct.sh logs
+bash scripts/run_direct.sh restart
+bash scripts/run_direct.sh stop
+```
+
+The direct launcher starts the backend on `0.0.0.0:${BACKEND_PORT}` and starts Streamlit on `0.0.0.0:${FRONTEND_PORT}`. Streamlit connects back to the backend through `127.0.0.1:${BACKEND_PORT}` inside the same pod.
+
+First startup can take several minutes while Hugging Face model weights download and vLLM initializes. Caches, SQLite data, logs, and the virtual environment are kept under `/workspace` by default so they survive pod restarts when Runpod persistent storage is enabled.
