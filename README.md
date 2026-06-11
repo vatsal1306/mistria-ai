@@ -155,6 +155,7 @@ Bootstrap will:
 
 - Install base packages.
 - Install Docker Engine and the Docker Compose plugin if missing.
+- Start the Docker daemon if it is installed but not running.
 - Sync or clone this repository.
 - Write `.env` with production vLLM defaults.
 - Verify Docker GPU access.
@@ -173,6 +174,16 @@ OVERWRITE_ENV=0
 SKIP_GPU_CHECK=0
 RUN_SMOKE=0
 ```
+
+If bootstrap stops at Docker access, check the service directly:
+
+```bash
+sudo systemctl status docker
+sudo systemctl enable --now docker
+docker info
+```
+
+If `sudo docker info` works but `docker info` does not, log out and back in after bootstrap adds your user to the `docker` group, then rerun the script.
 
 ## Persistence
 
