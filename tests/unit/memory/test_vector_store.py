@@ -46,6 +46,26 @@ def test_qdrant_client_import_failure_raises_configuration_error(mock_logger):
         mock_logger.error.assert_called_with("qdrant-client is not installed. Vector search will be disabled.")
 
 
+@mock.patch("src.memory.vector_store.os.makedirs")
+def test_qdrant_client_uses_local_path_when_configured(mock_makedirs):
+    """Verify local Qdrant storage is used when a path is configured."""
+    store = QdrantVectorStore(
+        url="http://fake",
+        path="/workspace/qdrant",
+        collection_name="test",
+        enabled=True,
+    )
+
+    mock_qdrant_client = mock.Mock()
+    mock_qdrant_module = mock.Mock(QdrantClient=mock_qdrant_client)
+
+    with mock.patch.dict("sys.modules", {"qdrant_client": mock_qdrant_module}):
+        store._get_client()
+
+    mock_makedirs.assert_called_once_with("/workspace/qdrant", exist_ok=True)
+    mock_qdrant_client.assert_called_once_with(path="/workspace/qdrant")
+
+
 def test_qdrant_upsert_sends_correct_payload():
     """Test that upsert_memory constructs the payload correctly."""
     store = QdrantVectorStore(url="http://fake", collection_name="test", enabled=True)

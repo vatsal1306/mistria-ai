@@ -90,6 +90,7 @@ def main(argv: list[str] | None = None) -> int:
     # regardless of whether the app is currently running.
     vector_store = QdrantVectorStore(
         url=settings.memory.qdrant_url,
+        path=settings.memory.qdrant_path,
         collection_name=settings.memory.qdrant_collection,
         enabled=True,
     )

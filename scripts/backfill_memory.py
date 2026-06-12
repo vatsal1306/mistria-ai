@@ -183,6 +183,7 @@ async def run_backfill(args: argparse.Namespace) -> BackfillStats:
         embedding_provider = LocalEmbeddingProvider(settings.memory.embedding_model_name)
         vector_store = QdrantVectorStore(
             url=settings.memory.qdrant_url,
+            path=settings.memory.qdrant_path,
             collection_name=settings.memory.qdrant_collection,
             enabled=settings.memory.enabled,
         )

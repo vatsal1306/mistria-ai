@@ -236,10 +236,10 @@ write_env_file() {
   prompt_env "MISTRIA_API_KEY" "Enter MISTRIA_API_KEY" 1
 
   if [[ -z "${MISTRIA_MEMORY_ENABLED:-}" ]]; then
-    read -r -p "Enable memory subsystem and Qdrant? (y/N): " mem_input
+    read -r -p "Enable memory subsystem and Qdrant? (Y/n): " mem_input
     case "${mem_input,,}" in
-      y|yes) MISTRIA_MEMORY_ENABLED="1" ;;
-      *) MISTRIA_MEMORY_ENABLED="0" ;;
+      n|no) MISTRIA_MEMORY_ENABLED="0" ;;
+      *) MISTRIA_MEMORY_ENABLED="1" ;;
     esac
   fi
 

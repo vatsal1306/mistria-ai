@@ -164,6 +164,7 @@ class Memory:
     """Long-term memory layer settings."""
     enabled: bool = _get_bool("MISTRIA_MEMORY_ENABLED", False)
     qdrant_url: str = _get_str("MISTRIA_MEMORY_QDRANT_URL", "http://localhost:6333")
+    qdrant_path: str | None = _get_str("MISTRIA_MEMORY_QDRANT_PATH", "") or None
     qdrant_collection: str = _get_str("MISTRIA_MEMORY_QDRANT_COLLECTION", "mistria_memories")
     embedding_model_name: str = _get_str("MISTRIA_MEMORY_EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
     retrieval_top_k: int = _get_int("MISTRIA_MEMORY_RETRIEVAL_TOP_K", 5)

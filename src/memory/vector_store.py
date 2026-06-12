@@ -1,5 +1,6 @@
 """Vector store abstraction and implementations for semantic search."""
 
+import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
@@ -63,10 +64,11 @@ class BaseVectorStore(ABC):
 class QdrantVectorStore(BaseVectorStore):
     """Qdrant-backed vector store implementation."""
 
-    def __init__(self, url: str, collection_name: str, enabled: bool = True):
+    def __init__(self, url: str, collection_name: str, enabled: bool = True, path: str | None = None):
         self.url = url
         self.collection_name = collection_name
         self.enabled = enabled
+        self.path = path
         self._client: Any = None
 
     def _get_client(self) -> Any:
@@ -78,7 +80,11 @@ class QdrantVectorStore(BaseVectorStore):
             from src.backend.exceptions import ConfigurationError
             try:
                 from qdrant_client import QdrantClient
-                self._client = QdrantClient(url=self.url)
+                if self.path:
+                    os.makedirs(self.path, exist_ok=True)
+                    self._client = QdrantClient(path=self.path)
+                else:
+                    self._client = QdrantClient(url=self.url)
             except ImportError as e:
                 logger.error("qdrant-client is not installed. Vector search will be disabled.")
                 raise ConfigurationError("qdrant-client is not installed. Please install it to use QdrantVectorStore.") from e

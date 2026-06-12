@@ -51,9 +51,9 @@ MISTRIA_INFERENCE_MODEL_NAME=dphn/Dolphin3.0-Llama3.1-8B
 HF_TOKEN=optional-hugging-face-token
 ```
 
-### Memory-Disabled Mode (Default)
+### Memory-Disabled Mode
 
-To run the stack with only short-term conversation history (last 24 messages) and no vector storage, keep the default settings:
+To run the stack with only short-term conversation history (last 24 messages) and no vector storage, use:
 - `MISTRIA_MEMORY_ENABLED=False` (or unset)
 - `MISTRIA_MEMORY_EXTRACTION_ENABLED=False` (or unset)
 - `COMPOSE_PROFILES=` (do **not** include `memory`)
@@ -236,7 +236,8 @@ BACKEND_PORT=8080
 FRONTEND_PORT=8501
 MISTRIA_MODEL_NAME=dphn/Dolphin3.0-Llama3.1-8B
 MISTRIA_INFERENCE_BACKEND=vllm
-MISTRIA_MEMORY_ENABLED=False
+MISTRIA_MEMORY_ENABLED=True
+MISTRIA_MEMORY_EXTRACTION_ENABLED=True
 OVERWRITE_ENV=0
 INSTALL_SYSTEM_PACKAGES=1
 ```
@@ -253,4 +254,6 @@ bash scripts/run_direct.sh stop
 
 The direct launcher starts the backend on `0.0.0.0:${BACKEND_PORT}` and starts Streamlit on `0.0.0.0:${FRONTEND_PORT}`. Streamlit connects back to the backend through `127.0.0.1:${BACKEND_PORT}` inside the same pod.
 
-First startup can take several minutes while Hugging Face model weights download and vLLM initializes. Caches, SQLite data, logs, and the virtual environment are kept under `/workspace` by default so they survive pod restarts when Runpod persistent storage is enabled.
+Runpod direct mode enables memory by default. Instead of starting a separate Qdrant server, it uses local Qdrant storage through `MISTRIA_MEMORY_QDRANT_PATH=/workspace/qdrant`.
+
+First startup can take several minutes while Hugging Face model weights download, the embedding model downloads, and vLLM initializes. Caches, SQLite data, Qdrant memory data, logs, and the virtual environment are kept under `/workspace` by default so they survive pod restarts when Runpod persistent storage is enabled.

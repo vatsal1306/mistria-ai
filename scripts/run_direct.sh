@@ -12,10 +12,22 @@ FRONTEND_PORT="${FRONTEND_PORT:-8501}"
 
 load_env() {
   if [[ -f "$ENV_FILE" ]]; then
-    set -a
-    # shellcheck disable=SC1090
-    source "$ENV_FILE"
-    set +a
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+      [[ "$line" == *"="* ]] || continue
+
+      local key="${line%%=*}"
+      local value="${line#*=}"
+      key="$(printf '%s' "$key" | xargs)"
+
+      if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+        value="${value:1:${#value}-2}"
+      elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+        value="${value:1:${#value}-2}"
+      fi
+
+      export "${key}=${value}"
+    done <"$ENV_FILE"
   fi
 
   BACKEND_PORT="${MISTRIA_API_PORT:-${MISTRIA_BACKEND_PORT:-$BACKEND_PORT}}"

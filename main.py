@@ -77,6 +77,7 @@ if settings.memory.enabled:
     memory_repository = SQLiteMemoryRepository(database)
     memory_vector_store = QdrantVectorStore(
         url=settings.memory.qdrant_url,
+        path=settings.memory.qdrant_path,
         collection_name=settings.memory.qdrant_collection,
         enabled=settings.memory.enabled,
     )
