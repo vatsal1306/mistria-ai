@@ -115,14 +115,19 @@ async def test_stream_response_builds_companion_contract_prompt_and_trims_histor
         title="Luna",
         description="A playful but controlling companion with confident energy.",
         gender="Female",
-        style="Anime",
-        ethnicity="East Asian",
+        visual_style="Anime",
+        companion_ethnicity="East Asian",
         eye_color="Green",
+        age=28,
+        hair_length="Long",
         hair_style="Long",
         hair_color="Pink",
-        personality="Playful",
-        voice="Breathy",
-        connection="Passionate Lover",
+        companion_personality="Playful",
+        companion_profession="Writer",
+        body_type="Natural",
+        bust="Natural",
+        height="Average",
+        intention="Passionate Lover",
         created_at="2026-04-24 09:00:00",
         updated_at="2026-04-24 09:00:00",
     )
@@ -150,7 +155,7 @@ async def test_stream_response_builds_companion_contract_prompt_and_trims_histor
     assert system_prompt is not None
     assert "Base chat prompt." in system_prompt
     assert "Name: Luna" in system_prompt
-    assert "Relationship Frame: Passionate Lover" in system_prompt
+    assert "Intention: Passionate Lover" in system_prompt
     assert "USER PREFERENCE PROFILE" not in system_prompt
     assert "Summary Title:" not in system_prompt
     assert "Dominance Mode:" not in system_prompt
@@ -189,7 +194,13 @@ async def test_stream_response_injects_memories_when_enabled():
         memory_service=memory_service,
     )
     
-    ai_companion = AICompanionRecord(id=2, user_id=1, title="Luna", description="D", gender="F", style="S", ethnicity="E", eye_color="G", hair_style="L", hair_color="P", personality="P", voice="V", connection="C", created_at="", updated_at="")
+    ai_companion = AICompanionRecord(
+        id=2, user_id=1, title="Luna", description="D", gender="Female",
+        visual_style="Realistic", companion_ethnicity="East Asian", eye_color="Green",
+        age=28, hair_length="Long", hair_style="Straight", hair_color="Pink",
+        companion_personality="Playful", companion_profession="Writer", body_type="Natural",
+        bust="Natural", height="Average", intention="quick", created_at="", updated_at=""
+    )
     
     request = ChatSocketRequest(action="chat", user_id="u", ai_companion_id=2, system_prompt=None, user_message="hello")
     
@@ -218,7 +229,13 @@ async def test_stream_response_injects_rebel_prompt_when_archetype_is_rebel():
         history_service=history_service,
     )
     
-    ai_companion = AICompanionRecord(id=2, user_id=1, title="Luna", description="D", gender="F", style="S", ethnicity="E", eye_color="G", hair_style="L", hair_color="P", personality="P", voice="V", connection="C", created_at="", updated_at="")
+    ai_companion = AICompanionRecord(
+        id=2, user_id=1, title="Luna", description="D", gender="Female",
+        visual_style="Realistic", companion_ethnicity="East Asian", eye_color="Green",
+        age=28, hair_length="Long", hair_style="Straight", hair_color="Pink",
+        companion_personality="Playful", companion_profession="Writer", body_type="Natural",
+        bust="Natural", height="Average", intention="quick", created_at="", updated_at=""
+    )
     archetype_record = ArchetypeResultRecord(
         id=1, user_id=1, onboarding_pathway="slow_burn", trait_scores_json="{}", primary_archetype="rebel", primary_similarity=0.9, secondary_archetype=None, secondary_similarity=None, blend_active=False, created_at=""
     )
@@ -248,7 +265,13 @@ async def test_stream_response_skips_rebel_prompt_when_archetype_is_not_rebel():
         history_service=history_service,
     )
     
-    ai_companion = AICompanionRecord(id=2, user_id=1, title="Luna", description="D", gender="F", style="S", ethnicity="E", eye_color="G", hair_style="L", hair_color="P", personality="P", voice="V", connection="C", created_at="", updated_at="")
+    ai_companion = AICompanionRecord(
+        id=2, user_id=1, title="Luna", description="D", gender="Female",
+        visual_style="Realistic", companion_ethnicity="East Asian", eye_color="Green",
+        age=28, hair_length="Long", hair_style="Straight", hair_color="Pink",
+        companion_personality="Playful", companion_profession="Writer", body_type="Natural",
+        bust="Natural", height="Average", intention="quick", created_at="", updated_at=""
+    )
     archetype_record = ArchetypeResultRecord(
         id=1, user_id=1, onboarding_pathway="slow_burn", trait_scores_json="{}", primary_archetype="intense_heat", primary_similarity=0.9, secondary_archetype=None, secondary_similarity=None, blend_active=False, created_at=""
     )
@@ -280,7 +303,13 @@ async def test_stream_response_graceful_fallback_on_memory_failure():
         memory_service=memory_service,
     )
     
-    ai_companion = AICompanionRecord(id=2, user_id=1, title="Luna", description="D", gender="F", style="S", ethnicity="E", eye_color="G", hair_style="L", hair_color="P", personality="P", voice="V", connection="C", created_at="", updated_at="")
+    ai_companion = AICompanionRecord(
+        id=2, user_id=1, title="Luna", description="D", gender="Female",
+        visual_style="Realistic", companion_ethnicity="East Asian", eye_color="Green",
+        age=28, hair_length="Long", hair_style="Straight", hair_color="Pink",
+        companion_personality="Playful", companion_profession="Writer", body_type="Natural",
+        bust="Natural", height="Average", intention="quick", created_at="", updated_at=""
+    )
     
     request = ChatSocketRequest(action="chat", user_id="u", ai_companion_id=2, system_prompt=None, user_message="hello")
     

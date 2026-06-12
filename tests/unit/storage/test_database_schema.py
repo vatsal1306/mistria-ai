@@ -74,8 +74,16 @@ def test_database_memories_constraints():
 
             conn.execute(
                 """
-                INSERT INTO ai_companion (user_id, title, description, gender, style, ethnicity, eye_color, hair_style, hair_color, personality, voice, connection)
-                VALUES (?, 'Aria', 'Desc', 'Female', 'Anime', 'East Asian', 'Brown', 'Long', 'Black', 'Sweet', 'Soft', 'Friend')
+                INSERT INTO ai_companion (
+                    user_id, title, description, gender, visual_style, companion_ethnicity,
+                    eye_color, age, hair_length, hair_style, hair_color, companion_personality,
+                    companion_profession, body_type, bust, height, intention
+                )
+                VALUES (
+                    ?, 'Aria', 'Desc', 'Female', 'Anime', 'East Asian',
+                    'Brown', 28, 'Long', 'Straight', 'Black', 'Playful',
+                    'Writer', 'Natural', 'Natural', 'Average', 'quick'
+                )
                 """, (user_id,)
             )
             companion_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]

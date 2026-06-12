@@ -30,14 +30,19 @@ METADATA_SYSTEM_PROMPT = "You are a metadata generator."
 
 AI_COMPANION_METADATA_PROMPT = """Generate a brief 1-sentence description for an AI companion with these traits:
 Gender: {gender}
-Style: {style}
-Ethnicity: {ethnicity}
+Visual Style: {visual_style}
+Companion Ethnicity: {companion_ethnicity}
 Eye Color: {eye_color}
+Age: {age}
+Hair Length: {hair_length}
 Hair Style: {hair_style}
 Hair Color: {hair_color}
-Personality: {personality}
-Voice: {voice}
-Connection: {connection}
+Companion Personality: {companion_personality}
+Companion Profession: {companion_profession}
+Body Type: {body_type}
+Bust: {bust}
+Height: {height}
+Intention: {intention}
 
 The description should feel grounded, human, and coherent with the full profile. Capture the likely tone, chemistry, social vibe, and presence implied by the traits instead of listing attributes mechanically."""
 
@@ -46,7 +51,7 @@ AI_COMPANION_TITLE_INSTRUCTION = """
 Also generate the `title` field using these rules:
 - It must be exactly one word.
 - It must be a realistic human first name, not a phrase, codename, archetype, role, or fantasy label.
-- Use the profile to pick a name that feels believable for the companion's gender, ethnicity, style, personality, voice, and connection dynamic.
+- Use the profile to pick a name that feels believable for the companion's gender, ethnicity, visual style, personality, profession, and intention.
 - The name should imply the right cultural texture, tone, and dominance/energy of the persona without sounding exaggerated.
 - Do not use spaces, hyphens, titles, honorifics, surnames, numbers, or punctuation.
 - Output only the single first name in the `title` field.
@@ -110,14 +115,19 @@ def build_chat_system_prompt(
         - Name: {ai_companion.title}
         - Persona Summary: {ai_companion.description}
         - Gender: {ai_companion.gender}
-        - Style: {ai_companion.style}
-        - Ethnicity: {ai_companion.ethnicity}
+        - Visual Style: {ai_companion.visual_style}
+        - Companion Ethnicity: {ai_companion.companion_ethnicity}
         - Eye Color: {ai_companion.eye_color}
+        - Age: {ai_companion.age}
+        - Hair Length: {ai_companion.hair_length}
         - Hair Style: {ai_companion.hair_style}
         - Hair Color: {ai_companion.hair_color}
-        - Personality: {ai_companion.personality}
-        - Voice: {ai_companion.voice}
-        - Relationship Frame: {ai_companion.connection}
+        - Companion Personality: {ai_companion.companion_personality}
+        - Companion Profession: {ai_companion.companion_profession}
+        - Body Type: {ai_companion.body_type}
+        - Bust: {ai_companion.bust}
+        - Height: {ai_companion.height}
+        - Intention: {ai_companion.intention}
 
         OPERATIONAL RULES
         - Stay fully in character as {ai_companion.title} at all times.

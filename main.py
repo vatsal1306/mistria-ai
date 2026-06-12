@@ -327,10 +327,10 @@ async def create_ai_companion(payload: AICompanionCreateRequest) -> AICompanionC
 async def generate_ai_companion(payload: AICompanionGenerateRequest) -> AICompanionGenerateResponse:
     """Generate AI companion metadata directly from the LLM without saving it."""
     logger.info(
-        "Generating AI companion via API style=%s personality=%s voice=%s",
-        payload.style,
-        payload.personality,
-        payload.voice,
+        "Generating AI companion via API visual_style=%s personality=%s intention=%s",
+        payload.visual_style,
+        payload.companion_personality,
+        payload.intention,
     )
     return await companion_service.generate_ai_companion(payload)
 

@@ -37,8 +37,16 @@ def scoped_ids(test_db):
 
         conn.execute(
             """
-            INSERT INTO ai_companion (user_id, title, description, gender, style, ethnicity, eye_color, hair_style, hair_color, personality, voice, connection)
-            VALUES (?, 'Aria', 'Desc', 'Female', 'Anime', 'Asian', 'Brown', 'Long', 'Black', 'Sweet', 'Soft', 'Friend')
+            INSERT INTO ai_companion (
+                user_id, title, description, gender, visual_style, companion_ethnicity,
+                eye_color, age, hair_length, hair_style, hair_color, companion_personality,
+                companion_profession, body_type, bust, height, intention
+            )
+            VALUES (
+                ?, 'Aria', 'Desc', 'Female', 'Anime', 'East Asian',
+                'Brown', 28, 'Long', 'Straight', 'Black', 'Playful',
+                'Writer', 'Natural', 'Natural', 'Average', 'quick'
+            )
             """, (user_id,)
         )
         ai_companion_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -131,10 +139,14 @@ def test_companion_isolation_across_reads(test_db, repo):
         
         conn.execute(
             """
-            INSERT INTO ai_companion (user_id, title, description, gender, style, ethnicity, eye_color, hair_style, hair_color, personality, voice, connection)
+            INSERT INTO ai_companion (
+                user_id, title, description, gender, visual_style, companion_ethnicity,
+                eye_color, age, hair_length, hair_style, hair_color, companion_personality,
+                companion_profession, body_type, bust, height, intention
+            )
             VALUES 
-            (1, 'A1', 'D', 'F', 'S', 'E', 'B', 'L', 'B', 'P', 'V', 'C'),
-            (2, 'A2', 'D', 'F', 'S', 'E', 'B', 'L', 'B', 'P', 'V', 'C')
+            (1, 'A1', 'D', 'Female', 'Realistic', 'East Asian', 'Brown', 28, 'Long', 'Straight', 'Black', 'Playful', 'Writer', 'Natural', 'Natural', 'Average', 'quick'),
+            (2, 'A2', 'D', 'Female', 'Realistic', 'East Asian', 'Brown', 28, 'Long', 'Straight', 'Black', 'Playful', 'Writer', 'Natural', 'Natural', 'Average', 'quick')
             """
         )
         c1 = 1
