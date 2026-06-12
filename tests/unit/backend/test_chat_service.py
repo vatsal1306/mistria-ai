@@ -156,7 +156,7 @@ async def test_stream_response_builds_companion_contract_prompt_and_trims_histor
     assert "Summary Title:" not in system_prompt
     assert "Dominance Mode:" not in system_prompt
     assert "Use only the visible conversation history as memory." in system_prompt
-    assert "at most once every 5 to 8 messages" in system_prompt
+    assert "STRICT NAME RULE" in system_prompt
     assert "do not keep falling back to vague setup lines" in system_prompt
     assert "stop overthinking it" in system_prompt
 
