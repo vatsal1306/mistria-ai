@@ -298,8 +298,6 @@ GET /archetype/latest/user@example.com
 
 ### POST /ai-companion
 
-> **Note:** The current AI Companion schema is a placeholder from Intense Heat. Schema changes to support full Slow Burn integration (including archetype-specific attributes) are pending and tracked in a separate issue.
-
 Create a new AI companion persona for a registered user.
 
 - If both `title` and `description` are provided, the API saves the companion exactly as provided and does not call AI generation.
@@ -313,16 +311,21 @@ Content-Type: application/json
 {
   "user_mail_id": "user@example.com",
   "title": "Luna",
-  "description": "A playful, passionate anime companion with a flirtatious voice and intense romantic energy.",
+  "description": "A dominant Latina writer with a realistic presence and controlled, magnetic energy.",
   "gender": "Female",
-  "style": "Anime",
-  "ethnicity": "East Asian",
-  "eyeColor": "Green",
-  "hairStyle": "Long",
-  "hairColor": "Pink",
-  "personality": "Playful",
-  "voice": "Breathy",
-  "connection": "Passionate Lover"
+  "visual_style": "Realistic",
+  "companion_ethnicity": "Latina",
+  "eye_color": "Gray",
+  "age": 28,
+  "hair_length": "Extra Long",
+  "hair_style": "Pixie",
+  "hair_color": "Blonde",
+  "companion_personality": "Dominant",
+  "companion_profession": "Writer",
+  "body_type": "Natural",
+  "bust": "Natural",
+  "height": "Average",
+  "intention": "quick"
 }
 ```
 
@@ -332,17 +335,20 @@ Content-Type: application/json
 | `title` | `string \| null` | 1–120 chars (auto-generated if omitted) | ❌ |
 | `description` | `string \| null` | Free text; if provided with `title`, AI generation is skipped | ❌ |
 | `gender` | `string` | `"Female"`, `"Male"`, `"Other"` | ✅ |
-| `style` | `string` | `"Realistic"`, `"Anime"`, `"Cartoon"`, `"Retro Noir"` | ✅ |
-| `ethnicity` | `string` | See [Allowed Values](#allowed-values-reference) | ✅ |
-| `eyeColor` | `string` | `"Brown"`, `"Blue"`, `"Green"`, `"Hazel"`, `"Gray"`, `"Black"` | ✅ |
-| `hairStyle` | `string` | `"Short"`, `"Straight"`, `"Long"`, `"Curly"`, `"Braids"`, `"Pixie"` | ✅ |
-| `hairColor` | `string` | `"Black"`, `"Brunette"`, `"Blonde"`, `"Pink"`, `"Red"`, `"White"` | ✅ |
-| `personality` | `string` | See [Allowed Values](#allowed-values-reference) | ✅ |
-| `voice` | `string` | `"Calm"`, `"Breathy"`, `"Confident"`, `"Playful"`, `"Deep"`, `"Soft"` | ✅ |
-| `connection` | `string` | See [Allowed Values](#allowed-values-reference) | ✅ |
+| `visual_style` | `string` | Free text | ✅ |
+| `companion_ethnicity` | `string` | See [Allowed Values](#allowed-values-reference) | ✅ |
+| `eye_color` | `string` | Free text | ✅ |
+| `age` | `integer` | 18–120 | ✅ |
+| `hair_length` | `string` | Free text | ✅ |
+| `hair_style` | `string` | Free text | ✅ |
+| `hair_color` | `string` | Free text | ✅ |
+| `companion_personality` | `string` | See [Allowed Values](#allowed-values-reference) | ✅ |
+| `companion_profession` | `string` | Free text | ✅ |
+| `body_type` | `string` | Free text | ✅ |
+| `bust` | `string` | `"Small"`, `"Natural"`, `"Large"`, `"Extra Large"` | ✅ |
+| `height` | `string` | `"Short"`, `"Average"`, `"Tall"`, `"Very Tall"` | ✅ |
+| `intention` | `string` | Free text | ✅ |
 
-> **Note:** `eyeColor`, `hairStyle`, and `hairColor` use **camelCase** to match the frontend contract.
->
 > **Admin flow note:** This endpoint supports both manual creation and AI-assisted creation. For manual assignment from the admin UI, send both `title` and `description`. For AI-assisted creation, omit `description` and optionally omit `title`.
 
 **Response:** `201 Created`
@@ -350,7 +356,7 @@ Content-Type: application/json
 {
   "ai_companion_id": 1,
   "title": "Luna",
-  "description": "A playful, passionate anime companion with a flirtatious voice and intense romantic energy."
+  "description": "A dominant Latina writer with a realistic presence and controlled, magnetic energy."
 }
 ```
 
@@ -374,28 +380,38 @@ Content-Type: application/json
 
 {
   "gender": "Female",
-  "style": "Anime",
-  "ethnicity": "East Asian",
-  "eyeColor": "Green",
-  "hairStyle": "Long",
-  "hairColor": "Pink",
-  "personality": "Playful",
-  "voice": "Breathy",
-  "connection": "Passionate Lover"
+  "visual_style": "Realistic",
+  "companion_ethnicity": "Latina",
+  "eye_color": "Gray",
+  "age": 28,
+  "hair_length": "Extra Long",
+  "hair_style": "Pixie",
+  "hair_color": "Blonde",
+  "companion_personality": "Dominant",
+  "companion_profession": "Writer",
+  "body_type": "Natural",
+  "bust": "Natural",
+  "height": "Average",
+  "intention": "quick"
 }
 ```
 
 | Field | Type | Allowed Values | Required |
 |---|---|---|---|
 | `gender` | `string` | `"Female"`, `"Male"`, `"Other"` | ✅ |
-| `style` | `string` | `"Realistic"`, `"Anime"`, `"Cartoon"`, `"Retro Noir"` | ✅ |
-| `ethnicity` | `string` | See [Allowed Values](#allowed-values-reference) | ✅ |
-| `eyeColor` | `string` | `"Brown"`, `"Blue"`, `"Green"`, `"Hazel"`, `"Gray"`, `"Black"` | ✅ |
-| `hairStyle` | `string` | `"Short"`, `"Straight"`, `"Long"`, `"Curly"`, `"Braids"`, `"Pixie"` | ✅ |
-| `hairColor` | `string` | `"Black"`, `"Brunette"`, `"Blonde"`, `"Pink"`, `"Red"`, `"White"` | ✅ |
-| `personality` | `string` | See [Allowed Values](#allowed-values-reference) | ✅ |
-| `voice` | `string` | `"Calm"`, `"Breathy"`, `"Confident"`, `"Playful"`, `"Deep"`, `"Soft"` | ✅ |
-| `connection` | `string` | See [Allowed Values](#allowed-values-reference) | ✅ |
+| `visual_style` | `string` | Free text | ✅ |
+| `companion_ethnicity` | `string` | See [Allowed Values](#allowed-values-reference) | ✅ |
+| `eye_color` | `string` | Free text | ✅ |
+| `age` | `integer` | 18–120 | ✅ |
+| `hair_length` | `string` | Free text | ✅ |
+| `hair_style` | `string` | Free text | ✅ |
+| `hair_color` | `string` | Free text | ✅ |
+| `companion_personality` | `string` | See [Allowed Values](#allowed-values-reference) | ✅ |
+| `companion_profession` | `string` | Free text | ✅ |
+| `body_type` | `string` | Free text | ✅ |
+| `bust` | `string` | `"Small"`, `"Natural"`, `"Large"`, `"Extra Large"` | ✅ |
+| `height` | `string` | `"Short"`, `"Average"`, `"Tall"`, `"Very Tall"` | ✅ |
+| `intention` | `string` | Free text | ✅ |
 
 > **Note:** This endpoint does not require `user_mail_id`, does not create an `ai_companion_id`, and does not persist any data.
 
@@ -403,7 +419,7 @@ Content-Type: application/json
 ```json
 {
   "title": "Luna",
-  "description": "A playful, passionate anime companion with a flirtatious voice and intense romantic energy."
+  "description": "A dominant Latina writer with a realistic presence and controlled, magnetic energy."
 }
 ```
 
@@ -431,16 +447,21 @@ GET /ai-companion?user_mail_id=user@example.com
     "id": 1,
     "user_mail_id": "user@example.com",
     "title": "Luna",
-    "description": "A playful, passionate anime companion with a flirtatious voice and intense romantic energy.",
+    "description": "A dominant Latina writer with a realistic presence and controlled, magnetic energy.",
     "gender": "Female",
-    "style": "Anime",
-    "ethnicity": "East Asian",
-    "eyeColor": "Green",
-    "hairStyle": "Long",
-    "hairColor": "Pink",
-    "personality": "Playful",
-    "voice": "Breathy",
-    "connection": "Passionate Lover"
+    "visual_style": "Realistic",
+    "companion_ethnicity": "Latina",
+    "eye_color": "Gray",
+    "age": 28,
+    "hair_length": "Extra Long",
+    "hair_style": "Pixie",
+    "hair_color": "Blonde",
+    "companion_personality": "Dominant",
+    "companion_profession": "Writer",
+    "body_type": "Natural",
+    "bust": "Natural",
+    "height": "Average",
+    "intention": "quick"
   }
 ]
 ```
@@ -466,16 +487,21 @@ GET /ai-companion/1
   "id": 1,
   "user_mail_id": "user@example.com",
   "title": "Luna",
-  "description": "A playful, passionate anime companion with a flirtatious voice and intense romantic energy.",
+  "description": "A dominant Latina writer with a realistic presence and controlled, magnetic energy.",
   "gender": "Female",
-  "style": "Anime",
-  "ethnicity": "East Asian",
-  "eyeColor": "Green",
-  "hairStyle": "Long",
-  "hairColor": "Pink",
-  "personality": "Playful",
-  "voice": "Breathy",
-  "connection": "Passionate Lover"
+  "visual_style": "Realistic",
+  "companion_ethnicity": "Latina",
+  "eye_color": "Gray",
+  "age": 28,
+  "hair_length": "Extra Long",
+  "hair_style": "Pixie",
+  "hair_color": "Blonde",
+  "companion_personality": "Dominant",
+  "companion_profession": "Writer",
+  "body_type": "Natural",
+  "bust": "Natural",
+  "height": "Average",
+  "intention": "quick"
 }
 ```
 
@@ -740,14 +766,10 @@ Connection:             Remains open. Client should retry after checking /health
 | Field | Allowed Values |
 |---|---|
 | `gender` | `"Female"`, `"Male"`, `"Other"` |
-| `style` | `"Realistic"`, `"Anime"`, `"Cartoon"`, `"Retro Noir"` |
-| `ethnicity` | `"African Descent"`, `"South Asian"`, `"Eastern European"`, `"East Asian"`, `"Latinx"`, `"Middle Eastern"` |
-| `eyeColor` | `"Brown"`, `"Blue"`, `"Green"`, `"Hazel"`, `"Gray"`, `"Black"` |
-| `hairStyle` | `"Short"`, `"Straight"`, `"Long"`, `"Curly"`, `"Braids"`, `"Pixie"` |
-| `hairColor` | `"Black"`, `"Brunette"`, `"Blonde"`, `"Pink"`, `"Red"`, `"White"` |
-| `personality` | `"Seductive"`, `"Adventurous"`, `"Confident"`, `"Ambitious"`, `"Passionate"`, `"Submissive"`, `"Dominant"`, `"Sensual"`, `"Playful"`, `"Intellectual"`, `"Caring"`, `"Mysterious"` |
-| `voice` | `"Calm"`, `"Breathy"`, `"Confident"`, `"Playful"`, `"Deep"`, `"Soft"` |
-| `connection` | `"New Encounter"`, `"Casual Hookup"`, `"Friends With Benefits"`, `"Secret Affair"`, `"Passionate Lover"`, `"Dominant Partner"`, `"Submissive Partner"`, `"Long-Distance Desire"`, `"Online Fantasy"` |
+| `companion_ethnicity` | `"African Descent"`, `"South Asian"`, `"Eastern European"`, `"East Asian"`, `"Latinx"`, `"Latina"`, `"Middle Eastern"` |
+| `companion_personality` | `"Flirty"`, `"Obsessed"`, `"Playful"`, `"Dominant"`, `"Mysterious"`, `"Caring"`, `"Confident"`, `"Sensual"`, `"Passionate"` |
+| `bust` | `"Small"`, `"Natural"`, `"Large"`, `"Extra Large"` |
+| `height` | `"Short"`, `"Average"`, `"Tall"`, `"Very Tall"` |
 
 ---
 
@@ -817,10 +839,10 @@ For `422` validation errors, FastAPI returns:
    - **Long-Term**: Relevant facts and preferences are retrieved from the vector store based on semantic similarity to the `user_message`.
    - **Frontend Payload**: The client only needs to send the latest `user_message`. LTM is transparent to the frontend and does not require any additional UI logic.
 
-7. **camelCase Fields:** AI companion fields `eyeColor`, `hairStyle`, and `hairColor` use camelCase in the API. All other fields use snake_case.
+7. **AI Companion Field Names:** AI companion feature fields use snake_case.
 
-7. **Email Normalization:** Emails are automatically lowercased and trimmed. `"User@Example.COM"` becomes `"user@example.com"`.
+8. **Email Normalization:** Emails are automatically lowercased and trimmed. `"User@Example.COM"` becomes `"user@example.com"`.
 
-8. **Retry Strategy:** If `/health` shows `engine_ready: false`, poll every 5–10 seconds until `engine_ready: true` before attempting WebSocket chat.
+9. **Retry Strategy:** If `/health` shows `engine_ready: false`, poll every 5–10 seconds until `engine_ready: true` before attempting WebSocket chat.
 
-9. **CORS:** The backend currently allows requests from `http://127.0.0.1:8501` and `http://localhost:8501` only. If your frontend runs on a different origin (e.g., `http://localhost:3000`), the `MISTRIA_API_CORS_ORIGINS` environment variable must be updated on the backend or you will receive CORS errors.
+10. **CORS:** The backend currently allows requests from `http://127.0.0.1:8501` and `http://localhost:8501` only. If your frontend runs on a different origin (e.g., `http://localhost:3000`), the `MISTRIA_API_CORS_ORIGINS` environment variable must be updated on the backend or you will receive CORS errors.

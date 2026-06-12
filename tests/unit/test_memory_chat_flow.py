@@ -239,14 +239,19 @@ def test_memory_chat_flow_persistence_and_isolation(api_client, mock_memory_infr
         "title": "Sara",
         "description": "A kind companion.",
         "gender": "Female",
-        "style": "Realistic",
-        "ethnicity": "East Asian",
-        "eyeColor": "Green",
-        "hairStyle": "Long",
-        "hairColor": "Pink",
-        "personality": "Caring",
-        "voice": "Soft",
-        "connection": "New Encounter"
+        "visual_style": "Realistic",
+        "companion_ethnicity": "East Asian",
+        "eye_color": "Green",
+        "age": 28,
+        "hair_length": "Long",
+        "hair_style": "Straight",
+        "hair_color": "Pink",
+        "companion_personality": "Caring",
+        "companion_profession": "Writer",
+        "body_type": "Natural",
+        "bust": "Natural",
+        "height": "Average",
+        "intention": "New Encounter"
     })
     assert sara_res.status_code in (200, 201), sara_res.json()
     sara_id = sara_res.json()["ai_companion_id"]
@@ -256,14 +261,19 @@ def test_memory_chat_flow_persistence_and_isolation(api_client, mock_memory_infr
         "title": "Luna",
         "description": "A fierce companion.",
         "gender": "Female",
-        "style": "Anime",
-        "ethnicity": "East Asian",
-        "eyeColor": "Green",
-        "hairStyle": "Long",
-        "hairColor": "Pink",
-        "personality": "Dominant",
-        "voice": "Confident",
-        "connection": "Dominant Partner"
+        "visual_style": "Anime",
+        "companion_ethnicity": "East Asian",
+        "eye_color": "Green",
+        "age": 28,
+        "hair_length": "Long",
+        "hair_style": "Straight",
+        "hair_color": "Pink",
+        "companion_personality": "Dominant",
+        "companion_profession": "Writer",
+        "body_type": "Natural",
+        "bust": "Natural",
+        "height": "Average",
+        "intention": "Dominant Partner"
     })
     assert luna_res.status_code in (200, 201), luna_res.json()
     luna_id = luna_res.json()["ai_companion_id"]

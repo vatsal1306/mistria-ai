@@ -5,15 +5,11 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.companion.contracts import (
-    AIConnection,
+    AIBust,
     AIEthnicity,
-    AIEyeColor,
     AIGender,
-    AIHairColor,
-    AIHairStyle,
+    AIHeight,
     AIPersonality,
-    AIStyle,
-    AIVoice,
 )
 
 
@@ -41,23 +37,33 @@ class AICompanionMetadata(BaseModel):
     )
 
 
-class AICompanionCreateRequest(BaseModel):
-    """Request payload for creating an AI companion persona."""
+class AICompanionFeaturePayload(BaseModel):
+    """Shared companion feature fields used by create, generate, and response models."""
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    gender: AIGender
+    visual_style: str = Field(min_length=1)
+    companion_ethnicity: AIEthnicity
+    eye_color: str = Field(min_length=1)
+    age: int = Field(ge=18, le=120)
+    hair_length: str = Field(min_length=1)
+    hair_style: str = Field(min_length=1)
+    hair_color: str = Field(min_length=1)
+    companion_personality: AIPersonality
+    companion_profession: str = Field(min_length=1)
+    body_type: str = Field(min_length=1)
+    bust: AIBust
+    height: AIHeight
+    intention: str = Field(min_length=1)
+
+
+class AICompanionCreateRequest(AICompanionFeaturePayload):
+    """Request payload for creating an AI companion persona."""
 
     user_mail_id: str = Field(min_length=3, max_length=320)
     title: str | None = Field(default=None, min_length=1, max_length=120)
     description: str | None = Field(default=None, min_length=1)
-    gender: AIGender
-    style: AIStyle
-    ethnicity: AIEthnicity
-    eyeColor: AIEyeColor
-    hairStyle: AIHairStyle
-    hairColor: AIHairColor
-    personality: AIPersonality
-    voice: AIVoice
-    connection: AIConnection
 
     @field_validator("user_mail_id")
     @classmethod
@@ -84,20 +90,8 @@ class AICompanionCreateRequest(BaseModel):
         return normalized or None
 
 
-class AICompanionGenerateRequest(BaseModel):
+class AICompanionGenerateRequest(AICompanionFeaturePayload):
     """Request payload for generating companion metadata without persistence."""
-
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-
-    gender: AIGender
-    style: AIStyle
-    ethnicity: AIEthnicity
-    eyeColor: AIEyeColor
-    hairStyle: AIHairStyle
-    hairColor: AIHairColor
-    personality: AIPersonality
-    voice: AIVoice
-    connection: AIConnection
 
 
 class AICompanionGenerateResponse(BaseModel):
@@ -119,21 +113,10 @@ class AICompanionCreateResponse(BaseModel):
     description: str 
 
 
-class AICompanionResponse(BaseModel):
+class AICompanionResponse(AICompanionFeaturePayload):
     """Saved AI companion payload returned by read endpoints."""
-
-    model_config = ConfigDict(extra="forbid")
 
     id: int
     user_mail_id: str
     title: str
     description: str
-    gender: AIGender
-    style: AIStyle
-    ethnicity: AIEthnicity
-    eyeColor: AIEyeColor
-    hairStyle: AIHairStyle
-    hairColor: AIHairColor
-    personality: AIPersonality
-    voice: AIVoice
-    connection: AIConnection

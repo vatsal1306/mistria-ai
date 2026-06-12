@@ -50,14 +50,19 @@ class _AICompanionRepositoryStub:
             title=kwargs["title"],
             description=kwargs["description"],
             gender=kwargs["gender"],
-            style=kwargs["style"],
-            ethnicity=kwargs["ethnicity"],
+            visual_style=kwargs["visual_style"],
+            companion_ethnicity=kwargs["companion_ethnicity"],
             eye_color=kwargs["eye_color"],
+            age=kwargs["age"],
+            hair_length=kwargs["hair_length"],
             hair_style=kwargs["hair_style"],
             hair_color=kwargs["hair_color"],
-            personality=kwargs["personality"],
-            voice=kwargs["voice"],
-            connection=kwargs["connection_value"],
+            companion_personality=kwargs["companion_personality"],
+            companion_profession=kwargs["companion_profession"],
+            body_type=kwargs["body_type"],
+            bust=kwargs["bust"],
+            height=kwargs["height"],
+            intention=kwargs["intention"],
             created_at="2026-04-27T00:00:00Z",
             updated_at="2026-04-27T00:00:00Z",
         )
@@ -81,14 +86,19 @@ async def test_generate_ai_companion_returns_metadata_without_storage():
     service = CompanionService(None, None, runtime)
     payload = AICompanionGenerateRequest(
         gender="Female",
-        style="Retro Noir",
-        ethnicity="South Asian",
-        eyeColor="Hazel",
-        hairStyle="Long",
-        hairColor="Black",
-        personality="Mysterious",
-        voice="Deep",
-        connection="Secret Affair",
+        visual_style="Retro Noir",
+        companion_ethnicity="South Asian",
+        eye_color="Hazel",
+        age="28",
+        hair_length="Long",
+        hair_style="Pixie",
+        hair_color="Black",
+        companion_personality="Mysterious",
+        companion_profession="Writer",
+        body_type="Natural",
+        bust="Natural",
+        height="Average",
+        intention="Secret Affair",
     )
 
     response = await service.generate_ai_companion(payload)
@@ -98,7 +108,7 @@ async def test_generate_ai_companion_returns_metadata_without_storage():
     assert len(runtime.requests) == 1
     prompt = runtime.requests[0].messages[0].content
     assert "Hair Color: Black" in prompt
-    assert "Connection: Secret Affair" in prompt
+    assert "Intention: Secret Affair" in prompt
     assert "exactly one word" in prompt
     schema = runtime.requests[0].json_schema
     assert "Exactly one realistic human first name" in schema["properties"]["title"]["description"]
@@ -121,14 +131,19 @@ async def test_create_ai_companion_uses_provided_title_and_description_without_g
         "title": "Selene",
         "description": "A calm, observant companion with a dry wit and steady presence.",
         "gender": "Female",
-        "style": "Retro Noir",
-        "ethnicity": "South Asian",
-        "eyeColor": "Hazel",
-        "hairStyle": "Long",
-        "hairColor": "Black",
-        "personality": "Mysterious",
-        "voice": "Deep",
-        "connection": "Secret Affair",
+        "visual_style": "Retro Noir",
+        "companion_ethnicity": "South Asian",
+        "eye_color": "Hazel",
+        "age": "28",
+        "hair_length": "Long",
+        "hair_style": "Pixie",
+        "hair_color": "Black",
+        "companion_personality": "Mysterious",
+        "companion_profession": "Writer",
+        "body_type": "Natural",
+        "bust": "Natural",
+        "height": "Average",
+        "intention": "Secret Affair",
     }
 
     response = await service.create_ai_companion(AICompanionCreateRequest(**payload))
@@ -143,14 +158,19 @@ async def test_create_ai_companion_uses_provided_title_and_description_without_g
             "title": "Selene",
             "description": payload["description"],
             "gender": "Female",
-            "style": "Retro Noir",
-            "ethnicity": "South Asian",
+            "visual_style": "Retro Noir",
+            "companion_ethnicity": "South Asian",
             "eye_color": "Hazel",
-            "hair_style": "Long",
+            "age": 28,
+            "hair_length": "Long",
+            "hair_style": "Pixie",
             "hair_color": "Black",
-            "personality": "Mysterious",
-            "voice": "Deep",
-            "connection_value": "Secret Affair",
+            "companion_personality": "Mysterious",
+            "companion_profession": "Writer",
+            "body_type": "Natural",
+            "bust": "Natural",
+            "height": "Average",
+            "intention": "Secret Affair",
         }
     ]
 
@@ -173,14 +193,19 @@ async def test_create_ai_companion_generates_missing_metadata(sample_user):
             title=None,
             description=None,
             gender="Female",
-            style="Anime",
-            ethnicity="East Asian",
-            eyeColor="Brown",
-            hairStyle="Long",
-            hairColor="Black",
-            personality="Playful",
-            voice="Calm",
-            connection="New Encounter",
+            visual_style="Anime",
+            companion_ethnicity="East Asian",
+            eye_color="Brown",
+            age=28,
+            hair_length="Long",
+            hair_style="Straight",
+            hair_color="Black",
+            companion_personality="Playful",
+            companion_profession="Writer",
+            body_type="Natural",
+            bust="Natural",
+            height="Average",
+            intention="New Encounter",
         )
     )
 
@@ -223,14 +248,19 @@ def test_generate_ai_companion_title_helper():
     payload = AICompanionCreateRequest(
         user_mail_id="user@example.com",
         gender="Female",
-        style="Anime",
-        ethnicity="East Asian",
-        eyeColor="Brown",
-        hairStyle="Long",
-        hairColor="Black",
-        personality="Playful",
-        voice="Calm",
-        connection="New Encounter",
+        visual_style="Anime",
+        companion_ethnicity="East Asian",
+        eye_color="Brown",
+        age=28,
+        hair_length="Long",
+        hair_style="Straight",
+        hair_color="Black",
+        companion_personality="Playful",
+        companion_profession="Writer",
+        body_type="Natural",
+        bust="Natural",
+        height="Average",
+        intention="New Encounter",
     )
 
     assert CompanionService._generate_ai_companion_title(payload) == "Anime Playful Companion"

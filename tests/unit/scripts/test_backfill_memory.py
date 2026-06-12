@@ -35,16 +35,20 @@ def tmp_database(tmp_path):
             "INSERT INTO users (id, email, name) VALUES (2, 'bob@example.com', 'Bob')"
         )
         conn.execute(
-            "INSERT INTO ai_companion (id, user_id, title, description, gender, style, ethnicity, "
-            "eye_color, hair_style, hair_color, personality, voice, connection) "
-            "VALUES (10, 1, 'Mira', 'desc', 'Female', 'Anime', 'Asian', 'Brown', 'Long', 'Black', "
-            "'Playful', 'Calm', 'New Encounter')"
+            "INSERT INTO ai_companion (id, user_id, title, description, gender, visual_style, "
+            "companion_ethnicity, eye_color, age, hair_length, hair_style, hair_color, "
+            "companion_personality, companion_profession, body_type, bust, height, intention) "
+            "VALUES (10, 1, 'Mira', 'desc', 'Female', 'Anime', 'East Asian', 'Brown', 28, "
+            "'Long', 'Straight', 'Black', 'Playful', 'Writer', 'Natural', 'Natural', 'Average', "
+            "'New Encounter')"
         )
         conn.execute(
-            "INSERT INTO ai_companion (id, user_id, title, description, gender, style, ethnicity, "
-            "eye_color, hair_style, hair_color, personality, voice, connection) "
-            "VALUES (20, 2, 'Kai', 'desc', 'Male', 'Real', 'European', 'Blue', 'Short', 'Blond', "
-            "'Intense', 'Deep', 'Old Friend')"
+            "INSERT INTO ai_companion (id, user_id, title, description, gender, visual_style, "
+            "companion_ethnicity, eye_color, age, hair_length, hair_style, hair_color, "
+            "companion_personality, companion_profession, body_type, bust, height, intention) "
+            "VALUES (20, 2, 'Kai', 'desc', 'Male', 'Realistic', 'Eastern European', 'Blue', 30, "
+            "'Short', 'Short', 'Blonde', 'Confident', 'Writer', 'Natural', 'Natural', 'Average', "
+            "'Old Friend')"
         )
         conn.execute(
             "INSERT INTO conversations (id, user_id, ai_companion_id) VALUES (100, 1, 10)"

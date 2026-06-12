@@ -21,9 +21,11 @@ def mock_user():
 def mock_companion():
     return AICompanionRecord(
         id=10, user_id=1, title="Debug Bot", description="desc",
-        gender="F", style="R", ethnicity="E", eye_color="B",
-        hair_style="S", hair_color="B", personality="P", voice="V",
-        connection="C", created_at="now", updated_at="now"
+        gender="Female", visual_style="Realistic", companion_ethnicity="East Asian",
+        eye_color="Brown", age=28, hair_length="Long", hair_style="Straight",
+        hair_color="Black", companion_personality="Playful", companion_profession="Writer",
+        body_type="Natural", bust="Natural", height="Average", intention="quick",
+        created_at="now", updated_at="now"
     )
 
 @pytest.mark.anyio
@@ -87,9 +89,11 @@ async def test_debug_memory_list_wrong_owner(api_client, mock_user):
         # Companion owned by user 999
         other_companion = AICompanionRecord(
             id=10, user_id=999, title="Other Bot", description="desc",
-            gender="F", style="R", ethnicity="E", eye_color="B",
-            hair_style="S", hair_color="B", personality="P", voice="V",
-            connection="C", created_at="now", updated_at="now"
+            gender="Female", visual_style="Realistic", companion_ethnicity="East Asian",
+            eye_color="Brown", age=28, hair_length="Long", hair_style="Straight",
+            hair_color="Black", companion_personality="Playful", companion_profession="Writer",
+            body_type="Natural", bust="Natural", height="Average", intention="quick",
+            created_at="now", updated_at="now"
         )
         
         mock_user_repo.find_by_email.return_value = mock_user
@@ -156,4 +160,3 @@ async def test_debug_memory_list_invalid_validation(api_client, mock_user, mock_
         # Empty memory type
         response = api_client.get("/debug/memory/debug@example.com/10?memory_type=")
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-

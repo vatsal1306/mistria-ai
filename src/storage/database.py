@@ -78,18 +78,34 @@ class SQLiteDatabase:
                 TEXT
                 NOT
                 NULL,
-                style
+                visual_style
                 TEXT
                 NOT
-                NULL,
-                ethnicity
+                NULL
+                DEFAULT
+                'Realistic',
+                companion_ethnicity
                 TEXT
                 NOT
-                NULL,
+                NULL
+                DEFAULT
+                'East Asian',
                 eye_color
                 TEXT
                 NOT
                 NULL,
+                age
+                INTEGER
+                NOT
+                NULL
+                DEFAULT
+                18,
+                hair_length
+                TEXT
+                NOT
+                NULL
+                DEFAULT
+                'Average',
                 hair_style
                 TEXT
                 NOT
@@ -98,18 +114,72 @@ class SQLiteDatabase:
                 TEXT
                 NOT
                 NULL,
+                companion_personality
+                TEXT
+                NOT
+                NULL
+                DEFAULT
+                'Playful',
+                companion_profession
+                TEXT
+                NOT
+                NULL
+                DEFAULT
+                'Companion',
+                body_type
+                TEXT
+                NOT
+                NULL
+                DEFAULT
+                'Natural',
+                bust
+                TEXT
+                NOT
+                NULL
+                DEFAULT
+                'Natural',
+                height
+                TEXT
+                NOT
+                NULL
+                DEFAULT
+                'Average',
+                intention
+                TEXT
+                NOT
+                NULL
+                DEFAULT
+                'quick',
+                style
+                TEXT
+                NOT
+                NULL
+                DEFAULT
+                '',
+                ethnicity
+                TEXT
+                NOT
+                NULL
+                DEFAULT
+                '',
                 personality
                 TEXT
                 NOT
-                NULL,
+                NULL
+                DEFAULT
+                '',
                 voice
                 TEXT
                 NOT
-                NULL,
+                NULL
+                DEFAULT
+                '',
                 connection
                 TEXT
                 NOT
-                NULL,
+                NULL
+                DEFAULT
+                '',
                 created_at
                 TEXT
                 NOT
@@ -371,6 +441,7 @@ class SQLiteDatabase:
                 for statement in table_statements:
                     connection.execute(statement)
                 self._ensure_users_password_nullable(connection)
+                self._ensure_ai_companion_feature_columns(connection)
                 self._ensure_conversations_ai_companion_column(connection)
                 self._ensure_archetype_results_constraints(connection)
                 self._drop_user_companion_objects(connection)
@@ -462,6 +533,107 @@ class SQLiteDatabase:
             """
         )
 
+    def _ensure_ai_companion_feature_columns(self, connection: sqlite3.Connection) -> None:
+        column_defs = {
+            "visual_style": "TEXT NOT NULL DEFAULT 'Realistic'",
+            "companion_ethnicity": "TEXT NOT NULL DEFAULT 'East Asian'",
+            "age": "INTEGER NOT NULL DEFAULT 18",
+            "hair_length": "TEXT NOT NULL DEFAULT 'Average'",
+            "companion_personality": "TEXT NOT NULL DEFAULT 'Playful'",
+            "companion_profession": "TEXT NOT NULL DEFAULT 'Companion'",
+            "body_type": "TEXT NOT NULL DEFAULT 'Natural'",
+            "bust": "TEXT NOT NULL DEFAULT 'Natural'",
+            "height": "TEXT NOT NULL DEFAULT 'Average'",
+            "intention": "TEXT NOT NULL DEFAULT 'quick'",
+            "style": "TEXT NOT NULL DEFAULT ''",
+            "ethnicity": "TEXT NOT NULL DEFAULT ''",
+            "personality": "TEXT NOT NULL DEFAULT ''",
+            "voice": "TEXT NOT NULL DEFAULT ''",
+            "connection": "TEXT NOT NULL DEFAULT ''",
+        }
+
+        added_columns = False
+        for column_name, column_def in column_defs.items():
+            if self._column_exists(connection, "ai_companion", column_name):
+                continue
+            logger.info("Adding ai_companion.%s column via migration", column_name)
+            connection.execute(f"ALTER TABLE ai_companion ADD COLUMN {column_name} {column_def}")
+            added_columns = True
+
+        if not added_columns:
+            return
+
+        if self._column_exists(connection, "ai_companion", "style"):
+            connection.execute(
+                """
+                UPDATE ai_companion
+                SET visual_style = style
+                WHERE style IS NOT NULL AND style != ''
+                """
+            )
+        if self._column_exists(connection, "ai_companion", "ethnicity"):
+            connection.execute(
+                """
+                UPDATE ai_companion
+                SET companion_ethnicity = CASE
+                    WHEN ethnicity IN (
+                        'African Descent',
+                        'South Asian',
+                        'Eastern European',
+                        'East Asian',
+                        'Latinx',
+                        'Latina',
+                        'Middle Eastern'
+                    ) THEN ethnicity
+                    ELSE companion_ethnicity
+                END
+                WHERE ethnicity IS NOT NULL AND ethnicity != ''
+                """
+            )
+        if self._column_exists(connection, "ai_companion", "hair_style"):
+            connection.execute(
+                """
+                UPDATE ai_companion
+                SET hair_length = CASE
+                    WHEN hair_style IN ('Short', 'Long', 'Extra Long') THEN hair_style
+                    ELSE hair_length
+                END
+                WHERE hair_style IS NOT NULL AND hair_style != ''
+                """
+            )
+        if self._column_exists(connection, "ai_companion", "personality"):
+            connection.execute(
+                """
+                UPDATE ai_companion
+                SET companion_personality = CASE personality
+                    WHEN 'Flirty' THEN 'Flirty'
+                    WHEN 'Obsessed' THEN 'Obsessed'
+                    WHEN 'Playful' THEN 'Playful'
+                    WHEN 'Dominant' THEN 'Dominant'
+                    WHEN 'Mysterious' THEN 'Mysterious'
+                    WHEN 'Caring' THEN 'Caring'
+                    WHEN 'Confident' THEN 'Confident'
+                    WHEN 'Sensual' THEN 'Sensual'
+                    WHEN 'Passionate' THEN 'Passionate'
+                    WHEN 'Seductive' THEN 'Flirty'
+                    WHEN 'Adventurous' THEN 'Playful'
+                    WHEN 'Ambitious' THEN 'Confident'
+                    WHEN 'Submissive' THEN 'Passionate'
+                    WHEN 'Intellectual' THEN 'Mysterious'
+                    ELSE companion_personality
+                END
+                WHERE personality IS NOT NULL AND personality != ''
+                """
+            )
+        if self._column_exists(connection, "ai_companion", "connection"):
+            connection.execute(
+                """
+                UPDATE ai_companion
+                SET intention = connection
+                WHERE connection IS NOT NULL AND connection != ''
+                """
+            )
+
     def _ensure_archetype_results_constraints(self, connection: sqlite3.Connection) -> None:
         row = connection.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='archetype_results'"
@@ -518,4 +690,3 @@ class SQLiteDatabase:
             connection.execute("DROP TABLE archetype_results_legacy")
         finally:
             connection.execute("PRAGMA foreign_keys = ON")
-

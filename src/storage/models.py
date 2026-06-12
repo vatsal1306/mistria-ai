@@ -23,16 +23,37 @@ class AICompanionRecord:
     title: str
     description: str
     gender: str
-    style: str
-    ethnicity: str
-    eye_color: str
-    hair_style: str
-    hair_color: str
-    personality: str
-    voice: str
-    connection: str
-    created_at: str
-    updated_at: str
+    visual_style: str = ""
+    companion_ethnicity: str = ""
+    eye_color: str = ""
+    age: int = 18
+    hair_length: str = ""
+    hair_style: str = ""
+    hair_color: str = ""
+    companion_personality: str = ""
+    companion_profession: str = ""
+    body_type: str = ""
+    bust: str = ""
+    height: str = ""
+    intention: str = ""
+    created_at: str = ""
+    updated_at: str = ""
+    style: str | None = None
+    ethnicity: str | None = None
+    personality: str | None = None
+    voice: str | None = None
+    connection: str | None = None
+
+    def __post_init__(self) -> None:
+        """Backfill new fields from legacy attributes when old test/database rows are used."""
+        if not self.visual_style and self.style:
+            object.__setattr__(self, "visual_style", self.style)
+        if not self.companion_ethnicity and self.ethnicity:
+            object.__setattr__(self, "companion_ethnicity", self.ethnicity)
+        if not self.companion_personality and self.personality:
+            object.__setattr__(self, "companion_personality", self.personality)
+        if not self.intention and self.connection:
+            object.__setattr__(self, "intention", self.connection)
 
 
 @dataclass(frozen=True, slots=True)
