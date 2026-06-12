@@ -156,11 +156,11 @@ class TestArchetypeResultCreate:
         assert parsed["power"] == 3.0
         assert parsed["sharp"] == 4.0
 
-class TestArchetypeResultMultipleSubmissions:
-    """Verify multiple submissions per user are supported."""
+class TestArchetypeResultUpsert:
+    """Verify submissions upsert per user."""
 
-    def test_allows_multiple_per_user(self, repo, user_id):
-        """Multiple archetype submissions for the same user must all persist."""
+    def test_upserts_existing_record_per_user(self, repo, user_id):
+        """Multiple archetype submissions for the same user must upsert the existing row."""
         for archetype in ("soulmate", "protector", "rebel"):
             repo.create_result(
                 user_id=user_id,
@@ -174,10 +174,11 @@ class TestArchetypeResultMultipleSubmissions:
             )
 
         records = repo.list_by_user_id(user_id)
-        assert len(records) == 3
+        assert len(records) == 1
+        assert records[0].primary_archetype == "rebel"
 
-    def test_latest_is_identifiable(self, repo, user_id):
-        """The most recent submission must be returned by find_latest_by_user_id."""
+    def test_latest_is_identifiable_after_upsert(self, repo, user_id):
+        """The most recent submission must be returned by find_latest_by_user_id after an upsert."""
         repo.create_result(
             user_id=user_id,
             onboarding_pathway="slow_burn",
@@ -216,7 +217,7 @@ class TestArchetypeResultLookup:
         assert repo.list_by_user_id(999999) == []
 
     def test_list_ordered_newest_first(self, repo, user_id):
-        """Results must be ordered newest first."""
+        """Results must be ordered newest first (although only 1 exists per user now)."""
         for archetype in ("soulmate", "protector", "rebel"):
             repo.create_result(
                 user_id=user_id,
@@ -235,23 +236,20 @@ class TestArchetypeResultLookup:
 
     def test_list_respects_limit(self, repo, user_id):
         """Repository list_by_user_id must respect optional limit parameter."""
-        for archetype in ("soulmate", "protector", "rebel"):
-            repo.create_result(
-                user_id=user_id,
-                onboarding_pathway="slow_burn",
-                trait_scores_json=SAMPLE_TRAITS,
-                primary_archetype=archetype,
-                primary_similarity=0.90,
-                secondary_archetype=None,
-                secondary_similarity=None,
-                blend_active=False,
-            )
+        repo.create_result(
+            user_id=user_id,
+            onboarding_pathway="slow_burn",
+            trait_scores_json=SAMPLE_TRAITS,
+            primary_archetype="rebel",
+            primary_similarity=0.90,
+            secondary_archetype=None,
+            secondary_similarity=None,
+            blend_active=False,
+        )
 
-        records = repo.list_by_user_id(user_id, limit=2)
-        assert len(records) == 2
-        # Verify it's the two newest
+        records = repo.list_by_user_id(user_id, limit=1)
+        assert len(records) == 1
         assert records[0].primary_archetype == "rebel"
-        assert records[1].primary_archetype == "protector"
 
 
 class TestIntenseHeatNotRequired:
