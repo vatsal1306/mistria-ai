@@ -149,14 +149,13 @@ async def test_stream_response_builds_companion_contract_prompt_and_trims_histor
     system_prompt = inference_request.system_prompt
     assert system_prompt is not None
     assert "Base chat prompt." in system_prompt
-    assert "Registered First Name: Vatsal" in system_prompt
     assert "Name: Luna" in system_prompt
     assert "Relationship Frame: Passionate Lover" in system_prompt
     assert "USER PREFERENCE PROFILE" not in system_prompt
     assert "Summary Title:" not in system_prompt
     assert "Dominance Mode:" not in system_prompt
     assert "Use only the visible conversation history as memory." in system_prompt
-    assert "STRICT NAME RULE" in system_prompt
+    assert "STRICT NAME RULE: The user's first name is \"Vatsal\"." in system_prompt
     assert "do not keep falling back to vague setup lines" in system_prompt
     assert "stop overthinking it" in system_prompt
 
