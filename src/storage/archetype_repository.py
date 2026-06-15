@@ -125,6 +125,19 @@ class SQLiteArchetypeResultRepository(ArchetypeResultRepository):
                      primary_archetype, primary_similarity,
                      secondary_archetype, secondary_similarity, blend_active)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    onboarding_pathway=excluded.onboarding_pathway,
+                    trait_scores_json=excluded.trait_scores_json,
+                    primary_archetype=excluded.primary_archetype,
+                    primary_similarity=excluded.primary_similarity,
+                    secondary_archetype=excluded.secondary_archetype,
+                    secondary_similarity=excluded.secondary_similarity,
+                    blend_active=excluded.blend_active,
+                    created_at=CURRENT_TIMESTAMP
+                RETURNING id, user_id, onboarding_pathway, trait_scores_json,
+                       primary_archetype, primary_similarity,
+                       secondary_archetype, secondary_similarity,
+                       blend_active, created_at
                 """,
                 (
                     user_id,
@@ -137,17 +150,7 @@ class SQLiteArchetypeResultRepository(ArchetypeResultRepository):
                     int(blend_active),
                 ),
             )
-            row = connection.execute(
-                """
-                SELECT id, user_id, onboarding_pathway, trait_scores_json,
-                       primary_archetype, primary_similarity,
-                       secondary_archetype, secondary_similarity,
-                       blend_active, created_at
-                FROM archetype_results
-                WHERE id = ?
-                """,
-                (cursor.lastrowid,),
-            ).fetchone()
+            row = cursor.fetchone()
             connection.commit()
 
         record = self._map_row(row)

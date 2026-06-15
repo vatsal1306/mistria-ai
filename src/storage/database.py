@@ -312,7 +312,7 @@ class SQLiteDatabase:
             CREATE TABLE IF NOT EXISTS archetype_results
             (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL UNIQUE,
                 onboarding_pathway TEXT NOT NULL DEFAULT 'slow_burn',
                 trait_scores_json TEXT NOT NULL,
                 primary_archetype TEXT NOT NULL CHECK (primary_archetype IN ('devotee', 'muse', 'protector', 'rebel', 'soulmate')),
@@ -642,10 +642,10 @@ class SQLiteDatabase:
             return
 
         sql = row["sql"]
-        if "CHECK" in sql:
+        if "CHECK" in sql and "UNIQUE" in sql:
             return
 
-        logger.info("Migrating archetype_results to include CHECK constraints")
+        logger.info("Migrating archetype_results to include CHECK and UNIQUE constraints")
         connection.execute("PRAGMA foreign_keys = OFF")
         try:
             connection.execute("ALTER TABLE archetype_results RENAME TO archetype_results_legacy")
@@ -654,7 +654,7 @@ class SQLiteDatabase:
                 CREATE TABLE archetype_results
                 (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL UNIQUE,
                     onboarding_pathway TEXT NOT NULL DEFAULT 'slow_burn',
                     trait_scores_json TEXT NOT NULL,
                     primary_archetype TEXT NOT NULL CHECK (primary_archetype IN ('devotee', 'muse', 'protector', 'rebel', 'soulmate')),
@@ -680,7 +680,12 @@ class SQLiteDatabase:
                        secondary_archetype, secondary_similarity,
                        blend_active, created_at
                 FROM archetype_results_legacy
-                WHERE primary_archetype IN ('devotee', 'muse', 'protector', 'rebel', 'soulmate')
+                WHERE id IN (
+                    SELECT MAX(id)
+                    FROM archetype_results_legacy
+                    GROUP BY user_id
+                )
+                  AND primary_archetype IN ('devotee', 'muse', 'protector', 'rebel', 'soulmate')
                   AND primary_similarity >= -3.0 AND primary_similarity <= 3.0
                   AND (secondary_archetype IS NULL OR secondary_archetype IN ('devotee', 'muse', 'protector', 'rebel', 'soulmate'))
                   AND (secondary_similarity IS NULL OR (secondary_similarity >= -3.0 AND secondary_similarity <= 3.0))
