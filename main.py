@@ -26,6 +26,7 @@ from src.companion.schemas import (
 )
 from src.companion.service import CompanionService
 from src.config import settings
+from src.engagement.worker import EngagementScoringWorker
 from src.memory.background import MemoryExtractionWorker
 from src.memory.embeddings import LocalEmbeddingProvider
 from src.memory.events import LoggingMemoryEventSink
@@ -94,8 +95,15 @@ if settings.memory.enabled:
 else:
     logger.info("Memory system is disabled via configuration.")
 
+engagement_worker = None
+if settings.engagement.external_backend_webhook_url:
+    logger.info("Engagement scoring is enabled.")
+    engagement_worker = EngagementScoringWorker(runtime, chat_history_service, settings.engagement)
+else:
+    logger.info("Engagement scoring is disabled (webhook URL not configured).")
+
 chat_service = ChatService(
-    settings.chat, runtime, chat_history_service, memory_service, extraction_worker
+    settings.chat, runtime, chat_history_service, memory_service, extraction_worker, engagement_worker
 )
 
 websocket_handler = WebSocketChatHandler(
@@ -148,6 +156,8 @@ async def lifespan(_: FastAPI):
         logger.info("Application shutdown initiated backend=%s", runtime.backend_name)
         if extraction_worker:
             await extraction_worker.shutdown()
+        if engagement_worker:
+            await engagement_worker.shutdown()
         await runtime.shutdown()
         logger.info("Application shutdown complete backend=%s", runtime.backend_name)
 

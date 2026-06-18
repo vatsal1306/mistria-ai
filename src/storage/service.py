@@ -23,3 +23,11 @@ class ChatHistoryService:
     def save_message(self, conversation_id: int, role: str, content: str) -> MessageRecord:
         """Persist a single message in the active conversation."""
         return self.conversation_store.append_message(conversation_id=conversation_id, role=role, content=content)
+
+    def list_recent_messages(self, conversation_id: int, limit: int) -> list[MessageRecord]:
+        """Return the most recent messages for a conversation in chronological order."""
+        if limit <= 0:
+            return []
+
+        messages = self.conversation_store.list_messages(conversation_id)
+        return messages[-limit:]

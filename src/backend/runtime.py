@@ -289,8 +289,8 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
             len(request.messages),
         )
         params = {
-            "max_tokens": self.inference_config.max_tokens,
-            "temperature": self.inference_config.temperature,
+            "max_tokens": request.max_tokens if request.max_tokens is not None else self.inference_config.max_tokens,
+            "temperature": request.temperature if request.temperature is not None else self.inference_config.temperature,
             "top_p": self.inference_config.top_p,
             "output_kind": self._request_output_kind.DELTA,
         }
@@ -512,9 +512,9 @@ class OllamaInferenceRuntime(BaseInferenceRuntime):
                     stream=True,
                     format="json" if request.json_schema else None,
                     options={
-                        "temperature": self.inference_config.temperature,
+                        "temperature": request.temperature if request.temperature is not None else self.inference_config.temperature,
                         "top_p": self.inference_config.top_p,
-                        "num_predict": self.inference_config.max_tokens,
+                        "num_predict": request.max_tokens if request.max_tokens is not None else self.inference_config.max_tokens,
                     }
             ):
                 if chunk and "message" in chunk and "content" in chunk["message"]:

@@ -35,6 +35,10 @@ class ConversationStore(ABC):
     def append_message(self, conversation_id: int, role: str, content: str) -> MessageRecord:
         """Persist a message in the current conversation."""
 
+    @abstractmethod
+    def list_messages(self, conversation_id: int) -> list[MessageRecord]:
+        """List all messages for a conversation in chronological order."""
+
 
 class SQLiteConversationStore(ConversationStore):
     """SQLite implementation of the conversation history store."""
@@ -69,3 +73,7 @@ class SQLiteConversationStore(ConversationStore):
     def append_message(self, conversation_id: int, role: str, content: str) -> MessageRecord:
         """Persist one message inside the target conversation."""
         return self.repository.create_message(conversation_id=conversation_id, role=role, content=content)
+
+    def list_messages(self, conversation_id: int) -> list[MessageRecord]:
+        """List all messages for a conversation in chronological order."""
+        return self.repository.list_messages(conversation_id)

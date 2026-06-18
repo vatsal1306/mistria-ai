@@ -9,6 +9,7 @@ import asyncio
 from src.backend.runtime import BaseInferenceRuntime
 from src.backend.schemas import ChatMessage, ChatSocketRequest, InferencePromptRequest
 from src.config import Chat
+from src.engagement.worker import EngagementScoringWorker
 from src.memory.background import MemoryExtractionWorker
 from src.memory.prompts import render_memory_prompt
 from src.memory.service import MemoryService
@@ -30,12 +31,14 @@ class ChatService:
         history_service: ChatHistoryService,
         memory_service: MemoryService | None = None,
         extraction_worker: MemoryExtractionWorker | None = None,
+        engagement_worker: EngagementScoringWorker | None = None,
     ):
         self.chat_config = chat_config
         self.runtime = runtime
         self.history_service = history_service
         self.memory_service = memory_service
         self.extraction_worker = extraction_worker
+        self.engagement_worker = engagement_worker
 
     async def stream_response(
         self, 
@@ -189,6 +192,14 @@ class ChatService:
                     message_id=user_message_record.id,
                     message_content=request.user_message,
                     recent_messages=prior_history,
+                )
+
+            # 6. Schedule non-blocking engagement scoring
+            if self.engagement_worker:
+                self.engagement_worker.schedule(
+                    conversation_id=str(conversation.id),
+                    user_id=request.user_id,
+                    companion_id=str(request.ai_companion_id),
                 )
         else:
             logger.warning(
