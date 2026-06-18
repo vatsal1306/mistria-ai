@@ -448,6 +448,14 @@ class _ExtractionWorkerStub:
         self.scheduled.append(kwargs)
 
 
+class _EngagementWorkerStub:
+    def __init__(self):
+        self.scheduled: list[dict] = []
+
+    def schedule(self, **kwargs) -> None:
+        self.scheduled.append(kwargs)
+
+
 @pytest.mark.anyio
 async def test_stream_response_schedules_extraction_after_assistant_save(
     sample_ai_companion,
@@ -520,6 +528,73 @@ async def test_stream_response_does_not_schedule_extraction_on_empty_output(
         pass
 
     assert extraction_worker.scheduled == []
+
+
+@pytest.mark.anyio
+async def test_stream_response_schedules_engagement_scoring_after_assistant_save(
+    sample_ai_companion,
+):
+    """Verify engagement scoring is scheduled after the assistant message is persisted."""
+    runtime = _StreamingRuntimeStub(tokens=["Hi."])
+    snapshot = ConversationSnapshot(
+        conversation=ConversationRecord(id=1, user_id=1, ai_companion_id=2, created_at="", updated_at=""),
+        messages=[],
+    )
+    history_service = _HistoryServiceStub(snapshot)
+    engagement_worker = _EngagementWorkerStub()
+
+    service = ChatService(
+        chat_config=SimpleNamespace(history_message_limit=10, system_prompt="Base."),
+        runtime=runtime,
+        history_service=history_service,
+        engagement_worker=engagement_worker,
+    )
+
+    request = ChatSocketRequest(user_id="user@example.com", ai_companion_id=2, user_message="hello")
+
+    async for _ in service.stream_response(
+        request, internal_user_id=1, user_name="V",
+        ai_companion=sample_ai_companion, snapshot=snapshot,
+    ):
+        pass
+
+    assert len(engagement_worker.scheduled) == 1
+    job = engagement_worker.scheduled[0]
+    assert job["conversation_id"] == "1"
+    assert job["user_id"] == "user@example.com"
+    assert job["companion_id"] == "2"
+    assert history_service.saved_messages[-1] == (1, "assistant", "Hi.")
+
+
+@pytest.mark.anyio
+async def test_stream_response_does_not_schedule_engagement_on_empty_output(
+    sample_ai_companion,
+):
+    """Verify engagement scoring is skipped when the assistant produces empty output."""
+    runtime = _StreamingRuntimeStub(tokens=[])
+    snapshot = ConversationSnapshot(
+        conversation=ConversationRecord(id=1, user_id=1, ai_companion_id=2, created_at="", updated_at=""),
+        messages=[],
+    )
+    history_service = _HistoryServiceStub(snapshot)
+    engagement_worker = _EngagementWorkerStub()
+
+    service = ChatService(
+        chat_config=SimpleNamespace(history_message_limit=10, system_prompt="Base."),
+        runtime=runtime,
+        history_service=history_service,
+        engagement_worker=engagement_worker,
+    )
+
+    request = ChatSocketRequest(user_id="user@example.com", ai_companion_id=2, user_message="hello")
+
+    async for _ in service.stream_response(
+        request, internal_user_id=1, user_name="V",
+        ai_companion=sample_ai_companion, snapshot=snapshot,
+    ):
+        pass
+
+    assert engagement_worker.scheduled == []
 
 
 @pytest.mark.anyio

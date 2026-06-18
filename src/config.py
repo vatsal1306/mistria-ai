@@ -160,6 +160,13 @@ class AppLogging:
 
 
 @dataclass(frozen=True, slots=True)
+class Engagement:
+    """Engagement scoring and external webhook settings."""
+    external_backend_webhook_url: str | None = _get_str("EXTERNAL_BACKEND_WEBHOOK_URL", "") or None
+    history_limit: int = _get_int("ENGAGEMENT_HISTORY_LIMIT", 10)
+
+
+@dataclass(frozen=True, slots=True)
 class Memory:
     """Long-term memory layer settings."""
     enabled: bool = _get_bool("MISTRIA_MEMORY_ENABLED", False)
@@ -194,6 +201,7 @@ class Settings:
     inference: Inference = field(default_factory=Inference)
     logging: AppLogging = field(default_factory=AppLogging)
     memory: Memory = field(default_factory=Memory)
+    engagement: Engagement = field(default_factory=Engagement)
     storage: Storage = field(default_factory=Storage)
     secrets: Secrets = field(default_factory=Secrets)
 
