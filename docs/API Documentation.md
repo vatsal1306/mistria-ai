@@ -1,7 +1,7 @@
 # Mistria AI — API Integration Guide
 
-> **Version:** 3.0  
-> **Last Updated:** 2026-05-15  
+> **Version:** 3.1  
+> **Last Updated:** 2026-06-18  
 > **Milestone:** M3  
 > **Audience:** Frontend / Web App Engineers  
 > **ServerLink:** http://45.248.33.161:8080/docs
@@ -30,9 +30,11 @@
    - [Response Event Types](#response-event-types)
    - [End-to-End Flow](#end-to-end-flow)
    - [Error Scenarios](#error-scenarios)
-6. [Allowed Values Reference](#allowed-values-reference)
-7. [Error Handling Summary](#error-handling-summary)
-8. [Notes for Frontend Integration](#notes-for-frontend-integration)
+   - [Engagement Scoring (Background)](#engagement-scoring-background)
+6. [Engagement Scoring Webhook (Outbound)](#engagement-scoring-webhook-outbound)
+7. [Allowed Values Reference](#allowed-values-reference)
+8. [Error Handling Summary](#error-handling-summary)
+9. [Notes for Frontend Integration](#notes-for-frontend-integration)
 
 ---
 
@@ -42,8 +44,11 @@ Mistria AI exposes a FastAPI backend with:
 
 - HTTP endpoints for user management, AI persona generation, archetype scoring, and memory debugging.
 - **1 WebSocket endpoint** for real-time streamed chat with long-term memory retrieval.
+- **Background engagement scoring** that evaluates recent chat history after each completed turn and notifies an external backend via webhook when the score changes.
 
 All HTTP endpoints accept and return `application/json`. The WebSocket endpoint exchanges JSON text frames.
+
+> **Engagement scoring is server-side only.** The frontend does not call it directly. When enabled, Mistria AI POSTs score updates to your Node.js (or other) backend after successful chat turns. See [Engagement Scoring Webhook (Outbound)](#engagement-scoring-webhook-outbound).
 
 > **Interactive Docs:** FastAPI auto-generates interactive API documentation. Once the server is running, visit:
 > - **Swagger UI:** `http://127.0.0.1:8080/docs` — try every endpoint directly in your browser
@@ -605,6 +610,7 @@ Send a JSON text frame with the following structure:
 - **Short-Term History**: The server automatically fetches recent conversation history from the database and trims it to the last 24 messages.
 - **Long-Term Memory (LTM)**: If enabled, the server retrieves relevant facts, preferences, and emotional context from the vector store (Qdrant) before starting inference, using a hybrid search of the latest `user_message`.
 - **Injection**: Both short-term history and long-term memories are injected into the system prompt before inference. This happens entirely server-side; the frontend does not need to manage or send the memory context.
+- **Engagement Scoring**: After a successful turn (user message saved, assistant response streamed and saved), the server may asynchronously evaluate engagement and POST a webhook to an external backend if the score changed. This does not affect WebSocket events and requires no frontend action. See [Engagement Scoring (Background)](#engagement-scoring-background).
 - Unknown fields are rejected (`extra: "forbid"`).
 
 ### Response Event Types
@@ -710,7 +716,10 @@ Here is a complete example of a successful WebSocket chat session:
 
 10. Server sends:       {"type":"done","backend":"mock","delta":null,"detail":null}
 
-11. Client can now send another chat request on the same connection.
+11. [Background] If engagement scoring is enabled, Mistria AI evaluates recent chat history
+    and may POST an engagement webhook to the external backend (see below).
+
+12. Client can now send another chat request on the same connection.
 ```
 
 ### Error Scenarios
@@ -756,6 +765,119 @@ Server responds:        {
 
 Connection:             Remains open. Client should retry after checking /health.
 ```
+
+### Engagement Scoring (Background)
+
+After each **successful** WebSocket chat turn, Mistria AI may run engagement scoring in the background. This happens **after** the `done` event is sent and does not block or modify the WebSocket stream.
+
+| Aspect | Behavior |
+|---|---|
+| Trigger | User message + assistant response both saved to the database |
+| Blocking | Non-blocking; runs as a background task |
+| Frontend impact | None — no new WebSocket events are emitted |
+| Enablement | Requires `EXTERNAL_BACKEND_WEBHOOK_URL` to be set on the Mistria AI server |
+
+**Scoring logic by inference backend:**
+
+| `MISTRIA_INFERENCE_BACKEND` | Engagement score source |
+|---|---|
+| `vllm` or `ollama` | LLM evaluates the last `ENGAGEMENT_HISTORY_LIMIT` messages and returns an integer 1–100 |
+| `mock` | Random integer between 1 and 100 (for local/smoke testing; LLM is not called) |
+
+The score reflects user engagement, interest, conversational flow, and intimacy/intensity based on recent messages. In production, use `vllm` or `ollama`. Use `mock` only when you want to exercise the webhook pipeline without a real model.
+
+---
+
+## Engagement Scoring Webhook (Outbound)
+
+> **Audience:** Node.js / platform backend engineers integrating with Mistria AI  
+> **Direction:** Mistria AI → your backend (outbound HTTP POST)
+
+Engagement scoring is **not** an HTTP endpoint exposed by Mistria AI. Instead, Mistria AI sends an asynchronous webhook to your backend whenever a conversation's engagement score **changes**.
+
+### Enablement
+
+Set these environment variables on the Mistria AI server:
+
+| Variable | Default | Description |
+|---|---|---|
+| `EXTERNAL_BACKEND_WEBHOOK_URL` | *(unset — disabled)* | Full URL to POST engagement updates to. Feature is disabled when empty. |
+| `ENGAGEMENT_HISTORY_LIMIT` | `10` | Number of most recent messages used as scoring context |
+
+Example:
+
+```bash
+EXTERNAL_BACKEND_WEBHOOK_URL=https://your-node-backend.example.com/api/engagement
+ENGAGEMENT_HISTORY_LIMIT=10
+```
+
+### When the webhook fires
+
+1. A WebSocket chat turn completes successfully (assistant response saved).
+2. Mistria AI fetches the last `ENGAGEMENT_HISTORY_LIMIT` messages for that conversation.
+3. A score (1–100) is calculated.
+4. The score is compared to the last known score for that conversation (held in memory).
+5. If the score **changed** (even by 1 point), a webhook POST is sent.
+6. If the score is unchanged, no webhook is sent.
+
+**Edge cases:**
+
+| Scenario | Behavior |
+|---|---|
+| Server restart | In-memory scores are cleared. The next calculation is treated as a change and triggers a webhook. |
+| Invalid LLM output (`vllm`/`ollama`) | Scoring is skipped; no webhook. Logged server-side. |
+| Webhook failure | Logged server-side; no retries (fire-and-forget). Chat is unaffected. |
+| Empty conversation history | Scoring is skipped. |
+
+### Webhook request
+
+Mistria AI sends:
+
+```
+POST <EXTERNAL_BACKEND_WEBHOOK_URL>
+Content-Type: application/json
+```
+
+**Payload:**
+
+```json
+{
+  "user_id": "user@example.com",
+  "ai_companion_id": 1,
+  "engagement_score": 82
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `user_id` | `string` | User email address (same value as `user_id` in the WebSocket chat payload) |
+| `ai_companion_id` | `integer` | AI companion persona ID |
+| `engagement_score` | `integer` | Engagement score from 1 (disengaged) to 100 (highly engaged) |
+
+**Expected backend response:** Return any `2xx` status code. Mistria AI uses a **10 second** timeout and does **not** retry failed requests.
+
+### Mock backend testing notes
+
+When `MISTRIA_INFERENCE_BACKEND=mock`:
+
+- Each scoring run produces a **random** score between 1 and 100.
+- Because scores usually differ turn-to-turn, webhooks fire frequently — useful for testing your receiver.
+- Chat WebSocket behavior is unchanged; only the engagement score source differs.
+
+Example local setup:
+
+```bash
+MISTRIA_INFERENCE_BACKEND=mock
+EXTERNAL_BACKEND_WEBHOOK_URL=http://127.0.0.1:3000/api/engagement
+```
+
+### Integration checklist (external backend)
+
+1. Expose a `POST` endpoint at the URL configured in `EXTERNAL_BACKEND_WEBHOOK_URL`.
+2. Accept JSON with `user_id`, `ai_companion_id`, and `engagement_score`.
+3. Respond with `2xx` quickly (within 10 seconds).
+4. Treat delivery as at-most-once; duplicate or missed events are possible after restarts or network failures.
+5. Do not expect the frontend to relay engagement data — Mistria AI sends it directly.
 
 ---
 
@@ -839,10 +961,12 @@ For `422` validation errors, FastAPI returns:
    - **Long-Term**: Relevant facts and preferences are retrieved from the vector store based on semantic similarity to the `user_message`.
    - **Frontend Payload**: The client only needs to send the latest `user_message`. LTM is transparent to the frontend and does not require any additional UI logic.
 
-7. **AI Companion Field Names:** AI companion feature fields use snake_case.
+7. **Engagement Scoring:** The frontend does **not** implement engagement scoring. After each successful chat turn, Mistria AI may POST score updates to an external backend configured via `EXTERNAL_BACKEND_WEBHOOK_URL`. If your product displays engagement scores, read them from your own backend — not from the Mistria AI WebSocket. See [Engagement Scoring Webhook (Outbound)](#engagement-scoring-webhook-outbound).
 
-8. **Email Normalization:** Emails are automatically lowercased and trimmed. `"User@Example.COM"` becomes `"user@example.com"`.
+8. **AI Companion Field Names:** AI companion feature fields use snake_case.
 
-9. **Retry Strategy:** If `/health` shows `engine_ready: false`, poll every 5–10 seconds until `engine_ready: true` before attempting WebSocket chat.
+9. **Email Normalization:** Emails are automatically lowercased and trimmed. `"User@Example.COM"` becomes `"user@example.com"`.
 
-10. **CORS:** The backend currently allows requests from `http://127.0.0.1:8501` and `http://localhost:8501` only. If your frontend runs on a different origin (e.g., `http://localhost:3000`), the `MISTRIA_API_CORS_ORIGINS` environment variable must be updated on the backend or you will receive CORS errors.
+10. **Retry Strategy:** If `/health` shows `engine_ready: false`, poll every 5–10 seconds until `engine_ready: true` before attempting WebSocket chat.
+
+11. **CORS:** The backend currently allows requests from `http://127.0.0.1:8501` and `http://localhost:8501` only. If your frontend runs on a different origin (e.g., `http://localhost:3000`), the `MISTRIA_API_CORS_ORIGINS` environment variable must be updated on the backend or you will receive CORS errors.
