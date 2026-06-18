@@ -161,7 +161,7 @@ class EngagementScoringWorker:
     async def _evaluate_engagement_score(self, inference_request: InferencePromptRequest) -> int | None:
         """Return an engagement score from the configured inference backend."""
         if self.runtime.backend_name == "mock":
-            score = random.randint(1, 100)
+            score = random.randint(1, 100)  # nosec B311
             logger.debug("Engagement scoring using mock backend random score=%s", score)
             return score
 
