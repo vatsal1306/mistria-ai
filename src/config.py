@@ -33,6 +33,22 @@ def _get_float(name: str, default: float) -> float:
     return float(str(value).strip())
 
 
+def _get_optional_int(name: str) -> int | None:
+    """Read an optional integer setting, returning ``None`` when unset or blank."""
+    value = envs.get(name)
+    if value is None or str(value).strip() == "":
+        return None
+    return int(str(value).strip())
+
+
+def _get_optional_float(name: str) -> float | None:
+    """Read an optional floating-point setting, returning ``None`` when unset or blank."""
+    value = envs.get(name)
+    if value is None or str(value).strip() == "":
+        return None
+    return float(str(value).strip())
+
+
 def _get_bool(name: str, default: bool) -> bool:
     """Read a boolean setting from the environment with strict parsing."""
     value = envs.get(name)
@@ -134,6 +150,13 @@ class Inference:
     trust_remote_code: bool = _get_bool("MISTRIA_INFERENCE_TRUST_REMOTE_CODE", False)
     enforce_eager: bool = _get_bool("MISTRIA_INFERENCE_ENFORCE_EAGER", False)
     engine_iteration_timeout_seconds: int = _get_int("MISTRIA_INFERENCE_ENGINE_TIMEOUT_SECONDS", 900)
+    gpu_memory_utilization: float | None = _get_optional_float("MISTRIA_INFERENCE_GPU_MEMORY_UTILIZATION")
+    max_num_seqs: int | None = _get_optional_int("MISTRIA_INFERENCE_MAX_NUM_SEQS")
+    max_num_batched_tokens: int | None = _get_optional_int("MISTRIA_INFERENCE_MAX_NUM_BATCHED_TOKENS")
+    swap_space_gb: int | None = _get_optional_int("MISTRIA_INFERENCE_SWAP_SPACE_GB")
+    kv_cache_dtype: str | None = _get_str("MISTRIA_INFERENCE_KV_CACHE_DTYPE", "") or None
+    quantization: str | None = _get_str("MISTRIA_INFERENCE_QUANTIZATION", "") or None
+    download_dir: str | None = _get_str("MISTRIA_INFERENCE_DOWNLOAD_DIR", "") or None
     startup_heartbeat_interval_seconds: float = _get_float("MISTRIA_INFERENCE_STARTUP_HEARTBEAT_SECONDS", 10.0)
     mock_response_delay_seconds: float = _get_float("MISTRIA_INFERENCE_MOCK_RESPONSE_DELAY_SECONDS", 0.03)
 

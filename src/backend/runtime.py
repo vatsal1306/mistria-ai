@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import os
+import shutil
 import time
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
@@ -225,17 +226,10 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
                 "Using vLLM engine iteration timeout=%ss",
                 self.inference_config.engine_iteration_timeout_seconds,
             )
-            engine_args = AsyncEngineArgs(
-                model=self.inference_config.model_name,
-                revision=self.inference_config.model_revision,
-                tokenizer=tokenizer_name,
-                tokenizer_revision=self.inference_config.tokenizer_revision or self.inference_config.model_revision,
-                tensor_parallel_size=self.inference_config.tensor_parallel_size,
-                dtype=self.inference_config.dtype,
-                max_model_len=self.inference_config.max_model_len,
-                trust_remote_code=self.inference_config.trust_remote_code,
-                enforce_eager=self.inference_config.enforce_eager,
-            )
+            self._log_host_capacity()
+            engine_kwargs = self._build_engine_kwargs(AsyncEngineArgs, tokenizer_name)
+            logger.info("Building vLLM AsyncEngineArgs with %s", engine_kwargs)
+            engine_args = AsyncEngineArgs(**engine_kwargs)
             self._set_startup_stage(
                 "loading_model",
                 "Downloading and loading model weights. This can take several minutes on first CPU startup.",
@@ -257,7 +251,7 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
                 use_v1,
             )
         except Exception as exc:
-            self._startup_error = f"{type(exc).__name__}: {exc}"
+            self._startup_error = self._describe_startup_failure(exc)
             self._set_startup_stage("failed", self._startup_error)
             logger.exception("Embedded vLLM runtime failed to initialize")
         finally:
@@ -320,6 +314,91 @@ class VLLMInferenceRuntime(BaseInferenceRuntime):
         except Exception as exc:
             logger.exception("vLLM generation failed for request_id=%s", request_id)
             raise InferenceExecutionError(f"{type(exc).__name__}: {exc}") from exc
+
+    def _build_engine_kwargs(self, engine_args_cls: type, tokenizer_name: str) -> dict[str, object]:
+        """Assemble ``AsyncEngineArgs`` kwargs, skipping options this vLLM build cannot accept."""
+        config = self.inference_config
+        engine_kwargs: dict[str, object] = {
+            "model": config.model_name,
+            "revision": config.model_revision,
+            "tokenizer": tokenizer_name,
+            "tokenizer_revision": config.tokenizer_revision or config.model_revision,
+            "tensor_parallel_size": config.tensor_parallel_size,
+            "dtype": config.dtype,
+            "max_model_len": config.max_model_len,
+            "trust_remote_code": config.trust_remote_code,
+            "enforce_eager": config.enforce_eager,
+        }
+
+        optional_kwargs: dict[str, object | None] = {
+            "gpu_memory_utilization": config.gpu_memory_utilization,
+            "max_num_seqs": config.max_num_seqs,
+            "max_num_batched_tokens": config.max_num_batched_tokens,
+            "swap_space": config.swap_space_gb,
+            "kv_cache_dtype": config.kv_cache_dtype,
+            "quantization": config.quantization,
+            "download_dir": config.download_dir,
+        }
+        supported_names = self._get_param_names(engine_args_cls)
+        for name, value in optional_kwargs.items():
+            if value is None:
+                continue
+            if supported_names and name not in supported_names:
+                logger.warning(
+                    "Ignoring vLLM engine option %s=%s; it is not supported by the installed vLLM build.",
+                    name,
+                    value,
+                )
+                continue
+            engine_kwargs[name] = value
+
+        return engine_kwargs
+
+    def _log_host_capacity(self) -> None:
+        """Log GPU memory and model-cache disk headroom to make startup failures diagnosable."""
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                for device_index in range(torch.cuda.device_count()):
+                    free_bytes, total_bytes = torch.cuda.mem_get_info(device_index)
+                    logger.info(
+                        "GPU capacity index=%s name=%s free=%.2fGiB total=%.2fGiB",
+                        device_index,
+                        torch.cuda.get_device_name(device_index),
+                        free_bytes / 1024 ** 3,
+                        total_bytes / 1024 ** 3,
+                    )
+            else:
+                logger.warning("No CUDA device is visible to torch; vLLM will fall back to CPU execution.")
+        except Exception:
+            logger.warning("Unable to probe GPU capacity before engine startup", exc_info=True)
+
+        cache_dir = self.inference_config.download_dir or os.environ.get("HF_HOME") or os.path.expanduser("~/.cache")
+        try:
+            usage = shutil.disk_usage(cache_dir)
+            logger.info(
+                "Model cache disk headroom path=%s free=%.2fGiB total=%.2fGiB",
+                cache_dir,
+                usage.free / 1024 ** 3,
+                usage.total / 1024 ** 3,
+            )
+        except OSError:
+            logger.warning("Unable to probe disk headroom for model cache path=%s", cache_dir, exc_info=True)
+
+    @staticmethod
+    def _describe_startup_failure(exc: Exception) -> str:
+        """Build an actionable startup error message for the health endpoint and logs."""
+        message = f"{type(exc).__name__}: {exc}"
+        if "Engine core initialization failed" in str(exc):
+            message += (
+                " The vLLM engine-core subprocess exited before completing its startup handshake. "
+                "Its traceback is written to the backend process stdout/stderr "
+                "(run/logs/backend.log when started via scripts/run_direct.sh), not to the application log. "
+                "Common causes are CUDA out-of-memory, host RAM exhaustion (SIGKILL by the OOM killer), "
+                "and a full model-cache disk."
+            )
+        return message
 
     def _build_prompt(self, request: InferencePromptRequest) -> str:
         logger.debug(

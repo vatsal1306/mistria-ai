@@ -44,7 +44,8 @@ Bust: {bust}
 Height: {height}
 Intention: {intention}
 
-The description should feel grounded, human, and coherent with the full profile. Capture the likely tone, chemistry, social vibe, and presence implied by the traits instead of listing attributes mechanically."""
+The description should feel grounded, human, and coherent with the full profile. Capture the likely tone, chemistry, social vibe, and presence implied by the traits instead of listing attributes mechanically.
+If the description names the companion, it must use the exact name in the `title` field and no other name."""
 
 AI_COMPANION_TITLE_INSTRUCTION = """
 
@@ -55,6 +56,24 @@ Also generate the `title` field using these rules:
 - The name should imply the right cultural texture, tone, and dominance/energy of the persona without sounding exaggerated.
 - Do not use spaces, hyphens, titles, honorifics, surnames, numbers, or punctuation.
 - Output only the single first name in the `title` field.
+- Refer to the companion only by that name in the description; never introduce a second or different name.
+"""
+
+AI_COMPANION_FIXED_NAME_INSTRUCTION = """
+
+The companion has already been named by the user, and that name is final:
+Name: {companion_name}
+
+Follow these rules for the name:
+- Set the `title` field to exactly "{companion_name}", copied character for character.
+- Refer to the companion only as "{companion_name}" in the description.
+- Never invent, translate, shorten, or substitute a different name, even if "{companion_name}" seems mismatched with the gender, ethnicity, or other traits.
+- Do not comment on the name or on how well it fits the profile.
+"""
+
+AI_COMPANION_NAME_CORRECTION_INSTRUCTION = """
+
+Your previous attempt named the companion "{wrong_name}", which is not allowed. Regenerate the response using "{companion_name}" as the only name in both the `title` field and the description.
 """
 
 MEMORY_EXTRACTION_SYSTEM_PROMPT = """You are a background memory extraction system for an AI companion application.

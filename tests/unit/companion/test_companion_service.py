@@ -13,13 +13,14 @@ from src.storage.models import AICompanionRecord, UserRecord
 
 
 class _RuntimeStub:
-    def __init__(self, response_text: str):
-        self.response_text = response_text
+    def __init__(self, response_text: str, *args: str):
+        self.response_texts = [response_text, *args]
         self.requests = []
 
     async def generate_text(self, request):
         self.requests.append(request)
-        return self.response_text
+        index = min(len(self.requests) - 1, len(self.response_texts) - 1)
+        return self.response_texts[index]
 
 
 class _UserRepositoryStub:
@@ -244,23 +245,88 @@ def test_companion_service_raises_for_missing_users_and_records(sample_user, sam
         service.get_ai_companion(orphan.id)
 
 
-def test_generate_ai_companion_title_helper():
-    payload = AICompanionCreateRequest(
-        user_mail_id="user@example.com",
-        gender="Female",
-        visual_style="Anime",
-        companion_ethnicity="East Asian",
-        eye_color="Brown",
-        age=28,
-        hair_length="Long",
-        hair_style="Straight",
-        hair_color="Black",
-        companion_personality="Playful",
-        companion_profession="Writer",
-        body_type="Natural",
-        bust="Natural",
-        height="Average",
-        intention="New Encounter",
+def _create_payload(**overrides) -> AICompanionCreateRequest:
+    payload = {
+        "user_mail_id": "user@example.com",
+        "title": None,
+        "description": None,
+        "gender": "Female",
+        "visual_style": "Realistic",
+        "companion_ethnicity": "East Asian",
+        "eye_color": "Brown",
+        "age": 24,
+        "hair_length": "Medium",
+        "hair_style": "Curly",
+        "hair_color": "Blonde",
+        "companion_personality": "Flirty",
+        "companion_profession": "Bartender",
+        "body_type": "Petite",
+        "bust": "Natural",
+        "height": "Short",
+        "intention": "quick",
+    }
+    payload.update(overrides)
+    return AICompanionCreateRequest(**payload)
+
+
+@pytest.mark.anyio
+async def test_create_ai_companion_passes_provided_name_into_generation_prompt(sample_user):
+    runtime = _RuntimeStub('{"title":"jimmy","description":"jimmy pours drinks with a flirty, easy confidence."}')
+    ai_companion_repo = _AICompanionRepositoryStub()
+    service = CompanionService(_UserRepositoryStub(sample_user), ai_companion_repo, runtime)
+
+    response = await service.create_ai_companion(
+        _create_payload(user_mail_id=sample_user.email, title="jimmy")
     )
 
-    assert CompanionService._generate_ai_companion_title(payload) == "Anime Playful Companion"
+    assert response.title == "jimmy"
+    assert len(runtime.requests) == 1
+    prompt = runtime.requests[0].messages[0].content
+    assert 'Set the `title` field to exactly "jimmy"' in prompt
+    assert "exactly one word" not in prompt
+    assert "jimmy" in response.description
+
+
+@pytest.mark.anyio
+async def test_create_ai_companion_retries_when_description_uses_a_different_name(sample_user):
+    runtime = _RuntimeStub(
+        '{"title":"Yuna","description":"Yuna, a 24-year-old bartender with a flirty spark."}',
+        '{"title":"jimmy","description":"jimmy, a 24-year-old bartender with a flirty spark."}',
+    )
+    service = CompanionService(_UserRepositoryStub(sample_user), _AICompanionRepositoryStub(), runtime)
+
+    response = await service.create_ai_companion(
+        _create_payload(user_mail_id=sample_user.email, title="jimmy")
+    )
+
+    assert len(runtime.requests) == 2
+    assert "Yuna" in runtime.requests[1].messages[0].content
+    assert response.title == "jimmy"
+    assert "Yuna" not in response.description
+
+
+@pytest.mark.anyio
+async def test_create_ai_companion_keeps_provided_description_and_generates_only_the_name(sample_user):
+    runtime = _RuntimeStub('{"title":"Mira","description":"Generated description that must not be stored."}')
+    ai_companion_repo = _AICompanionRepositoryStub()
+    service = CompanionService(_UserRepositoryStub(sample_user), ai_companion_repo, runtime)
+
+    response = await service.create_ai_companion(
+        _create_payload(user_mail_id=sample_user.email, description="A steady, dry-witted bartender.")
+    )
+
+    assert response.title == "Mira"
+    assert response.description == "A steady, dry-witted bartender."
+
+
+@pytest.mark.anyio
+async def test_create_ai_companion_does_not_retry_when_description_omits_any_name(sample_user):
+    runtime = _RuntimeStub('{"title":"Yuna","description":"A petite bartender with a flirty, magnetic presence."}')
+    service = CompanionService(_UserRepositoryStub(sample_user), _AICompanionRepositoryStub(), runtime)
+
+    response = await service.create_ai_companion(
+        _create_payload(user_mail_id=sample_user.email, title="jimmy")
+    )
+
+    assert len(runtime.requests) == 1
+    assert response.title == "jimmy"

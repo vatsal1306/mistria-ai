@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import re
+
+from pydantic import ValidationError
+
 from src.Logging import get_logger
 from src.companion.exceptions import AICompanionNotFoundError, UserNotRegisteredError
 from src.companion.schemas import (
@@ -21,7 +25,9 @@ from src.storage.repositories import (
     SQLiteUserRepository,
 )
 from src.prompts import (
+    AI_COMPANION_FIXED_NAME_INSTRUCTION,
     AI_COMPANION_METADATA_PROMPT,
+    AI_COMPANION_NAME_CORRECTION_INSTRUCTION,
     AI_COMPANION_TITLE_INSTRUCTION,
     METADATA_SYSTEM_PROMPT,
 )
@@ -66,11 +72,11 @@ class CompanionService:
                 bust=payload.bust,
                 height=payload.height,
                 intention=payload.intention,
-                generate_title=not payload.title,
+                companion_name=payload.title,
             )
 
             title = payload.title or metadata.title
-            description = metadata.description
+            description = payload.description or metadata.description
 
         record = self.ai_companion_repository.create(
             user_id=user.id,
@@ -117,7 +123,7 @@ class CompanionService:
             bust=payload.bust,
             height=payload.height,
             intention=payload.intention,
-            generate_title=True,
+            companion_name=None,
         )
         return AICompanionGenerateResponse(title=metadata.title, description=metadata.description)
 
@@ -186,10 +192,6 @@ class CompanionService:
             intention=record.intention,
         )
 
-    @staticmethod
-    def _generate_ai_companion_title(payload: AICompanionCreateRequest) -> str:
-        return f"{payload.visual_style} {payload.companion_personality} Companion"
-
     async def _generate_ai_companion_metadata(
             self,
             *,
@@ -207,8 +209,14 @@ class CompanionService:
             bust: str,
             height: str,
             intention: str,
-            generate_title: bool,
+            companion_name: str | None,
     ) -> AICompanionMetadata:
+        """Generate companion metadata, honouring a caller-supplied companion name when present.
+
+        When `companion_name` is supplied it is injected into the prompt so the generated
+        description refers to the companion by that name. Without it the model is asked to
+        invent a name and use it consistently.
+        """
         prompt = AI_COMPANION_METADATA_PROMPT.format(
             gender=gender,
             visual_style=visual_style,
@@ -226,15 +234,70 @@ class CompanionService:
             intention=intention,
         )
 
-        title_instruction = ""
-        if generate_title:
-            prompt += AI_COMPANION_TITLE_INSTRUCTION
-            title_instruction = " and a name"
+        fixed_name = self._sanitize_companion_name(companion_name)
+        if fixed_name is None:
+            return await self._request_ai_companion_metadata(
+                prompt=prompt + AI_COMPANION_TITLE_INSTRUCTION,
+                system_prompt_suffix=" and a name",
+            )
 
+        prompt += AI_COMPANION_FIXED_NAME_INSTRUCTION.format(companion_name=fixed_name)
+        metadata = await self._request_ai_companion_metadata(prompt=prompt, system_prompt_suffix="")
+        wrong_name = self._find_conflicting_name(metadata, fixed_name)
+        if wrong_name is not None:
+            logger.warning(
+                "Generated description used name=%s instead of requested companion name=%s; retrying once",
+                wrong_name,
+                fixed_name,
+            )
+            metadata = await self._request_ai_companion_metadata(
+                prompt=prompt + AI_COMPANION_NAME_CORRECTION_INSTRUCTION.format(
+                    companion_name=fixed_name,
+                    wrong_name=wrong_name,
+                ),
+                system_prompt_suffix="",
+            )
+            if self._find_conflicting_name(metadata, fixed_name) is not None:
+                logger.error(
+                    "Description still conflicts with requested companion name=%s after retry",
+                    fixed_name,
+                )
+
+        return metadata.model_copy(update={"title": fixed_name})
+
+    async def _request_ai_companion_metadata(self, *, prompt: str, system_prompt_suffix: str) -> AICompanionMetadata:
+        """Run one structured metadata inference call and parse the JSON response."""
         req = InferencePromptRequest(
-            system_prompt=f"{METADATA_SYSTEM_PROMPT} Generate a description{title_instruction}.",
+            system_prompt=f"{METADATA_SYSTEM_PROMPT} Generate a description{system_prompt_suffix}.",
             messages=[ChatMessage(role="user", content=prompt)],
             json_schema=AICompanionMetadata.model_json_schema(),
         )
         metadata_text = await self.runtime.generate_text(req)
-        return AICompanionMetadata.model_validate_json(metadata_text.strip())
+        try:
+            return AICompanionMetadata.model_validate_json(metadata_text.strip())
+        except ValidationError:
+            logger.error("AI companion metadata response failed schema validation raw_length=%s", len(metadata_text))
+            raise
+
+    @staticmethod
+    def _sanitize_companion_name(companion_name: str | None) -> str | None:
+        """Collapse a caller-supplied companion name into a single prompt-safe line."""
+        if companion_name is None:
+            return None
+        normalized = " ".join(companion_name.split())
+        return normalized or None
+
+    @staticmethod
+    def _find_conflicting_name(metadata: AICompanionMetadata, companion_name: str) -> str | None:
+        """Return the rogue name the description used instead of `companion_name`, if any.
+
+        Structured decoding emits `title` before `description`, so a title that differs from
+        the requested name and also appears in the description means the model renamed the
+        companion mid-generation.
+        """
+        generated_title = metadata.title.strip()
+        if not generated_title or generated_title.casefold() == companion_name.casefold():
+            return None
+        if re.search(rf"\b{re.escape(generated_title)}\b", metadata.description, flags=re.IGNORECASE):
+            return generated_title
+        return None

@@ -306,7 +306,8 @@ GET /archetype/latest/user@example.com
 Create a new AI companion persona for a registered user.
 
 - If both `title` and `description` are provided, the API saves the companion exactly as provided and does not call AI generation.
-- If `description` is omitted, the API generates the description from the companion attributes. If `title` is also omitted, it generates both title and description.
+- If `description` is omitted, the API generates the description from the companion attributes. When `title` is provided, that name is passed to the model so the generated description refers to the companion by that exact name.
+- If `title` is omitted, the API generates the name and uses it consistently in the description. A `description` supplied without a `title` is preserved as-is.
 
 **Request:**
 ```
