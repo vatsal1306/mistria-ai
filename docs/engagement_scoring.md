@@ -69,9 +69,9 @@ Create the core logic that handles the LLM call and webhook dispatch.
   4. **Parse Output:** Strip whitespace and attempt to cast the LLM's response to an integer. If parsing fails, log a warning and abort.  
   5. **Compare State:** Retrieve the last known score from the in-memory state.  
   6. **Dispatch (if changed):** If new\_score \!= last\_known\_score:  
-     * Update the in-memory state with the new score.  
      * Construct the payload: {"user\_id": user\_id, "ai\_companion\_id": companion\_id, "engagement\_score": new\_score}.  
      * Use an async HTTP client (e.g., httpx.AsyncClient) to POST the payload to EXTERNAL\_BACKEND\_WEBHOOK\_URL.  
+     * Treat the webhook as accepted only on HTTP 2xx with JSON `status=success`. Update the in-memory state only after acceptance so a failed 60 stays retryable against a previous 54.  
      * Wrap the HTTP call in a try...except block to catch network errors (httpx.RequestError). Log failures but do not raise exceptions that would crash the task.
 
 ### **5\. Integration into the Chat Loop (src/backend/websocket\_handler.py or src/backend/service.py)**
@@ -92,5 +92,5 @@ Ensure the necessary HTTP library is present.
 1. **Non-Integer Output:** If the LLM returns "The score is 85", the parsing step *must* handle this gracefully (either via regex extraction or by failing safely and logging the error). The task must not crash.  
 2. **Server Restart:** On a server restart, the in-memory dictionary is wiped. The first calculation for an active conversation will be treated as a "change" (since the previous state is None), and a webhook will be fired. This is expected and desired behavior.  
 3. **Webhook Timeout:** Configure a short timeout (e.g., 5 seconds) on the httpx POST request to prevent hanging tasks if the external backend is slow or unresponsive.  
-4. **Fire-and-Forget:** Do not implement retry mechanisms for the HTTP request. If it fails, it drops.
+4. **Same-turn fire-and-forget:** Do not retry the HTTP request on the same turn. If it fails, keep the previous in-memory score so the next turn can send the new score again.
 

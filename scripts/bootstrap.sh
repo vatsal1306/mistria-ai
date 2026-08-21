@@ -226,9 +226,23 @@ sync_repo() {
   success "Repo cloned"
 }
 
+ensure_engagement_webhook_url() {
+  if [[ ! -f "$ENV_FILE" ]]; then
+    return
+  fi
+  if grep -q '^EXTERNAL_BACKEND_WEBHOOK_URL=' "$ENV_FILE"; then
+    return
+  fi
+  info "Adding engagement webhook settings to ${ENV_FILE}"
+  printf '\nEXTERNAL_BACKEND_WEBHOOK_URL=%s\nENGAGEMENT_HISTORY_LIMIT=%s\n' \
+    "${EXTERNAL_BACKEND_WEBHOOK_URL:-http://45.248.33.161:5026/api/v1/webhook}" \
+    "${ENGAGEMENT_HISTORY_LIMIT:-10}" >>"$ENV_FILE"
+}
+
 write_env_file() {
   if [[ -f "$ENV_FILE" && "$OVERWRITE_ENV" != "1" ]]; then
     warn "Keeping existing env file at ${ENV_FILE}"
+    ensure_engagement_webhook_url
     return
   fi
 
@@ -263,6 +277,9 @@ write_env_file() {
     if [[ -n "${HF_TOKEN:-}" ]]; then
       printf 'HF_TOKEN=%s\n' "$HF_TOKEN"
     fi
+    printf 'EXTERNAL_BACKEND_WEBHOOK_URL=%s\n' \
+      "${EXTERNAL_BACKEND_WEBHOOK_URL:-http://45.248.33.161:5026/api/v1/webhook}"
+    printf 'ENGAGEMENT_HISTORY_LIMIT=%s\n' "${ENGAGEMENT_HISTORY_LIMIT:-10}"
   } >"$ENV_FILE"
 
   chmod 600 "$ENV_FILE"

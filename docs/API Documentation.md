@@ -776,7 +776,7 @@ After each **successful** WebSocket chat turn, Mistria AI may run engagement sco
 | Trigger | User message + assistant response both saved to the database |
 | Blocking | Non-blocking; runs as a background task |
 | Frontend impact | None — no new WebSocket events are emitted |
-| Enablement | Requires `EXTERNAL_BACKEND_WEBHOOK_URL` to be set on the Mistria AI server |
+| Enablement | Requires `EXTERNAL_BACKEND_WEBHOOK_URL` (defaults to the platform webhook; disabled when empty) |
 
 **Scoring logic by inference backend:**
 
@@ -802,13 +802,13 @@ Set these environment variables on the Mistria AI server:
 
 | Variable | Default | Description |
 |---|---|---|
-| `EXTERNAL_BACKEND_WEBHOOK_URL` | *(unset — disabled)* | Full URL to POST engagement updates to. Feature is disabled when empty. |
+| `EXTERNAL_BACKEND_WEBHOOK_URL` | `http://45.248.33.161:5026/api/v1/webhook` | Full URL to POST engagement updates to. Feature is disabled when empty. |
 | `ENGAGEMENT_HISTORY_LIMIT` | `10` | Number of most recent messages used as scoring context |
 
 Example:
 
 ```bash
-EXTERNAL_BACKEND_WEBHOOK_URL=https://your-node-backend.example.com/api/engagement
+EXTERNAL_BACKEND_WEBHOOK_URL=http://45.248.33.161:5026/api/v1/webhook
 ENGAGEMENT_HISTORY_LIMIT=10
 ```
 
@@ -817,9 +817,10 @@ ENGAGEMENT_HISTORY_LIMIT=10
 1. A WebSocket chat turn completes successfully (assistant response saved).
 2. Mistria AI fetches the last `ENGAGEMENT_HISTORY_LIMIT` messages for that conversation.
 3. A score (1–100) is calculated.
-4. The score is compared to the last known score for that conversation (held in memory).
+4. The score is compared to the last **successfully delivered** score for that conversation (held in memory).
 5. If the score **changed** (even by 1 point), a webhook POST is sent.
 6. If the score is unchanged, no webhook is sent.
+7. The in-memory score is updated **only after** the backend accepts the webhook.
 
 **Edge cases:**
 
@@ -827,7 +828,7 @@ ENGAGEMENT_HISTORY_LIMIT=10
 |---|---|
 | Server restart | In-memory scores are cleared. The next calculation is treated as a change and triggers a webhook. |
 | Invalid LLM output (`vllm`/`ollama`) | Scoring is skipped; no webhook. Logged server-side. |
-| Webhook failure | Logged server-side; no retries (fire-and-forget). Chat is unaffected. |
+| Webhook failure (network, non-2xx, or JSON `status` ≠ `success`) | Logged server-side. The last delivered score stays in memory so the next turn can send the new score again. Chat is unaffected. |
 | Empty conversation history | Scoring is skipped. |
 
 ### Webhook request
@@ -855,7 +856,7 @@ Content-Type: application/json
 | `ai_companion_id` | `integer` | AI companion persona ID |
 | `engagement_score` | `integer` | Engagement score from 1 (disengaged) to 100 (highly engaged) |
 
-**Expected backend response:** Return any `2xx` status code. Mistria AI uses a **10 second** timeout and does **not** retry failed requests.
+**Expected backend response:** HTTP `2xx` plus JSON with `"status": "success"`. Mistria AI uses a **10 second** timeout. It does not retry on the same turn; the next chat turn will send again if the score still differs from the last delivered value.
 
 ### Mock backend testing notes
 
@@ -876,8 +877,8 @@ EXTERNAL_BACKEND_WEBHOOK_URL=http://127.0.0.1:3000/api/engagement
 
 1. Expose a `POST` endpoint at the URL configured in `EXTERNAL_BACKEND_WEBHOOK_URL`.
 2. Accept JSON with `user_id`, `ai_companion_id`, and `engagement_score`.
-3. Respond with `2xx` quickly (within 10 seconds).
-4. Treat delivery as at-most-once; duplicate or missed events are possible after restarts or network failures.
+3. Respond with `2xx` quickly (within 10 seconds) and JSON `{"status": "success", ...}`.
+4. Treat delivery as at-least-once for a given score change: failed POSTs are retried on later turns until accepted. Duplicates are still possible after restarts.
 5. Do not expect the frontend to relay engagement data — Mistria AI sends it directly.
 
 ---

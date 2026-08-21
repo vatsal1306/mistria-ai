@@ -143,13 +143,23 @@ class EngagementScoringWorker:
                 )
                 return
 
-            state.set_last_score(conversation_key, new_score)
             payload = {
                 "user_id": user_id,
                 "ai_companion_id": int(companion_id),
                 "engagement_score": new_score,
             }
-            await self._dispatch_webhook(webhook_url, payload, conversation_key)
+            dispatched = await self._dispatch_webhook(webhook_url, payload, conversation_key)
+            if dispatched:
+                state.set_last_score(conversation_key, new_score)
+                return
+
+            logger.warning(
+                "Engagement score not persisted locally after webhook failure "
+                "conversation_id=%s last_known_score=%s attempted_score=%s",
+                conversation_key,
+                last_known_score,
+                new_score,
+            )
         except Exception:
             logger.exception(
                 "Engagement scoring job failed conversation_id=%s user_id=%s companion_id=%s",
@@ -173,17 +183,31 @@ class EngagementScoringWorker:
             webhook_url: str,
             payload: dict[str, object],
             conversation_id: str,
-    ) -> None:
-        """Send the engagement score webhook without retries."""
+    ) -> bool:
+        """POST the engagement score and return True only when the backend accepts it.
+
+        Acceptance requires HTTP 2xx and a JSON body with ``status`` equal to
+        ``success``. Failures are logged and not retried on this turn so the
+        in-memory score can stay at the last delivered value.
+        """
         try:
             async with httpx.AsyncClient(timeout=_WEBHOOK_TIMEOUT_SECONDS) as client:
                 response = await client.post(webhook_url, json=payload)
                 response.raise_for_status()
+            if not _is_successful_webhook_payload(response):
+                logger.warning(
+                    "Engagement webhook rejected conversation_id=%s score=%s body=%s",
+                    conversation_id,
+                    payload["engagement_score"],
+                    _safe_response_text(response),
+                )
+                return False
             logger.info(
                 "Engagement webhook dispatched conversation_id=%s score=%s",
                 conversation_id,
                 payload["engagement_score"],
             )
+            return True
         except httpx.RequestError as exc:
             logger.warning(
                 "Engagement webhook request failed conversation_id=%s error=%s",
@@ -196,7 +220,29 @@ class EngagementScoringWorker:
                 conversation_id,
                 exc.response.status_code,
             )
-
         except Exception as e:
-            logger.exception("Engagement webhook raised Exception, conversation_id=%s traceback=%s", conversation_id,
-                             str(e))
+            logger.exception(
+                "Engagement webhook raised Exception, conversation_id=%s traceback=%s",
+                conversation_id,
+                str(e),
+            )
+        return False
+
+
+def _is_successful_webhook_payload(response: httpx.Response) -> bool:
+    """Return True when the webhook JSON body reports ``status=success``."""
+    try:
+        body = response.json()
+    except ValueError:
+        return False
+    if not isinstance(body, dict):
+        return False
+    return str(body.get("status", "")).strip().lower() == "success"
+
+
+def _safe_response_text(response: httpx.Response, *, limit: int = 200) -> str:
+    """Return a truncated response body for logs."""
+    text = (response.text or "").strip().replace("\n", " ")
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit]}..."

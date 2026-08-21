@@ -49,6 +49,8 @@ MISTRIA_API_KEY=replace-with-a-strong-secret
 MISTRIA_INFERENCE_BACKEND=vllm
 MISTRIA_INFERENCE_MODEL_NAME=dphn/Dolphin3.0-Llama3.1-8B
 HF_TOKEN=optional-hugging-face-token
+EXTERNAL_BACKEND_WEBHOOK_URL=http://45.248.33.161:5026/api/v1/webhook
+ENGAGEMENT_HISTORY_LIMIT=10
 ```
 
 ### Memory-Disabled Mode

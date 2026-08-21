@@ -15,6 +15,8 @@ MISTRIA_MEMORY_ENABLED="${MISTRIA_MEMORY_ENABLED:-True}"
 MISTRIA_MEMORY_EXTRACTION_ENABLED="${MISTRIA_MEMORY_EXTRACTION_ENABLED:-True}"
 OVERWRITE_ENV="${OVERWRITE_ENV:-0}"
 INSTALL_SYSTEM_PACKAGES="${INSTALL_SYSTEM_PACKAGES:-1}"
+EXTERNAL_BACKEND_WEBHOOK_URL="${EXTERNAL_BACKEND_WEBHOOK_URL:-http://45.248.33.161:5026/api/v1/webhook}"
+ENGAGEMENT_HISTORY_LIMIT="${ENGAGEMENT_HISTORY_LIMIT:-10}"
 
 log() {
   printf '[%s] %s\n' "$1" "$2"
@@ -78,9 +80,22 @@ sync_repo() {
   git clone --branch "$REPO_BRANCH" "$REPO_URL" "$REPO_DIR"
 }
 
+ensure_engagement_webhook_url() {
+  if [[ ! -f "$ENV_FILE" ]]; then
+    return
+  fi
+  if grep -q '^EXTERNAL_BACKEND_WEBHOOK_URL=' "$ENV_FILE"; then
+    return
+  fi
+  log "INFO" "Adding engagement webhook settings to ${ENV_FILE}"
+  printf '\nEXTERNAL_BACKEND_WEBHOOK_URL=%s\nENGAGEMENT_HISTORY_LIMIT=%s\n' \
+    "$EXTERNAL_BACKEND_WEBHOOK_URL" "$ENGAGEMENT_HISTORY_LIMIT" >>"$ENV_FILE"
+}
+
 write_env_file() {
   if [[ -f "$ENV_FILE" && "$OVERWRITE_ENV" != "1" ]]; then
     log "OK" "Keeping existing env file at ${ENV_FILE}"
+    ensure_engagement_webhook_url
     return
   fi
 
@@ -120,6 +135,9 @@ MISTRIA_MEMORY_QDRANT_URL=http://localhost:6333
 MISTRIA_MEMORY_QDRANT_PATH=${WORKSPACE_DIR}/qdrant
 MISTRIA_MEMORY_QDRANT_COLLECTION=mistria_memories
 MISTRIA_MEMORY_EMBEDDING_MODEL_NAME=all-MiniLM-L6-v2
+
+EXTERNAL_BACKEND_WEBHOOK_URL=${EXTERNAL_BACKEND_WEBHOOK_URL}
+ENGAGEMENT_HISTORY_LIMIT=${ENGAGEMENT_HISTORY_LIMIT}
 
 HF_HOME=${WORKSPACE_DIR}/.cache/huggingface
 XDG_CACHE_HOME=${WORKSPACE_DIR}/.cache

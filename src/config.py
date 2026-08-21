@@ -182,10 +182,15 @@ class AppLogging:
         return os.path.join(self.directory, self.filename)
 
 
+DEFAULT_EXTERNAL_BACKEND_WEBHOOK_URL = "http://45.248.33.161:5026/api/v1/webhook"
+
+
 @dataclass(frozen=True, slots=True)
 class Engagement:
     """Engagement scoring and external webhook settings."""
-    external_backend_webhook_url: str | None = _get_str("EXTERNAL_BACKEND_WEBHOOK_URL", "") or None
+    external_backend_webhook_url: str | None = (
+        _get_str("EXTERNAL_BACKEND_WEBHOOK_URL", DEFAULT_EXTERNAL_BACKEND_WEBHOOK_URL) or None
+    )
     history_limit: int = _get_int("ENGAGEMENT_HISTORY_LIMIT", 10)
 
 

@@ -14,6 +14,58 @@ from src.engagement import state
 from src.engagement.worker import EngagementScoringWorker
 from src.storage.models import MessageRecord
 
+_SUCCESS_WEBHOOK_BODY = {"status": "success", "message": "Webhook handled successfully"}
+
+
+def _webhook_response(
+        *,
+        status_code: int = 200,
+        body: object | None = None,
+        text: str | None = None,
+) -> SimpleNamespace:
+    """Return a response object that mimics the httpx surface used by the worker."""
+    payload: object = _SUCCESS_WEBHOOK_BODY if body is None else body
+    response = SimpleNamespace(status_code=status_code, text=text if text is not None else str(payload))
+
+    def _raise_for_status() -> None:
+        if status_code >= 400:
+            request = httpx.Request("POST", "http://backend.test/engagement")
+            raise httpx.HTTPStatusError(
+                "error",
+                request=request,
+                response=httpx.Response(status_code, request=request),
+            )
+
+    def _json() -> object:
+        if isinstance(payload, Exception):
+            raise payload
+        return payload
+
+    response.raise_for_status = _raise_for_status
+    response.json = _json
+    return response
+
+
+def _fake_client(posted_payloads: list[dict[str, object]], response: SimpleNamespace | None = None):
+    """Return an AsyncClient stand-in that records POSTs."""
+    resolved_response = response if response is not None else _webhook_response()
+
+    class _FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, url: str, json: dict[str, object]):
+            posted_payloads.append({"url": url, "json": json})
+            return resolved_response
+
+    return _FakeClient
+
 
 class _RuntimeStub:
     def __init__(self, output: str = "75", should_fail: bool = False):
@@ -66,29 +118,7 @@ async def test_worker_dispatches_webhook_when_score_changes(
     )
     worker = EngagementScoringWorker(runtime, history_service, engagement_config)
     posted_payloads: list[dict[str, object]] = []
-
-    class _FakeResponse:
-        status_code = 200
-
-        @staticmethod
-        def raise_for_status() -> None:
-            return None
-
-    class _FakeClient:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
-        async def post(self, url: str, json: dict[str, object]):
-            posted_payloads.append({"url": url, "json": json})
-            return _FakeResponse()
-
-    monkeypatch.setattr("src.engagement.worker.httpx.AsyncClient", _FakeClient)
+    monkeypatch.setattr("src.engagement.worker.httpx.AsyncClient", _fake_client(posted_payloads))
 
     worker.schedule(conversation_id="10", user_id="user@example.com", companion_id="2")
     await asyncio.sleep(0.1)
@@ -119,30 +149,13 @@ async def test_worker_skips_webhook_when_score_is_unchanged(
         messages=[MessageRecord(1, 10, "user", "hey", "t", "t")]
     )
     worker = EngagementScoringWorker(runtime, history_service, engagement_config)
-    post_calls: list[dict[str, object]] = []
-
-    class _FakeClient:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
-        async def post(self, url: str, json: dict[str, object]):
-            post_calls.append(json)
-            response = SimpleNamespace(status_code=200)
-            response.raise_for_status = lambda: None
-            return response
-
-    monkeypatch.setattr("src.engagement.worker.httpx.AsyncClient", _FakeClient)
+    posted_payloads: list[dict[str, object]] = []
+    monkeypatch.setattr("src.engagement.worker.httpx.AsyncClient", _fake_client(posted_payloads))
 
     worker.schedule(conversation_id="10", user_id="user@example.com", companion_id="2")
     await asyncio.sleep(0.1)
 
-    assert post_calls == []
+    assert posted_payloads == []
 
 
 @pytest.mark.anyio
@@ -155,30 +168,13 @@ async def test_worker_aborts_on_invalid_llm_output(
         messages=[MessageRecord(1, 10, "user", "hey", "t", "t")]
     )
     worker = EngagementScoringWorker(runtime, history_service, engagement_config)
-    post_calls: list[dict[str, object]] = []
-
-    class _FakeClient:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
-        async def post(self, url: str, json: dict[str, object]):
-            post_calls.append(json)
-            response = SimpleNamespace(status_code=200)
-            response.raise_for_status = lambda: None
-            return response
-
-    monkeypatch.setattr("src.engagement.worker.httpx.AsyncClient", _FakeClient)
+    posted_payloads: list[dict[str, object]] = []
+    monkeypatch.setattr("src.engagement.worker.httpx.AsyncClient", _fake_client(posted_payloads))
 
     worker.schedule(conversation_id="10", user_id="user@example.com", companion_id="2")
     await asyncio.sleep(0.1)
 
-    assert post_calls == []
+    assert posted_payloads == []
     assert state.get_last_score("10") is None
 
 
@@ -208,10 +204,11 @@ async def test_worker_logs_and_continues_on_webhook_request_error(
 
     monkeypatch.setattr("src.engagement.worker.httpx.AsyncClient", _FailingClient)
 
+    state.set_last_score("10", 54)
     worker.schedule(conversation_id="10", user_id="user@example.com", companion_id="2")
     await asyncio.sleep(0.1)
 
-    assert state.get_last_score("10") == 55
+    assert state.get_last_score("10") == 54
 
 
 @pytest.mark.anyio
@@ -241,31 +238,14 @@ async def test_worker_skips_when_no_history_exists(
     runtime = _RuntimeStub(output="55")
     history_service = _HistoryServiceStub(messages=[])
     worker = EngagementScoringWorker(runtime, history_service, engagement_config)
-    post_calls: list[dict[str, object]] = []
-
-    class _FakeClient:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
-        async def post(self, url: str, json: dict[str, object]):
-            post_calls.append(json)
-            response = SimpleNamespace(status_code=200)
-            response.raise_for_status = lambda: None
-            return response
-
-    monkeypatch.setattr("src.engagement.worker.httpx.AsyncClient", _FakeClient)
+    posted_payloads: list[dict[str, object]] = []
+    monkeypatch.setattr("src.engagement.worker.httpx.AsyncClient", _fake_client(posted_payloads))
 
     worker.schedule(conversation_id="10", user_id="user@example.com", companion_id="2")
     await asyncio.sleep(0.1)
 
     assert runtime.requests == []
-    assert post_calls == []
+    assert posted_payloads == []
 
 
 @pytest.mark.anyio
@@ -301,39 +281,21 @@ async def test_worker_uses_random_score_for_mock_backend(
     )
     worker = EngagementScoringWorker(runtime, history_service, engagement_config)
     posted_payloads: list[dict[str, object]] = []
-
-    class _FakeResponse:
-        status_code = 200
-
-        @staticmethod
-        def raise_for_status() -> None:
-            return None
-
-    class _FakeClient:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
-        async def post(self, url: str, json: dict[str, object]):
-            posted_payloads.append(json)
-            return _FakeResponse()
-
     monkeypatch.setattr("src.engagement.worker.random.randint", lambda low, high: 67)
-    monkeypatch.setattr("src.engagement.worker.httpx.AsyncClient", _FakeClient)
+    monkeypatch.setattr("src.engagement.worker.httpx.AsyncClient", _fake_client(posted_payloads))
 
     worker.schedule(conversation_id="10", user_id="user@example.com", companion_id="2")
     await asyncio.sleep(0.1)
 
     assert posted_payloads == [{
-        "user_id": "user@example.com",
-        "ai_companion_id": 2,
-        "engagement_score": 67,
+        "url": "http://backend.test/engagement",
+        "json": {
+            "user_id": "user@example.com",
+            "ai_companion_id": 2,
+            "engagement_score": 67,
+        },
     }]
+    assert state.get_last_score("10") == 67
 
 
 @pytest.mark.anyio
@@ -363,3 +325,96 @@ async def test_worker_shutdown_awaits_pending_jobs() -> None:
 
     await worker.shutdown()
     assert len(worker._tasks) == 0
+
+
+@pytest.mark.anyio
+async def test_worker_does_not_cache_score_when_backend_status_is_not_success(
+    engagement_config: Engagement,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state.set_last_score("10", 54)
+    runtime = _RuntimeStub(output="60")
+    history_service = _HistoryServiceStub(
+        messages=[MessageRecord(1, 10, "user", "hey", "t", "t")]
+    )
+    worker = EngagementScoringWorker(runtime, history_service, engagement_config)
+    posted_payloads: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "src.engagement.worker.httpx.AsyncClient",
+        _fake_client(
+            posted_payloads,
+            _webhook_response(body={"status": "error", "message": "rejected"}),
+        ),
+    )
+
+    worker.schedule(conversation_id="10", user_id="user@example.com", companion_id="2")
+    await asyncio.sleep(0.1)
+
+    assert posted_payloads[0]["json"]["engagement_score"] == 60
+    assert state.get_last_score("10") == 54
+
+
+@pytest.mark.anyio
+async def test_worker_does_not_cache_score_on_http_error(
+    engagement_config: Engagement,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state.set_last_score("10", 54)
+    runtime = _RuntimeStub(output="60")
+    history_service = _HistoryServiceStub(
+        messages=[MessageRecord(1, 10, "user", "hey", "t", "t")]
+    )
+    worker = EngagementScoringWorker(runtime, history_service, engagement_config)
+    posted_payloads: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "src.engagement.worker.httpx.AsyncClient",
+        _fake_client(posted_payloads, _webhook_response(status_code=500)),
+    )
+
+    worker.schedule(conversation_id="10", user_id="user@example.com", companion_id="2")
+    await asyncio.sleep(0.1)
+
+    assert posted_payloads[0]["json"]["engagement_score"] == 60
+    assert state.get_last_score("10") == 54
+
+
+@pytest.mark.anyio
+async def test_worker_retries_undelivered_score_on_next_turn(
+    engagement_config: Engagement,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state.set_last_score("10", 54)
+    runtime = _RuntimeStub(output="60")
+    history_service = _HistoryServiceStub(
+        messages=[MessageRecord(1, 10, "user", "hey", "t", "t")]
+    )
+    worker = EngagementScoringWorker(runtime, history_service, engagement_config)
+    posted_payloads: list[dict[str, object]] = []
+
+    class _FailThenSucceedClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, url: str, json: dict[str, object]):
+            posted_payloads.append({"url": url, "json": json})
+            if len(posted_payloads) == 1:
+                raise httpx.RequestError("network down", request=httpx.Request("POST", url))
+            return _webhook_response()
+
+    monkeypatch.setattr("src.engagement.worker.httpx.AsyncClient", _FailThenSucceedClient)
+
+    worker.schedule(conversation_id="10", user_id="user@example.com", companion_id="2")
+    await asyncio.sleep(0.1)
+    assert state.get_last_score("10") == 54
+
+    worker.schedule(conversation_id="10", user_id="user@example.com", companion_id="2")
+    await asyncio.sleep(0.1)
+
+    assert [item["json"]["engagement_score"] for item in posted_payloads] == [60, 60]
+    assert state.get_last_score("10") == 60
